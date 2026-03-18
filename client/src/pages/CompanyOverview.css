@@ -78,8 +78,8 @@
 }
 
 .co-client-id {
-  background: #e0e7ff;
-  color: #3730a3;
+  background: #e0f2f2;
+  color: #065f5e;
 }
 
 .co-account-code {
@@ -221,11 +221,11 @@
 .co-contact-group h4 {
   margin: 0 0 12px;
   font-size: 14px;
-  color: #4338ca;
+  color: #0a5f5e;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   padding-bottom: 6px;
-  border-bottom: 2px solid #c7d2fe;
+  border-bottom: 2px solid #a8d8d8;
 }
 
 .co-contact-fields {
@@ -247,8 +247,8 @@
 }
 
 .co-input:focus {
-  border-color: #4f46e5;
-  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
+  border-color: #0E7C7B;
+  box-shadow: 0 0 0 2px rgba(14, 124, 123, 0.1);
 }
 
 .co-input.co-changed {
@@ -260,7 +260,7 @@
 /* ===== Buttons ===== */
 .co-edit-btn {
   padding: 8px 20px;
-  background: #4f46e5;
+  background: #0E7C7B;
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -271,7 +271,7 @@
 }
 
 .co-edit-btn:hover {
-  background: #4338ca;
+  background: #0a5f5e;
 }
 
 .co-save-btn {
@@ -319,8 +319,8 @@
 .co-toggle-btn {
   padding: 6px 16px;
   background: #fff;
-  color: #4f46e5;
-  border: 1px solid #4f46e5;
+  color: #0E7C7B;
+  border: 1px solid #0E7C7B;
   border-radius: 8px;
   font-size: 13px;
   cursor: pointer;
@@ -328,14 +328,14 @@
 }
 
 .co-toggle-btn:hover {
-  background: #4f46e5;
+  background: #0E7C7B;
   color: #fff;
 }
 
 /* ===== Invite ===== */
 .co-invite-btn {
   padding: 8px 18px;
-  background: #7c3aed;
+  background: #DC3545;
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -346,7 +346,7 @@
 }
 
 .co-invite-btn:hover {
-  background: #6d28d9;
+  background: #b82e3a;
 }
 
 .co-invite-form {
@@ -354,9 +354,9 @@
   gap: 10px;
   margin-bottom: 16px;
   padding: 16px;
-  background: #f5f3ff;
+  background: #f0f9f9;
   border-radius: 8px;
-  border: 1px solid #ddd6fe;
+  border: 1px solid #b8e4e4;
   align-items: center;
 }
 
@@ -371,7 +371,7 @@
 
 .co-send-invite-btn {
   padding: 8px 20px;
-  background: #7c3aed;
+  background: #DC3545;
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -383,7 +383,7 @@
 }
 
 .co-send-invite-btn:hover:not(:disabled) {
-  background: #6d28d9;
+  background: #b82e3a;
 }
 
 .co-send-invite-btn:disabled {
@@ -421,7 +421,7 @@
 }
 
 .co-table tbody tr:hover {
-  background: #eff6ff;
+  background: #f0f9f9;
 }
 
 .co-date {
@@ -458,16 +458,16 @@
   padding: 5px 12px;
   font-size: 12px;
   border-radius: 6px;
-  border: 1.5px solid #4f46e5;
-  background: #eef2ff;
+  border: 1.5px solid #0E7C7B;
+  background: #e6f4f4;
   cursor: pointer;
   transition: all 0.15s;
-  color: #4f46e5;
+  color: #0E7C7B;
   font-weight: 600;
 }
 
 .co-reset-btn:hover {
-  background: #4f46e5;
+  background: #0E7C7B;
   color: #fff;
 }
 
@@ -531,15 +531,15 @@
 .co-field-badge {
   display: inline-block;
   padding: 2px 8px;
-  background: #e0e7ff;
-  color: #4338ca;
+  background: #e0f2f2;
+  color: #0a5f5e;
   border-radius: 4px;
   font-size: 12px;
   font-weight: 600;
 }
 
 .co-badge-event {
-  background: #dbeafe;
+  background: #e0f2f2;
   color: #2563eb;
 }
 
@@ -575,8 +575,8 @@
 }
 
 .co-page-btn:hover:not(:disabled) {
-  border-color: #4f46e5;
-  color: #4f46e5;
+  border-color: #0E7C7B;
+  color: #0E7C7B;
 }
 
 .co-page-btn:disabled {
@@ -616,12 +616,12 @@
 }
 
 .co-selector-input:focus {
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+  border-color: #0E7C7B;
+  box-shadow: 0 0 0 3px rgba(14, 124, 123, 0.15);
 }
 
 .co-selector-list {
-  max-height: 500px;
+  max-height: calc(100vh - 280px);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -637,8 +637,8 @@
 }
 
 .co-selector-item:hover {
-  border-color: #4f46e5;
-  background: #f5f3ff;
+  border-color: #0E7C7B;
+  background: #f0f9f9;
 }
 
 .co-selector-item-main {
@@ -663,8 +663,8 @@
   font-weight: 600;
   padding: 2px 8px;
   border-radius: 4px;
-  background: #eef2ff;
-  color: #4f46e5;
+  background: #e6f4f4;
+  color: #0E7C7B;
 }
 
 .co-selector-badge-acc {
@@ -704,15 +704,15 @@
   font-size: 13px;
   font-weight: 600;
   border-radius: 6px;
-  border: 1.5px solid #4f46e5;
-  background: #eef2ff;
-  color: #4f46e5;
+  border: 1.5px solid #0E7C7B;
+  background: #e6f4f4;
+  color: #0E7C7B;
   cursor: pointer;
   transition: all 0.15s;
 }
 
 .co-switch-btn:hover {
-  background: #4f46e5;
+  background: #0E7C7B;
   color: #fff;
 }
 
@@ -797,15 +797,15 @@
   font-size: 12px;
   font-weight: 600;
   border-radius: 6px;
-  border: 1.5px solid #4f46e5;
-  background: #eef2ff;
-  color: #4f46e5;
+  border: 1.5px solid #0E7C7B;
+  background: #e6f4f4;
+  color: #0E7C7B;
   cursor: pointer;
   transition: all 0.15s;
 }
 
 .co-epv-edit-btn:hover {
-  background: #4f46e5;
+  background: #0E7C7B;
   color: #fff;
 }
 

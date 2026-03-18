@@ -3,6 +3,13 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
+import EggsBg from './assets/Eggs.png';
+
+document.body.style.backgroundImage = `url(${EggsBg})`;
+document.body.style.backgroundRepeat = 'no-repeat';
+document.body.style.backgroundPosition = 'center center';
+document.body.style.backgroundAttachment = 'fixed';
+document.body.style.backgroundSize = '100% 100%';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(

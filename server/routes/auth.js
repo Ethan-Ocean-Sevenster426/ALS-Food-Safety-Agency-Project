@@ -66,7 +66,7 @@ router.post('/login', async (req, res) => {
       .request()
       .input('email', sql.NVarChar, email)
       .query(
-        `SELECT TOP 1 u.Id, u.FirstName, u.LastName, u.Email, u.PasswordHash, u.Role,
+        `SELECT TOP 1 u.Id, u.FirstName, u.LastName, u.Email, u.PasswordHash, u.Role, ISNULL(u.IsActive, 1) AS IsActive,
                 i.ClientRecordId
          FROM Users u
          LEFT JOIN Invitations i ON LOWER(u.Email) = LOWER(i.Email) AND i.Status = 'Accepted'
@@ -79,6 +79,11 @@ router.post('/login', async (req, res) => {
     }
 
     const user = result.recordset[0];
+
+    if (user.IsActive === false || user.IsActive === 0) {
+      return res.status(403).json({ message: 'Your account has been deactivated. Please contact an administrator.' });
+    }
+
     const isMatch = await bcrypt.compare(password, user.PasswordHash);
 
     if (!isMatch) {
@@ -115,14 +120,14 @@ router.get('/users', async (req, res) => {
     const pool = await getPool();
     const result = await pool.request().query(
       `;WITH UserAllocations AS (
-         SELECT u.Id, u.FirstName, u.LastName, u.Email, u.Role, u.CreatedAt,
+         SELECT u.Id, u.FirstName, u.LastName, u.Email, u.Role, u.CreatedAt, ISNULL(u.IsActive, 1) AS IsActive,
                 c.BusinessName AS AllocatedClient, c.ClientID AS AllocatedClientID,
                 ROW_NUMBER() OVER (PARTITION BY u.Id ORDER BY i.AcceptedAt DESC) AS rn
          FROM Users u
          LEFT JOIN Invitations i ON LOWER(i.Email) = LOWER(u.Email) AND i.Status = 'Accepted'
          LEFT JOIN ConsolidatedMasterAbattoirDatabase c ON i.ClientRecordId = c.Id
        )
-       SELECT Id, FirstName, LastName, Email, Role, CreatedAt, AllocatedClient, AllocatedClientID
+       SELECT Id, FirstName, LastName, Email, Role, CreatedAt, AllocatedClient, AllocatedClientID, IsActive
        FROM UserAllocations
        WHERE rn = 1
        ORDER BY CreatedAt DESC`
@@ -197,6 +202,88 @@ router.put('/users/:id/reset-password', async (req, res) => {
     res.json({ message: 'Password reset successfully.' });
   } catch (err) {
     console.error('Password reset error:', err);
+    res.status(500).json({ message: 'Server error.' });
+  }
+});
+
+// PUT /api/auth/users/:id - edit user details
+router.put('/users/:id', async (req, res) => {
+  const { id } = req.params;
+  const { firstName, lastName, email, role } = req.body;
+
+  if (!firstName || !lastName || !email) {
+    return res.status(400).json({ message: 'First name, last name, and email are required.' });
+  }
+
+  if (role && !VALID_ROLES.includes(role)) {
+    return res.status(400).json({ message: `Invalid role. Must be one of: ${VALID_ROLES.join(', ')}` });
+  }
+
+  try {
+    const pool = await getPool();
+
+    const result = await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .query('SELECT Id, Email FROM Users WHERE Id = @id');
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    // Check if email is taken by another user
+    const emailCheck = await pool.request()
+      .input('email', sql.NVarChar, email)
+      .input('id', sql.Int, parseInt(id))
+      .query('SELECT Id FROM Users WHERE LOWER(Email) = LOWER(@email) AND Id != @id');
+
+    if (emailCheck.recordset.length > 0) {
+      return res.status(409).json({ message: 'Another account with this email already exists.' });
+    }
+
+    await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .input('firstName', sql.NVarChar, firstName)
+      .input('lastName', sql.NVarChar, lastName)
+      .input('email', sql.NVarChar, email)
+      .input('role', sql.NVarChar, role || 'User')
+      .query('UPDATE Users SET FirstName = @firstName, LastName = @lastName, Email = @email, Role = @role WHERE Id = @id');
+
+    res.json({ message: 'User updated successfully.' });
+  } catch (err) {
+    console.error('User update error:', err);
+    res.status(500).json({ message: 'Server error.' });
+  }
+});
+
+// PUT /api/auth/users/:id/deactivate - toggle user active status
+router.put('/users/:id/deactivate', async (req, res) => {
+  const { id } = req.params;
+  const { isActive } = req.body;
+
+  try {
+    const pool = await getPool();
+
+    const result = await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .query('SELECT Id, FirstName, LastName, IsActive FROM Users WHERE Id = @id');
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    const newStatus = typeof isActive === 'boolean' ? isActive : !result.recordset[0].IsActive;
+
+    await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .input('isActive', sql.Bit, newStatus)
+      .query('UPDATE Users SET IsActive = @isActive WHERE Id = @id');
+
+    res.json({
+      message: newStatus ? 'User activated.' : 'User deactivated.',
+      isActive: newStatus,
+    });
+  } catch (err) {
+    console.error('Deactivate error:', err);
     res.status(500).json({ message: 'Server error.' });
   }
 });

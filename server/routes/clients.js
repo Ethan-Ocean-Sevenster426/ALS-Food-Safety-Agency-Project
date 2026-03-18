@@ -4,7 +4,7 @@ const { sql, getPool } = require('../config/db');
 const router = express.Router();
 
 const EDITABLE_FIELDS = [
-  'ClientID', 'BusinessName', 'Email',
+  'ClientID', 'BusinessName', 'AccountCode', 'Email',
   'Town', 'CorporateGroup', 'GroupType', 'FacilityType',
   'CompanyRegNumber', 'PhysicalAddress', 'VATNumber',
   'AbattoirOwnerName', 'AbattoirOwnerCell', 'AbattoirOwnerEmail',
@@ -188,11 +188,7 @@ router.put('/:id', async (req, res) => {
 // DELETE /api/clients/:id - delete a client record
 router.delete('/:id', async (req, res) => {
   const { id } = req.params;
-  const { deletedBy } = req.body;
-
-  if (!deletedBy) {
-    return res.status(400).json({ message: 'deletedBy is required.' });
-  }
+  const deletedBy = (req.body && req.body.deletedBy) || 'Unknown';
 
   try {
     const pool = await getPool();
@@ -208,13 +204,29 @@ router.delete('/:id', async (req, res) => {
 
     const record = current.recordset[0];
 
-    // Remove the foreign key constraint audit logs first, then delete
-    // Log the deletion in the audit log (set RecordId to 0 since record will be gone)
-    // Actually, we need to delete audit logs referencing this record due to FK constraint
-    await pool.request()
-      .input('id', sql.Int, parseInt(id))
+    // Clean up related records that reference this client
+    await pool.request().input('id', sql.Int, parseInt(id))
       .query('DELETE FROM ClientAuditLog WHERE RecordId = @id');
 
+    // Clean up invitations referencing this client
+    try {
+      await pool.request().input('id', sql.Int, parseInt(id))
+        .query('DELETE FROM Invitations WHERE ClientRecordId = @id');
+    } catch (e) { /* table may not exist */ }
+
+    // Clean up EPVs referencing this client
+    try {
+      await pool.request().input('id', sql.Int, parseInt(id))
+        .query('DELETE FROM EggProductionVerifications WHERE ClientRecordId = @id');
+    } catch (e) { /* table may not exist */ }
+
+    // Nullify support tickets referencing this client (don't delete tickets)
+    try {
+      await pool.request().input('id', sql.Int, parseInt(id))
+        .query('UPDATE SupportTickets SET ClientRecordId = NULL WHERE ClientRecordId = @id');
+    } catch (e) { /* table may not exist */ }
+
+    // Delete the client record
     await pool.request()
       .input('id', sql.Int, parseInt(id))
       .query('DELETE FROM ConsolidatedMasterAbattoirDatabase WHERE Id = @id');

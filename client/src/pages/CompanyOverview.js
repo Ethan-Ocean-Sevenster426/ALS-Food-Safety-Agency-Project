@@ -464,7 +464,7 @@ function CompanyOverview() {
       {resetModal && (
         <div className="co-modal-overlay">
           <div className="co-modal">
-            <h3 style={{ color: '#4f46e5' }}>Reset Password</h3>
+            <h3 style={{ color: '#0E7C7B' }}>Reset Password</h3>
             <p>Set a new password for:</p>
             <div className="co-modal-record">
               <strong>{resetModal.FirstName} {resetModal.LastName}</strong><br />

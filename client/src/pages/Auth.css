@@ -7,7 +7,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   padding: 20px;
 }
 
@@ -35,7 +34,7 @@
 .auth-header h2 {
   margin: 4px 0 12px;
   font-size: 18px;
-  color: #667eea;
+  color: #0E7C7B;
   font-weight: 600;
 }
 
@@ -91,8 +90,8 @@
 
 .auth-form input:focus,
 .auth-form select:focus {
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+  border-color: #0E7C7B;
+  box-shadow: 0 0 0 3px rgba(14, 124, 123, 0.15);
 }
 
 .auth-form select,
@@ -121,7 +120,7 @@
 .auth-button {
   width: 100%;
   padding: 13px;
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, #0E7C7B, #DC3545);
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -153,7 +152,7 @@
 }
 
 .auth-switch a {
-  color: #667eea;
+  color: #0E7C7B;
   text-decoration: none;
   font-weight: 600;
 }
@@ -171,7 +170,7 @@
 .auth-link-btn {
   background: none;
   border: none;
-  color: #667eea;
+  color: #0E7C7B;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -184,11 +183,17 @@
 }
 
 .auth-back-link {
-  color: #667eea;
+  color: #0E7C7B;
   font-weight: 600;
   text-decoration: none;
 }
 
 .auth-back-link:hover {
   text-decoration: underline;
+}
+
+.auth-logo {
+  max-width: 200px;
+  height: auto;
+  margin-bottom: 12px;
 }

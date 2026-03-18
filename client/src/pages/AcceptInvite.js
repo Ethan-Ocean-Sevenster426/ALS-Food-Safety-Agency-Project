@@ -4,6 +4,7 @@ import axios from 'axios';
 import './Auth.css';
 import './AcceptInvite.css';
 
+
 const WIZARD_STEPS = [
   {
     title: 'Business Information',
@@ -181,7 +182,7 @@ function AcceptInvite() {
       <div className="auth-container">
         <div className="auth-card">
           <div className="auth-header">
-            <h1>EPVS</h1>
+            <img src="/fsa-logo.png" alt="Food Safety Agency" className="auth-logo" />
             <h2>Invitation</h2>
           </div>
           <div className="auth-error">{loadError}</div>
@@ -197,7 +198,7 @@ function AcceptInvite() {
       <div className="auth-container">
         <div className="auth-card">
           <div className="auth-header">
-            <h1>EPVS</h1>
+            <img src="/fsa-logo.png" alt="Food Safety Agency" className="auth-logo" />
             <h2>Account Created!</h2>
           </div>
           <div className="auth-success">Your account has been created successfully. You can now sign in.</div>
@@ -214,7 +215,7 @@ function AcceptInvite() {
       <div className="auth-container">
         <div className="auth-card wizard-card">
           <div className="auth-header">
-            <h1>EPVS</h1>
+            <img src="/fsa-logo.png" alt="Food Safety Agency" className="auth-logo" />
             <h2>Verify Business Details</h2>
             <p>Step {wizardStep + 1} of {WIZARD_STEPS.length}: {currentStep.title}</p>
           </div>
@@ -265,10 +266,10 @@ function AcceptInvite() {
     <div className="auth-container">
       <div className="auth-card">
         <div className="auth-header">
-          <h1>EPVS</h1>
+          <img src="/fsa-logo.png" alt="Food Safety Agency" className="auth-logo" />
           <h2>Accept Invitation</h2>
           <p>
-            You've been invited to join as <strong style={{ color: '#7c3aed' }}>{invite.Role}</strong>
+            You've been invited to join as <strong style={{ color: '#DC3545' }}>{invite.Role}</strong>
             {' '}for <strong>{invite.BusinessName}</strong>
           </p>
         </div>

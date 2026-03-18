@@ -1,70 +1,390 @@
-.dashboard-container {
-  min-height: 100vh;
-  background: #f5f7fb;
+/* ===== Page ===== */
+.dash-page {
+  max-width: 1280px;
 }
 
-.dashboard-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #fff;
-  padding: 16px 30px;
+/* ===== Welcome Card ===== */
+.dash-welcome {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  align-items: center;
+  margin-bottom: 20px;
 }
 
-.dashboard-header h1 {
+.dash-welcome h2 {
+  margin: 0 0 4px;
+  font-size: 22px;
+  color: #1e293b;
+}
+
+.dash-welcome p {
   margin: 0;
-  font-size: 20px;
-  font-weight: 700;
+  color: #6b7280;
+  font-size: 15px;
 }
 
-.header-right {
+.dash-role-badge {
+  padding: 6px 16px;
+  background: #e0f2f2;
+  color: #0E7C7B;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* ===== Top Stats Grid ===== */
+.dash-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.dash-stat-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
   display: flex;
   align-items: center;
+  gap: 18px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid transparent;
+}
+
+.dash-stat-card:hover {
+  border-color: #0E7C7B;
+  box-shadow: 0 4px 20px rgba(14, 124, 123, 0.12);
+  transform: translateY(-2px);
+}
+
+.dash-stat-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dash-stat-users {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.dash-stat-clients {
+  background: #d1fae5;
+  color: #059669;
+}
+
+.dash-stat-epv {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.dash-stat-tickets {
+  background: #e0f2f2;
+  color: #0E7C7B;
+}
+
+.dash-stat-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.dash-stat-number {
+  font-size: 28px;
+  font-weight: 800;
+  color: #1e293b;
+  line-height: 1;
+}
+
+.dash-stat-label {
+  font-size: 14px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.dash-stat-sub {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-top: 2px;
+}
+
+/* ===== Secondary Stats ===== */
+.dash-secondary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.dash-breakdown-card h3 {
+  margin: 0 0 16px;
+  font-size: 16px;
+  color: #1e293b;
+}
+
+/* Role Breakdown */
+.dash-role-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dash-role-item {
+  display: grid;
+  grid-template-columns: 120px 30px 1fr;
+  align-items: center;
+  gap: 10px;
+}
+
+.dash-role-name {
+  font-size: 13px;
+  color: #374151;
+  font-weight: 500;
+}
+
+.dash-role-count {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e293b;
+  text-align: right;
+}
+
+.dash-role-bar {
+  height: 8px;
+  background: #f3f4f6;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.dash-role-bar-fill {
+  height: 100%;
+  background: #0E7C7B;
+  border-radius: 4px;
+  min-width: 4px;
+  transition: width 0.5s ease;
+}
+
+/* Client Verification */
+.dash-donut-stats {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 10px 0;
+}
+
+.dash-donut-item {
+  flex: 1;
+  text-align: center;
+}
+
+.dash-donut-divider {
+  width: 1px;
+  height: 50px;
+  background: #e5e7eb;
+}
+
+.dash-donut-number {
+  display: block;
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.dash-donut-label {
+  display: block;
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 6px;
+}
+
+.dash-color-green { color: #16a34a; }
+.dash-color-amber { color: #d97706; }
+.dash-color-blue { color: #2563eb; }
+.dash-color-gray { color: #9ca3af; }
+
+/* Ticket Breakdown */
+.dash-ticket-breakdown {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  padding: 6px 0;
+}
+
+.dash-ticket-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.dash-ticket-num {
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.dash-ticket-stat span:last-child {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+/* ===== Recent Activity ===== */
+.dash-recent-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 16px;
 }
 
-.welcome-text {
-  font-size: 14px;
-  opacity: 0.9;
-}
-
-.logout-button {
-  background: rgba(255, 255, 255, 0.2);
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  padding: 8px 18px;
-  border-radius: 6px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.logout-button:hover {
-  background: rgba(255, 255, 255, 0.3);
-}
-
-.dashboard-main {
-  padding: 30px;
-  max-width: 1000px;
-  margin: 0 auto;
-}
-
-.dashboard-welcome {
-  background: #fff;
-  border-radius: 12px;
-  padding: 30px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
-}
-
-.dashboard-welcome h2 {
-  margin: 0 0 10px;
-  color: #333;
-}
-
-.dashboard-welcome p {
+.dash-recent-card h3 {
   margin: 0;
-  color: #666;
   font-size: 16px;
+  color: #1e293b;
+}
+
+.dash-recent-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.dash-view-all {
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1.5px solid #0E7C7B;
+  background: #e6f4f4;
+  color: #0E7C7B;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.dash-view-all:hover {
+  background: #0E7C7B;
+  color: #fff;
+}
+
+/* ===== Tables ===== */
+.dash-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.dash-table thead {
+  background: #f1f5f9;
+}
+
+.dash-table th {
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: #475569;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.dash-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #374151;
+}
+
+.dash-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.dash-clickable {
+  cursor: pointer;
+}
+
+.dash-clickable:hover {
+  background: #f0f9f9 !important;
+}
+
+.dash-name {
+  font-weight: 600;
+  color: #1f2937;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dash-date {
+  color: #9ca3af;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.dash-ticket-id {
+  font-weight: 700;
+  color: #0E7C7B;
+}
+
+.dash-role-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.dash-empty {
+  text-align: center;
+  color: #9ca3af;
+  padding: 20px;
+  font-size: 14px;
+}
+
+/* ===== Priority & Status Badges ===== */
+.dash-priority, .dash-status {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.dash-priority-low { background: #f3f4f6; color: #6b7280; }
+.dash-priority-medium { background: #dbeafe; color: #1e40af; }
+.dash-priority-high { background: #fed7aa; color: #c2410c; }
+.dash-priority-urgent { background: #fee2e2; color: #dc2626; }
+
+.dash-status-open { background: #dbeafe; color: #1e40af; }
+.dash-status-progress { background: #fef3c7; color: #a16207; }
+.dash-status-resolved { background: #d1fae5; color: #065f46; }
+.dash-status-closed { background: #f3f4f6; color: #6b7280; }
+
+/* ===== Responsive ===== */
+@media (max-width: 1024px) {
+  .dash-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .dash-secondary-grid {
+    grid-template-columns: 1fr;
+  }
+  .dash-recent-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .dash-stats-grid {
+    grid-template-columns: 1fr;
+  }
 }

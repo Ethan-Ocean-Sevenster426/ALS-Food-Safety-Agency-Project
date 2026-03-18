@@ -12,6 +12,7 @@ import CompanyOverview from './pages/CompanyOverview';
 import ResetPassword from './pages/ResetPassword';
 import AcceptInvite from './pages/AcceptInvite';
 import EPVForm from './pages/EPVForm';
+import Support from './pages/Support';
 import AppLayout from './components/AppLayout';
 
 function PrivateRoute({ children }) {
@@ -51,13 +52,14 @@ function App() {
             </PrivateRoute>
           }
         >
-          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard" element={<AdminRoute><Dashboard /></AdminRoute>} />
           <Route path="/production" element={<Production />} />
           <Route path="/inventory" element={<Inventory />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/clients" element={<AdminRoute><ClientAllocation /></AdminRoute>} />
           <Route path="/company" element={<CompanyOverview />} />
+          <Route path="/support" element={<Support />} />
         </Route>
         <Route path="*" element={<PrivateRoute><DefaultRedirect /></PrivateRoute>} />
       </Routes>

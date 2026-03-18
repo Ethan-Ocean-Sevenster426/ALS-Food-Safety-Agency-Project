@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import './EPVForm.css';
 
+
 const LEVY_RATE = 0.018;
 
 const MONTH_NAMES = [
@@ -176,7 +177,7 @@ function EPVForm() {
       <div className="epv-container">
         <div className="epv-card">
           <div className="epv-brand">
-            <h1>EPVS</h1>
+            <img src="/fsa-logo.png" alt="Food Safety Agency" className="epv-logo" />
             <p>Egg Production Verification System</p>
           </div>
           <p className="epv-error">{error}</p>
@@ -194,7 +195,7 @@ function EPVForm() {
       <div className="epv-container">
         <div className="epv-card">
           <div className="epv-brand">
-            <h1>EPVS</h1>
+            <img src="/fsa-logo.png" alt="Food Safety Agency" className="epv-logo" />
             <p>Egg Production Verification System</p>
           </div>
           <div className="epv-success-box">
@@ -220,7 +221,7 @@ function EPVForm() {
     <div className="epv-container">
       <div className="epv-card epv-wide">
         <div className="epv-brand">
-          <h1>EPVS</h1>
+          <img src="/fsa-logo.png" alt="Food Safety Agency" className="epv-logo" />
           <p>Egg Production Verification System</p>
         </div>
 

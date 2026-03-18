@@ -1,7 +1,7 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
 import Navbar from './Navbar';
-
+import SupportButton from './SupportButton';
 function AppLayout() {
   return (
     <div className="app-layout">
@@ -9,6 +9,7 @@ function AppLayout() {
       <main className="app-content">
         <Outlet />
       </main>
+      <SupportButton />
     </div>
   );
 }

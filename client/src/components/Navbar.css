@@ -1,5 +1,5 @@
 .navbar {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: rgb(30, 41, 59);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
 }
 
@@ -11,12 +11,27 @@
 }
 
 .navbar-brand {
+  display: flex;
+  align-items: center;
   margin: 0;
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 800;
   color: #fff;
   letter-spacing: 1px;
   margin-right: 40px;
+  text-decoration: none;
+}
+
+.navbar-logo {
+  height: 38px;
+  width: auto;
+  margin-right: 10px;
+}
+
+.navbar-brand span {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 1px;
 }
 
 .navbar-links {

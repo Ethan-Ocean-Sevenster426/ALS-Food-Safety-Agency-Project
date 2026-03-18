@@ -1,5 +1,5 @@
 .settings-page .page-card {
-  max-width: 900px;
+  max-width: 1200px;
 }
 
 .settings-subtitle {
@@ -23,8 +23,8 @@
 }
 
 .role-admin {
-  background: #e0e7ff;
-  color: #3730a3;
+  background: #e0f2f2;
+  color: #065f5e;
 }
 
 .role-company-admin {
@@ -35,6 +35,34 @@
 .role-user {
   background: #f3f4f6;
   color: #374151;
+}
+
+/* ===== Status Badges ===== */
+.status-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.status-active {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.status-inactive {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* ===== Inactive Row ===== */
+.user-inactive-row {
+  opacity: 0.55;
+}
+
+.user-inactive-row:hover {
+  opacity: 0.85;
 }
 
 /* ===== Role Select ===== */
@@ -50,7 +78,7 @@
 }
 
 .role-select:focus {
-  border-color: #4f46e5;
+  border-color: #0E7C7B;
 }
 
 .role-select:disabled {
@@ -64,8 +92,8 @@
 }
 
 .role-select.role-admin {
-  background: #e0e7ff;
-  color: #3730a3;
+  background: #e0f2f2;
+  color: #065f5e;
 }
 
 .role-select.role-company-admin {
@@ -96,15 +124,16 @@
 }
 
 .settings-table th {
-  padding: 10px 16px;
+  padding: 10px 14px;
   text-align: left;
   font-weight: 600;
   color: #1f2937;
   border: 1px solid #9ca3af;
+  white-space: nowrap;
 }
 
 .settings-table td {
-  padding: 10px 16px;
+  padding: 10px 14px;
   border: 1px solid #d1d5db;
   color: #4b5563;
 }
@@ -118,7 +147,7 @@
 }
 
 .settings-table tbody tr:hover {
-  background: #dbeafe;
+  background: #e0f2f2;
 }
 
 .settings-date {
@@ -139,10 +168,16 @@
   color: #1f2937;
 }
 
+.settings-client-id {
+  display: block;
+  font-size: 11px;
+  color: #9ca3af;
+  margin-top: 2px;
+}
+
 .settings-no-allocation {
   font-size: 13px;
   color: #9ca3af;
-  font-style: italic;
 }
 
 /* ===== Profile Info ===== */
@@ -165,9 +200,16 @@
   min-width: 80px;
 }
 
-/* ===== Delete Button ===== */
+/* ===== Action Buttons ===== */
+.settings-actions-cell {
+  display: flex;
+  gap: 6px;
+  white-space: nowrap;
+  flex-wrap: nowrap;
+}
+
 .settings-delete-btn {
-  padding: 5px 12px;
+  padding: 5px 10px;
   font-size: 12px;
   border-radius: 6px;
   border: 1px solid #d1d5db;
@@ -184,6 +226,70 @@
 }
 
 .settings-delete-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* Edit Button */
+.settings-edit-btn {
+  padding: 5px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1.5px solid #3b82f6;
+  background: #eff6ff;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: #3b82f6;
+  font-weight: 600;
+}
+
+.settings-edit-btn:hover {
+  background: #3b82f6;
+  color: #fff;
+}
+
+/* Deactivate Button */
+.settings-deactivate-btn {
+  padding: 5px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1.5px solid #d97706;
+  background: #fffbeb;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: #d97706;
+  font-weight: 600;
+}
+
+.settings-deactivate-btn:hover:not(:disabled) {
+  background: #d97706;
+  color: #fff;
+}
+
+.settings-deactivate-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* Activate Button */
+.settings-activate-btn {
+  padding: 5px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1.5px solid #16a34a;
+  background: #f0fdf4;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.settings-activate-btn:hover:not(:disabled) {
+  background: #16a34a;
+  color: #fff;
+}
+
+.settings-activate-btn:disabled {
   opacity: 0.3;
   cursor: not-allowed;
 }
@@ -205,7 +311,7 @@
   font-size: 14px;
 }
 
-/* ===== Delete Modal ===== */
+/* ===== Modals ===== */
 .settings-modal-overlay {
   position: fixed;
   top: 0;
@@ -223,7 +329,7 @@
   background: #fff;
   border-radius: 12px;
   padding: 30px;
-  max-width: 440px;
+  max-width: 480px;
   width: 90%;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
 }
@@ -278,6 +384,38 @@
   background: #b91c1c;
 }
 
+.settings-deactivate-confirm {
+  padding: 8px 20px;
+  background: #d97706;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.settings-deactivate-confirm:hover {
+  background: #b45309;
+}
+
+.settings-activate-confirm {
+  padding: 8px 20px;
+  background: #16a34a;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.settings-activate-confirm:hover {
+  background: #15803d;
+}
+
 .settings-cancel-btn {
   padding: 8px 20px;
   border: 1px solid #d1d5db;
@@ -294,26 +432,20 @@
 }
 
 /* ===== Reset Password ===== */
-.settings-actions-cell {
-  display: flex;
-  gap: 6px;
-  white-space: nowrap;
-}
-
 .settings-reset-btn {
-  padding: 5px 12px;
+  padding: 5px 10px;
   font-size: 12px;
   border-radius: 6px;
-  border: 1.5px solid #4f46e5;
-  background: #eef2ff;
+  border: 1.5px solid #0E7C7B;
+  background: #e6f4f4;
   cursor: pointer;
   transition: all 0.15s;
-  color: #4f46e5;
+  color: #0E7C7B;
   font-weight: 600;
 }
 
 .settings-reset-btn:hover {
-  background: #4f46e5;
+  background: #0E7C7B;
   color: #fff;
 }
 
@@ -328,13 +460,13 @@
 }
 
 .settings-reset-input:focus {
-  border-color: #4f46e5;
-  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
+  border-color: #0E7C7B;
+  box-shadow: 0 0 0 2px rgba(14, 124, 123, 0.1);
 }
 
 .settings-reset-confirm {
   padding: 8px 20px;
-  background: #4f46e5;
+  background: #0E7C7B;
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -345,10 +477,43 @@
 }
 
 .settings-reset-confirm:hover:not(:disabled) {
-  background: #4338ca;
+  background: #0a5f5e;
 }
 
 .settings-reset-confirm:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* ===== Edit User Form ===== */
+.settings-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 16px 0;
+}
+
+.settings-edit-row label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 4px;
+}
+
+.settings-edit-select {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  box-sizing: border-box;
+  background: #fff;
+  cursor: pointer;
+}
+
+.settings-edit-select:focus {
+  border-color: #0E7C7B;
+  box-shadow: 0 0 0 2px rgba(14, 124, 123, 0.1);
 }

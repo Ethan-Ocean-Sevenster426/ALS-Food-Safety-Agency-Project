@@ -1,6 +1,6 @@
 # Egg Production Verification System (EPVS)
 
-A full-stack web application for managing egg production facilities, client allocations, user invitations, and statutory levy verifications. Built for ALS Food Safety Agency.
+A full-stack web application for managing egg production facilities, client allocations, user invitations, support tickets, and statutory levy verifications. Built for ALS Food Safety Agency.
 
 ---
 
@@ -21,25 +21,27 @@ A full-stack web application for managing egg production facilities, client allo
 
 ```
 ├── client/                         # React frontend (Create React App)
+│   ├── public/
+│   │   └── index.html              # Favicon (fsa-logo.png), title "EPVS"
 │   └── src/
 │       ├── App.js                  # Root component — routing & auth guards
 │       ├── components/
-│       │   ├── AppLayout.js        # Shared layout (Navbar + <Outlet />)
+│       │   ├── AppLayout.js        # Shared layout (Navbar + SupportButton + <Outlet />)
 │       │   ├── Navbar.js           # Top navigation bar (role-aware)
-│       │   └── Navbar.css
+│       │   ├── Navbar.css
+│       │   ├── SupportButton.js    # Floating support ticket button (bottom-right)
+│       │   └── SupportButton.css
 │       └── pages/
 │           ├── Login.js            # Email/password login + forgot password
 │           ├── Signup.js           # Self-registration form
 │           ├── ResetPassword.js    # Token-based password reset
 │           ├── AcceptInvite.js     # Invitation acceptance + wizard for Company Admins
-│           ├── Dashboard.js        # Welcome page (placeholder — needs backend)
-│           ├── Production.js       # Placeholder — needs backend
-│           ├── Inventory.js        # Placeholder — needs backend
-│           ├── Reports.js          # Placeholder — needs backend
-│           ├── Settings.js         # User profile + admin user management table
+│           ├── Dashboard.js        # Analytics dashboard (stats, charts, recent activity)
+│           ├── Settings.js         # User Management — user table, edit, deactivate, reset
 │           ├── ClientAllocation.js # Master abattoir database CRUD + audit log
 │           ├── CompanyOverview.js  # Per-company detail view, users, invites, EPVs
 │           ├── EPVForm.js          # 3-step egg production verification wizard
+│           ├── Support.js          # Support ticket list, detail view, comments, admin controls
 │           ├── Auth.css            # Shared login/signup/reset styles
 │           ├── PageStyles.css      # Shared page layout styles
 │           └── *.css               # Page-specific CSS files
@@ -50,11 +52,13 @@ A full-stack web application for managing egg production facilities, client allo
 │   ├── config/
 │   │   └── db.js                   # MSSQL connection pool (singleton)
 │   ├── routes/
-│   │   ├── auth.js                 # Signup, login, password reset, user CRUD
+│   │   ├── auth.js                 # Signup, login, password reset, user CRUD, edit, deactivate
 │   │   ├── clients.js              # Client allocation CRUD + audit log
 │   │   ├── invites.js              # Invitation send/accept flow
 │   │   ├── company.js              # Company overview + per-company user/invite mgmt
-│   │   └── epv.js                  # Egg production verification send/submit/list
+│   │   ├── epv.js                  # Egg production verification send/submit/list
+│   │   ├── support.js              # Support tickets CRUD, comments, email notifications
+│   │   └── dashboard.js            # Dashboard analytics endpoint
 │   ├── services/
 │   │   └── emailService.js         # Nodemailer transport (Gmail OAuth2)
 │   └── scripts/
@@ -114,7 +118,7 @@ cd server
 npm run init-db
 ```
 
-This creates the database and `Users` table, and seeds a default Super Admin account:
+This creates the database and all core tables (Users, SupportTicketCategories, SupportTickets, SupportTicketComments), seeds support categories, and creates a default Super Admin account:
 - **Email:** `anthony@epvs.com`
 - **Password:** `StrongPassword123!`
 
@@ -153,9 +157,10 @@ All routing is defined in `App.js` using React Router v7. There are three types 
    - `/reset-password/:token` — password reset
    - `/epv/:token` — EPV form (accessible via email link)
 
-2. **Protected routes** — wrapped in `<PrivateRoute>` which checks `localStorage` for a JWT token. These render inside `<AppLayout>` (Navbar + content area):
-   - `/dashboard`, `/production`, `/inventory`, `/reports`, `/settings`, `/company`
+2. **Protected routes** — wrapped in `<PrivateRoute>` which checks `localStorage` for a JWT token. These render inside `<AppLayout>` (Navbar + SupportButton + content area):
+   - `/dashboard` — additionally wrapped in `<AdminRoute>` (Super Admin/Admin only)
    - `/clients` — additionally wrapped in `<AdminRoute>` (Super Admin/Admin only)
+   - `/company`, `/settings`, `/support`
 
 3. **Default redirect** — `/*` redirects based on role:
    - Company Admin / User → `/company`
@@ -167,42 +172,48 @@ All routing is defined in `App.js` using React Router v7. There are three types 
 <AppLayout>           ← components/AppLayout.js
   <Navbar />          ← Top bar with role-aware nav links
   <Outlet />          ← Current page renders here
+  <SupportButton />   ← Floating ticket button (bottom-right corner)
 </AppLayout>
 ```
 
 - **AppLayout** uses React Router's `<Outlet>` for nested route rendering
 - **Navbar** reads the user object from `localStorage` and shows different links based on role
+- **SupportButton** is a floating teal button on every authenticated page for quick ticket logging
 
 ### Role-Based UI
 
 There are 4 roles: `Super Admin`, `Admin`, `Company Admin`, `User`
 
-| Feature                    | Super Admin | Admin | Company Admin | User |
-| -------------------------- | :---------: | :---: | :-----------: | :--: |
-| Dashboard                  |      Y      |   Y   |       -       |  -   |
-| Production / Inventory     |      Y      |   Y   |       -       |  -   |
-| Reports                    |      Y      |   Y   |       -       |  -   |
-| Client Allocation (CRUD)   |      Y      |   Y   |       -       |  -   |
-| Company Overview           |      Y      |   Y   |       Y       |  Y   |
-| Settings (user mgmt)       |      Y      |   Y   |       -       |  -   |
-| Edit company details       |      Y      |   Y   |       Y       |  -   |
-| Reset passwords            |      Y      |   -   |       Y       |  -   |
-| Invite users to company    |      Y      |   Y   |       Y       |  -   |
-| Send EPV                   |      Y      |   Y   |       -       |  -   |
-| Complete/view EPV          |      Y      |   Y   |       Y       |  Y   |
+| Feature                              | Super Admin | Admin | Company Admin | User |
+| ------------------------------------ | :---------: | :---: | :-----------: | :--: |
+| Dashboard (analytics)                |      Y      |   Y   |       -       |  -   |
+| Client Allocation (CRUD)             |      Y      |   Y   |       -       |  -   |
+| Company Overview                     |      Y      |   Y   |       Y       |  Y   |
+| User Management                      |      Y      |   Y   |       -       |  -   |
+| Support (all tickets)                |      Y      |   -   |       -       |  -   |
+| Support (Administration tickets)     |      Y      |   Y   |       -       |  -   |
+| Support (own company tickets)        |      -      |   -   |       Y       |  Y   |
+| Edit company details                 |      Y      |   Y   |       Y       |  -   |
+| Edit/Deactivate users                |      Y      |   Y   |       -       |  -   |
+| Reset passwords                      |      Y      |   -   |       Y       |  -   |
+| Invite users to company              |      Y      |   Y   |       Y       |  -   |
+| Send EPV                             |      Y      |   Y   |       -       |  -   |
+| Complete/view EPV                    |      Y      |   Y   |       Y       |  Y   |
 
 ### Authentication Pattern
 
 - On login, the server returns a JWT and a user object
 - Both are stored in `localStorage` as `token` and `user`
+- Deactivated users are blocked at login with a 403 response
 - Every API call uses `axios` with the base URL `http://localhost:5000`
 - **Note:** There is no axios interceptor or auth header middleware yet — most routes are currently unprotected on the backend. This is something to add.
 
 ### Styling Approach
 
-- Each page has its own CSS file (e.g., `ClientAllocation.css`, `EPVForm.css`)
+- Each page has its own CSS file (e.g., `ClientAllocation.css`, `Support.css`)
 - Shared styles live in `Auth.css` (login/signup pages) and `PageStyles.css` (generic page container/card)
 - No CSS framework — all custom CSS with CSS variables for colors
+- FSA brand colors: Teal `#0E7C7B`, Red `#DC3545`, Dark navbar `rgb(30, 41, 59)`
 - Common patterns: `.page-container` > `.page-card` for content sections
 
 ### State Management
@@ -217,7 +228,8 @@ There are 4 roles: `Super Admin`, `Admin`, `Company Admin`, `User`
 
 ### Login (`/login`)
 - Email/password form with "Forgot password?" toggle
-- On success: stores JWT + user object in localStorage, redirects to dashboard
+- Blocks deactivated users with a clear error message
+- On success: stores JWT + user object in localStorage, redirects to dashboard (or company for Company Admin/User)
 - API: `POST /api/auth/login`, `POST /api/auth/forgot-password`
 
 ### Signup (`/signup`)
@@ -234,60 +246,87 @@ There are 4 roles: `Super Admin`, `Admin`, `Company Admin`, `User`
 - Token-based password reset form (accessed via email link)
 - API: `POST /api/auth/reset-password/:token`
 
-### Dashboard (`/dashboard`)
-- Placeholder page — shows welcome message with user's name
-- **Needs backend work:** production stats, charts, summaries
+### Dashboard (`/dashboard`) — Admin only
+- Analytics overview with 4 stat cards: Total Users, Total Clients, EPVs This Month, Open Tickets
+- Users by Role breakdown with visual bar chart
+- Client Verification stats (verified vs unverified)
+- Ticket Overview (open/in-progress/closed counts)
+- Recent Users and Recent Tickets tables
+- All cards are clickable, navigating to relevant pages
+- API: `GET /api/dashboard/stats`
 
-### Production (`/production`)
-- Placeholder — "Track and manage daily egg production records."
-- **Needs backend:** daily production data entry and tracking
-
-### Inventory (`/inventory`)
-- Placeholder — "Monitor egg stock levels, batches, and storage details."
-- **Needs backend:** stock management, batch tracking
-
-### Reports (`/reports`)
-- Placeholder — "View production summaries, trends, and verification reports."
-- **Needs backend:** report generation, data aggregation
-
-### Settings (`/settings`)
+### User Management (`/settings`)
 - Shows current user's profile (name, email, role)
-- **Admin-only section:** user management table with role editing, password reset, delete
-- API: `GET /api/auth/users`, `PUT /api/auth/users/:id/role`, `PUT /api/auth/users/:id/reset-password`, `DELETE /api/auth/users/:id`
+- **Admin-only section:** user management table with:
+  - Status column (Active/Inactive badges)
+  - Company association column (business name + client ID)
+  - Edit user modal (name, email, role)
+  - Deactivate/Activate toggle with confirmation
+  - Reset password, Delete user
+- API: `GET /api/auth/users`, `PUT /api/auth/users/:id`, `PUT /api/auth/users/:id/role`, `PUT /api/auth/users/:id/deactivate`, `PUT /api/auth/users/:id/reset-password`, `DELETE /api/auth/users/:id`
 
 ### Client Allocation (`/clients`) — Admin only
 - Full CRUD table for the "Consolidated Master Abattoir Database"
 - Features: search, pagination (50/page), inline editing with change tracking, expandable detail rows (owner/accounts/manager contacts), add new record, delete with confirmation, audit/change log viewer
 - Send Invite and Send EPV buttons per row
+- Delete handles cleanup of related records (invitations, EPVs, audit log, support tickets)
 - API: `GET /api/clients`, `POST /api/clients`, `PUT /api/clients/:id`, `DELETE /api/clients/:id`, `GET /api/clients/audit-log`
 
 ### Company Overview (`/company`)
-- **For Admins:** company selector → pick a business to view
+- **For Admins:** company selector dropdown (extends to bottom of screen) → pick a business to view
 - **For Company users:** auto-loads their linked company
 - Sections: company header with stats, editable company details, user list with invite/remove/reset, change log, EPV list with status tracking
 - API: `GET /api/company/:id`, `PUT /api/company/:id`, `GET /api/company/:id/users`, `POST /api/company/:id/invite`, `DELETE /api/company/:id/users/:userId`, `GET /api/company/:id/audit-log`
 
 ### EPV Form (`/epv/:token`)
 - 3-step wizard: (1) Business Details → (2) Egg Calculation → (3) Review & Submit
-- Calculates: Total Stock (B), Deductions (C), Sales (D), Levy Amount (D x R0.018), Closing Stock
+- Calculates: Total Stock (B), Deductions (C), Sales (D), Levy Amount (D × R0.018), Closing Stock
 - Can be accessed via direct link (from email) or from Company Overview
 - API: `GET /api/epv/token/:token`, `PUT /api/epv/token/:token/submit`
+
+### Support (`/support`)
+- Full support ticket system with search, filters (status, priority, issue type)
+- Ticket detail view with comments thread
+- Admin controls: change status, priority, assign to admin users
+- **Visibility rules:**
+  - Super Admin — sees all tickets
+  - Admin — sees Administration-category tickets only
+  - Company Admin/User — sees only their company's tickets
+- **Email notifications:** ticket created (with ref #), comment added (with comment text), ticket closed (resolution notice)
+- **Floating SupportButton** on every authenticated page for quick ticket creation
+- API: `GET /api/support/categories`, `POST /api/support/tickets`, `GET /api/support/tickets`, `GET /api/support/tickets/:id`, `PUT /api/support/tickets/:id`, `POST /api/support/tickets/:id/comments`
+
+### Support Ticket Categories
+
+| Category                        | Access              |
+| ------------------------------- | ------------------- |
+| Access/Permission Issue         | Admin + Super Admin |
+| Administration                  | Admin + Super Admin |
+| Question/Help                   | Admin + Super Admin |
+| Report Generation/Export Issue  | Super Admin only    |
+| Data Import/Export Issue        | Admin + Super Admin |
+| Feature Request                 | Super Admin only    |
+| Performance/Speed Issue         | Super Admin only    |
+| System Error/Bug                | Super Admin only    |
+| Other                           | Admin + Super Admin |
 
 ---
 
 ## API Routes Summary
 
 ### Auth (`/api/auth`)
-| Method | Endpoint                    | Description                  |
-| ------ | --------------------------- | ---------------------------- |
-| POST   | `/signup`                   | Create new user              |
-| POST   | `/login`                    | Login, returns JWT + user    |
-| GET    | `/users`                    | List all users (admin)       |
-| PUT    | `/users/:id/role`           | Update user role             |
-| PUT    | `/users/:id/reset-password` | Reset user password (admin)  |
-| DELETE | `/users/:id`                | Delete user                  |
-| POST   | `/forgot-password`          | Send reset email             |
-| POST   | `/reset-password/:token`    | Reset password via token     |
+| Method | Endpoint                    | Description                        |
+| ------ | --------------------------- | ---------------------------------- |
+| POST   | `/signup`                   | Create new user                    |
+| POST   | `/login`                    | Login, returns JWT + user          |
+| GET    | `/users`                    | List all users (admin)             |
+| PUT    | `/users/:id`                | Edit user (name, email, role)      |
+| PUT    | `/users/:id/role`           | Update user role                   |
+| PUT    | `/users/:id/deactivate`     | Toggle user active/inactive status |
+| PUT    | `/users/:id/reset-password` | Reset user password (admin)        |
+| DELETE | `/users/:id`                | Delete user                        |
+| POST   | `/forgot-password`          | Send reset email                   |
+| POST   | `/reset-password/:token`    | Reset password via token           |
 
 ### Clients (`/api/clients`)
 | Method | Endpoint      | Description                          |
@@ -295,7 +334,7 @@ There are 4 roles: `Super Admin`, `Admin`, `Company Admin`, `User`
 | GET    | `/`           | List clients (paginated, searchable) |
 | POST   | `/`           | Create new client                    |
 | PUT    | `/:id`        | Update client fields                 |
-| DELETE | `/:id`        | Delete client                        |
+| DELETE | `/:id`        | Delete client + cleanup related data |
 | GET    | `/audit-log`  | Client change audit log              |
 
 ### Invites (`/api/invites`)
@@ -323,27 +362,43 @@ There are 4 roles: `Super Admin`, `Admin`, `Company Admin`, `User`
 | PUT    | `/token/:token/submit`  | Submit completed verification     |
 | GET    | `/company/:id`          | List verifications for a company  |
 
+### Support (`/api/support`)
+| Method | Endpoint              | Description                                    |
+| ------ | --------------------- | ---------------------------------------------- |
+| GET    | `/categories`         | List active support ticket categories           |
+| POST   | `/tickets`            | Create a ticket (sends confirmation email)      |
+| GET    | `/tickets`            | List tickets (role-filtered)                    |
+| GET    | `/tickets/:id`        | Get ticket detail with comments                 |
+| PUT    | `/tickets/:id`        | Update ticket (status, priority, assignee)      |
+| POST   | `/tickets/:id/comments` | Add comment (sends notification email)        |
+
+### Dashboard (`/api/dashboard`)
+| Method | Endpoint  | Description                                              |
+| ------ | --------- | -------------------------------------------------------- |
+| GET    | `/stats`  | Aggregated stats: users, clients, EPVs, tickets, recent activity |
+
 ---
 
 ## Database Tables
 
 Created by `initDb.js` and the scripts in `server/scripts/`:
 
-- **Users** — user accounts (Id, FirstName, LastName, Email, PasswordHash, Role, CreatedAt)
+- **Users** — user accounts (Id, FirstName, LastName, Email, PasswordHash, Role, IsActive, CreatedAt)
 - **ConsolidatedMasterAbattoirDatabase** — client/facility records with extensive contact fields
-- **ClientAllocationAuditLog** — change history for client records
+- **ClientAuditLog** — change history for client records
 - **Invitations** — invitation tokens linking users to client records
 - **EggProductionVerifications** — monthly EPV submissions with full calculation data
+- **SupportTicketCategories** — ticket issue types with CategoryType (IT/Administration) and SortOrder
+- **SupportTickets** — support tickets with category, priority, status, assignment
+- **SupportTicketComments** — threaded comments on tickets
 
 ---
 
-## Key Things for Backend Development
+## Key Notes for Development
 
-1. **Placeholder pages need API endpoints:** Dashboard, Production, Inventory, and Reports are frontend shells waiting for backend data. Design the tables/endpoints to power these pages.
+1. **No auth middleware on routes yet:** The backend routes don't verify the JWT token. Add middleware to protect routes and enforce role-based access server-side.
 
-2. **No auth middleware on routes yet:** The backend routes don't verify the JWT token. Add middleware to protect routes and enforce role-based access.
-
-3. **Frontend expects this API response pattern:**
+2. **Frontend expects this API response pattern:**
    ```js
    // Success
    res.json({ message: '...', data: [...], total: N, totalPages: N })
@@ -351,12 +406,14 @@ Created by `initDb.js` and the scripts in `server/scripts/`:
    res.status(4xx).json({ message: 'Error description' })
    ```
 
-4. **Frontend reads user from localStorage:**
+3. **Frontend reads user from localStorage:**
    ```js
    const user = JSON.parse(localStorage.getItem('user') || '{}');
    // user = { id, firstName, lastName, email, role, clientRecordId }
    ```
 
-5. **All API calls go to `http://localhost:5000`** — hardcoded in each page. Consider centralizing this.
+4. **All API calls go to `http://localhost:5000`** — hardcoded in each page. Consider centralizing this.
 
-6. **Database uses Windows Authentication** via ODBC — no username/password in the connection string. The developer needs SQL Server running locally with ODBC Driver 18.
+5. **Database uses Windows Authentication** via ODBC — no username/password in the connection string. The developer needs SQL Server running locally with ODBC Driver 18.
+
+6. **Email notifications** are sent via Gmail OAuth2 for: invitations, password resets, EPV requests, support ticket events (created, commented, closed).

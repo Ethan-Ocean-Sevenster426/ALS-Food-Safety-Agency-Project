@@ -1,0 +1,174 @@
+/* ===== Floating Action Button ===== */
+.support-fab {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: #0E7C7B;
+  color: #fff;
+  border: none;
+  border-radius: 50px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(14, 124, 123, 0.35);
+  transition: all 0.2s;
+}
+
+.support-fab:hover {
+  background: #0a5f5e;
+  box-shadow: 0 6px 24px rgba(14, 124, 123, 0.45);
+  transform: translateY(-2px);
+}
+
+.support-fab svg {
+  flex-shrink: 0;
+}
+
+/* ===== Modal Overlay ===== */
+.support-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1001;
+}
+
+/* ===== Modal ===== */
+.support-modal {
+  background: #fff;
+  border-radius: 12px;
+  padding: 0;
+  max-width: 520px;
+  width: 92%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+
+.support-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  background: rgb(30, 41, 59);
+  color: #fff;
+}
+
+.support-modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.support-modal-close {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.support-modal-close:hover {
+  opacity: 1;
+}
+
+/* ===== Form ===== */
+.support-form {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.support-field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.support-required {
+  color: #DC3545;
+}
+
+.support-field input,
+.support-field select,
+.support-field textarea {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  box-sizing: border-box;
+  font-family: inherit;
+  transition: border-color 0.2s;
+}
+
+.support-field input:focus,
+.support-field select:focus,
+.support-field textarea:focus {
+  border-color: #0E7C7B;
+  box-shadow: 0 0 0 2px rgba(14, 124, 123, 0.1);
+}
+
+.support-field textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.support-submit-btn {
+  padding: 12px 24px;
+  background: #0E7C7B;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.support-submit-btn:hover:not(:disabled) {
+  background: #0a5f5e;
+}
+
+.support-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ===== Messages ===== */
+.support-error {
+  color: #dc2626;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 14px;
+}
+
+.support-success {
+  color: #16a34a;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  padding: 24px;
+  margin: 24px;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: center;
+}

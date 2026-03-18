@@ -48,9 +48,9 @@
 }
 
 .wizard-progress-step.active .wizard-progress-dot {
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, #0E7C7B, #DC3545);
   color: #fff;
-  box-shadow: 0 0 0 2px #667eea;
+  box-shadow: 0 0 0 2px #0E7C7B;
 }
 
 .wizard-progress-step.completed .wizard-progress-dot {
@@ -68,7 +68,7 @@
 }
 
 .wizard-progress-step.active .wizard-progress-label {
-  color: #4f46e5;
+  color: #0E7C7B;
   font-weight: 600;
 }
 
@@ -105,8 +105,8 @@
 }
 
 .wizard-fields input:focus {
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+  border-color: #0E7C7B;
+  box-shadow: 0 0 0 3px rgba(14, 124, 123, 0.15);
 }
 
 .required {

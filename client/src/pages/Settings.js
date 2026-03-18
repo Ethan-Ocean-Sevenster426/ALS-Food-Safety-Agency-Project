@@ -17,6 +17,10 @@ function Settings() {
   const [resetModal, setResetModal] = useState(null);
   const [resetPassword, setResetPassword] = useState('');
   const [resetting, setResetting] = useState(false);
+  const [deactivateConfirm, setDeactivateConfirm] = useState(null);
+  const [editModal, setEditModal] = useState(null);
+  const [editData, setEditData] = useState({ firstName: '', lastName: '', email: '', role: 'User' });
+  const [editSubmitting, setEditSubmitting] = useState(false);
 
   const fetchUsers = useCallback(async () => {
     if (!isAdmin) return;
@@ -44,7 +48,6 @@ function Settings() {
     try {
       await axios.put(`http://localhost:5000/api/auth/users/${userId}/role`, { role: newRole });
       setSuccessMsg('Role updated.');
-      // Update local user object if changing own role
       if (userId === user.id) {
         const updated = { ...user, role: newRole };
         localStorage.setItem('user', JSON.stringify(updated));
@@ -90,6 +93,58 @@ function Settings() {
     }
   };
 
+  const executeDeactivate = async () => {
+    if (!deactivateConfirm) return;
+    const newStatus = !deactivateConfirm.IsActive;
+    try {
+      await axios.put(`http://localhost:5000/api/auth/users/${deactivateConfirm.Id}/deactivate`, {
+        isActive: newStatus,
+      });
+      setDeactivateConfirm(null);
+      setSuccessMsg(`User "${deactivateConfirm.FirstName} ${deactivateConfirm.LastName}" ${newStatus ? 'activated' : 'deactivated'}.`);
+      fetchUsers();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update user status.');
+      setDeactivateConfirm(null);
+    }
+  };
+
+  const openEditModal = (u) => {
+    setEditData({
+      firstName: u.FirstName,
+      lastName: u.LastName,
+      email: u.Email,
+      role: u.Role,
+    });
+    setEditModal(u);
+    setError('');
+  };
+
+  const executeEdit = async () => {
+    if (!editModal) return;
+    if (!editData.firstName || !editData.lastName || !editData.email) {
+      setError('All fields are required.');
+      return;
+    }
+    setEditSubmitting(true);
+    setError('');
+    try {
+      await axios.put(`http://localhost:5000/api/auth/users/${editModal.Id}`, editData);
+      setEditModal(null);
+      setSuccessMsg(`User "${editData.firstName} ${editData.lastName}" updated.`);
+      // Update localStorage if editing self
+      if (editModal.Id === user.id) {
+        const updated = { ...user, firstName: editData.firstName, lastName: editData.lastName, email: editData.email, role: editData.role };
+        localStorage.setItem('user', JSON.stringify(updated));
+      }
+      fetchUsers();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update user.');
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
   const formatDate = (dateStr) => {
     if (!dateStr) return '';
     return new Date(dateStr).toLocaleDateString();
@@ -107,7 +162,7 @@ function Settings() {
   return (
     <div className="page-container settings-page">
       <div className="page-card">
-        <h2>Settings</h2>
+        <h2>User Management</h2>
         <div className="settings-info">
           <div className="settings-row">
             <span className="settings-label">Name</span>
@@ -126,8 +181,8 @@ function Settings() {
 
       {isAdmin && (
         <div className="page-card" style={{ marginTop: 20 }}>
-          <h2>User Management</h2>
-          <p className="settings-subtitle">Manage all user accounts and their roles.</p>
+          <h2>All Users</h2>
+          <p className="settings-subtitle">Manage all user accounts, roles, and access.</p>
 
           {error && <p className="settings-error">{error}</p>}
           {successMsg && <p className="settings-success">{successMsg}</p>}
@@ -155,7 +210,7 @@ function Settings() {
           {resetModal && (
             <div className="settings-modal-overlay">
               <div className="settings-modal">
-                <h3 style={{ color: '#4f46e5' }}>Reset Password</h3>
+                <h3 style={{ color: '#0E7C7B' }}>Reset Password</h3>
                 <p>Set a new password for:</p>
                 <div className="settings-modal-record">
                   <strong>{resetModal.FirstName} {resetModal.LastName}</strong><br />
@@ -180,6 +235,89 @@ function Settings() {
             </div>
           )}
 
+          {/* Deactivate Confirmation Modal */}
+          {deactivateConfirm && (
+            <div className="settings-modal-overlay">
+              <div className="settings-modal">
+                <h3 style={{ color: deactivateConfirm.IsActive ? '#d97706' : '#16a34a' }}>
+                  {deactivateConfirm.IsActive ? 'Deactivate User' : 'Activate User'}
+                </h3>
+                <p>
+                  {deactivateConfirm.IsActive
+                    ? 'This user will no longer be able to log in.'
+                    : 'This user will be able to log in again.'}
+                </p>
+                <div className="settings-modal-record">
+                  <strong>{deactivateConfirm.FirstName} {deactivateConfirm.LastName}</strong><br />
+                  {deactivateConfirm.Email} — {deactivateConfirm.Role}
+                </div>
+                <div className="settings-modal-actions">
+                  <button
+                    className={deactivateConfirm.IsActive ? 'settings-deactivate-confirm' : 'settings-activate-confirm'}
+                    onClick={executeDeactivate}
+                  >
+                    {deactivateConfirm.IsActive ? 'Yes, Deactivate' : 'Yes, Activate'}
+                  </button>
+                  <button className="settings-cancel-btn" onClick={() => setDeactivateConfirm(null)}>Cancel</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Edit User Modal */}
+          {editModal && (
+            <div className="settings-modal-overlay">
+              <div className="settings-modal">
+                <h3 style={{ color: '#0E7C7B' }}>Edit User</h3>
+                <div className="settings-edit-form">
+                  <div className="settings-edit-row">
+                    <label>First Name</label>
+                    <input
+                      type="text"
+                      value={editData.firstName}
+                      onChange={(e) => setEditData({ ...editData, firstName: e.target.value })}
+                      className="settings-reset-input"
+                    />
+                  </div>
+                  <div className="settings-edit-row">
+                    <label>Last Name</label>
+                    <input
+                      type="text"
+                      value={editData.lastName}
+                      onChange={(e) => setEditData({ ...editData, lastName: e.target.value })}
+                      className="settings-reset-input"
+                    />
+                  </div>
+                  <div className="settings-edit-row">
+                    <label>Email</label>
+                    <input
+                      type="email"
+                      value={editData.email}
+                      onChange={(e) => setEditData({ ...editData, email: e.target.value })}
+                      className="settings-reset-input"
+                    />
+                  </div>
+                  <div className="settings-edit-row">
+                    <label>Role</label>
+                    <select
+                      value={editData.role}
+                      onChange={(e) => setEditData({ ...editData, role: e.target.value })}
+                      className="settings-edit-select"
+                    >
+                      {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="settings-modal-actions">
+                  <button className="settings-reset-confirm" onClick={executeEdit} disabled={editSubmitting}>
+                    {editSubmitting ? 'Saving...' : 'Save Changes'}
+                  </button>
+                  <button className="settings-cancel-btn" onClick={() => setEditModal(null)} disabled={editSubmitting}>Cancel</button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="settings-table-wrapper">
             <table className="settings-table">
               <thead>
@@ -187,19 +325,20 @@ function Settings() {
                   <th>Name</th>
                   <th>Email</th>
                   <th>Role</th>
-                  <th>Allocated Client</th>
+                  <th>Status</th>
+                  <th>Company</th>
                   <th>Created</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan="6" className="settings-loading">Loading...</td></tr>
+                  <tr><td colSpan="7" className="settings-loading">Loading...</td></tr>
                 ) : users.length === 0 ? (
-                  <tr><td colSpan="6" className="settings-loading">No users found.</td></tr>
+                  <tr><td colSpan="7" className="settings-loading">No users found.</td></tr>
                 ) : (
                   users.map((u) => (
-                    <tr key={u.Id}>
+                    <tr key={u.Id} className={u.IsActive === false || u.IsActive === 0 ? 'user-inactive-row' : ''}>
                       <td>{u.FirstName} {u.LastName}</td>
                       <td>{u.Email}</td>
                       <td>
@@ -213,16 +352,29 @@ function Settings() {
                         </select>
                       </td>
                       <td>
+                        <span className={`status-badge ${u.IsActive === false || u.IsActive === 0 ? 'status-inactive' : 'status-active'}`}>
+                          {u.IsActive === false || u.IsActive === 0 ? 'Inactive' : 'Active'}
+                        </span>
+                      </td>
+                      <td>
                         {u.AllocatedClient ? (
                           <span className="settings-allocation">
-                            <strong>{u.AllocatedClientID}</strong> — {u.AllocatedClient}
+                            {u.AllocatedClient}
+                            <span className="settings-client-id">{u.AllocatedClientID}</span>
                           </span>
                         ) : (
-                          <span className="settings-no-allocation">Not allocated</span>
+                          <span className="settings-no-allocation">—</span>
                         )}
                       </td>
                       <td className="settings-date">{formatDate(u.CreatedAt)}</td>
                       <td className="settings-actions-cell">
+                        <button
+                          className="settings-edit-btn"
+                          onClick={() => openEditModal(u)}
+                          title="Edit user"
+                        >
+                          Edit
+                        </button>
                         {user.role === 'Super Admin' && (
                           <button
                             className="settings-reset-btn"
@@ -232,6 +384,14 @@ function Settings() {
                             Reset PW
                           </button>
                         )}
+                        <button
+                          className={u.IsActive === false || u.IsActive === 0 ? 'settings-activate-btn' : 'settings-deactivate-btn'}
+                          onClick={() => setDeactivateConfirm(u)}
+                          disabled={u.Id === user.id}
+                          title={u.Id === user.id ? "Can't deactivate yourself" : (u.IsActive ? 'Deactivate user' : 'Activate user')}
+                        >
+                          {u.IsActive === false || u.IsActive === 0 ? 'Activate' : 'Deactivate'}
+                        </button>
                         <button
                           className="settings-delete-btn"
                           onClick={() => setDeleteConfirm(u)}

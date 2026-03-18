@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import './Auth.css';
 
+
 function Signup() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
@@ -58,8 +59,8 @@ function Signup() {
     <div className="auth-container">
       <div className="auth-card">
         <div className="auth-header">
-          <h1>Egg Production</h1>
-          <h2>Verification System</h2>
+          <img src="/fsa-logo.png" alt="Food Safety Agency" className="auth-logo" />
+          <h2>Egg Production Verification System</h2>
           <p>Create your account</p>
         </div>
 

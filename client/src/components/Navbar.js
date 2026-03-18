@@ -16,22 +16,21 @@ function Navbar() {
   return (
     <header className="navbar">
       <div className="navbar-top">
-        <h1 className="navbar-brand">EPVS</h1>
+        <div className="navbar-brand"><img src="/fsa-logo.png" alt="FSA" className="navbar-logo" /><span>EPVS</span></div>
         <nav className="navbar-links">
           {isCompanyUser ? (
             <>
               <NavLink to="/company">Company Overview</NavLink>
-              <NavLink to="/settings">Settings</NavLink>
+              <NavLink to="/support">Support</NavLink>
+              <NavLink to="/settings">User Management</NavLink>
             </>
           ) : (
             <>
               <NavLink to="/dashboard" end>Dashboard</NavLink>
-              <NavLink to="/production">Production</NavLink>
-              <NavLink to="/inventory">Inventory</NavLink>
-              <NavLink to="/reports">Reports</NavLink>
               <NavLink to="/clients">Clients</NavLink>
               <NavLink to="/company">Company Overview</NavLink>
-              <NavLink to="/settings">Settings</NavLink>
+              <NavLink to="/support">Support</NavLink>
+              <NavLink to="/settings">User Management</NavLink>
             </>
           )}
         </nav>
