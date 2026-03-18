@@ -1,0 +1,816 @@
+/* ===== Page Layout ===== */
+.client-allocation-page .page-card {
+  max-width: 100%;
+}
+
+.client-allocation-page {
+  max-width: 100%;
+  padding: 16px;
+}
+
+/* ===== Header ===== */
+.ca-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.ca-header h2 {
+  font-size: 20px;
+  margin: 0;
+}
+
+.ca-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ca-subtitle {
+  color: #888;
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+/* ===== Search ===== */
+.ca-search-form {
+  display: flex;
+  gap: 6px;
+}
+
+.ca-search-input {
+  padding: 7px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 13px;
+  width: 240px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.ca-search-input:focus {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
+}
+
+.ca-search-btn {
+  padding: 7px 16px;
+  background: #4f46e5;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.ca-search-btn:hover {
+  background: #4338ca;
+}
+
+.ca-toggle-btn {
+  padding: 7px 16px;
+  background: #fff;
+  color: #4f46e5;
+  border: 1px solid #4f46e5;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.ca-toggle-btn:hover,
+.ca-toggle-btn.active {
+  background: #4f46e5;
+  color: #fff;
+}
+
+/* ===== Messages ===== */
+.ca-error {
+  color: #dc2626;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 8px 14px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.ca-success {
+  color: #16a34a;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  padding: 8px 14px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+/* ===== Table Wrapper ===== */
+.ca-table-wrapper {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+}
+
+/* ===== Table ===== */
+.ca-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  white-space: nowrap;
+  table-layout: auto;
+}
+
+.ca-table thead {
+  background: #f1f5f9;
+}
+
+.ca-table th {
+  padding: 10px 8px;
+  text-align: left;
+  font-weight: 600;
+  color: #1e293b;
+  border: 1px solid #cbd5e1;
+  position: sticky;
+  top: 0;
+  background: #f1f5f9;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.ca-table td {
+  padding: 7px 8px;
+  border: 1px solid #e2e8f0;
+  color: #374151;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ca-table tbody tr:nth-child(even) {
+  background: #f8fafc;
+}
+
+.ca-table tbody tr:nth-child(odd) {
+  background: #ffffff;
+}
+
+.ca-table tbody tr:hover {
+  background: #eff6ff;
+}
+
+.ca-loading {
+  text-align: center;
+  padding: 40px;
+  color: #888;
+  white-space: normal;
+}
+
+/* ===== Actions Column ===== */
+.ca-actions-col {
+  width: 110px;
+}
+
+.ca-actions-cell {
+  white-space: nowrap;
+}
+
+.ca-edit-actions {
+  display: flex;
+  gap: 3px;
+}
+
+.ca-edit-btn,
+.ca-history-btn {
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 5px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: #374151;
+  font-weight: 500;
+}
+
+.ca-edit-btn:hover:not(:disabled) {
+  background: #4f46e5;
+  color: #fff;
+  border-color: #4f46e5;
+}
+
+.ca-history-btn:hover {
+  background: #f59e0b;
+  color: #fff;
+  border-color: #f59e0b;
+}
+
+.ca-edit-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.ca-save-btn {
+  padding: 4px 10px;
+  font-size: 11px;
+  border-radius: 5px;
+  border: none;
+  background: #16a34a;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.15s;
+}
+
+.ca-save-btn:hover:not(:disabled) {
+  background: #15803d;
+}
+
+.ca-save-btn:disabled {
+  opacity: 0.6;
+}
+
+.ca-cancel-btn {
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 5px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: #374151;
+}
+
+.ca-cancel-btn:hover:not(:disabled) {
+  background: #fee2e2;
+  border-color: #dc2626;
+  color: #dc2626;
+}
+
+/* ===== Delete Button ===== */
+.ca-delete-btn {
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 5px;
+  border: 1.5px solid #dc2626;
+  background: #fef2f2;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.ca-delete-btn:hover:not(:disabled) {
+  background: #dc2626;
+  color: #fff;
+  border-color: #b91c1c;
+}
+
+.ca-delete-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ===== Inline Editing ===== */
+.ca-editing-row {
+  background: #fffbeb !important;
+}
+
+.ca-edit-input {
+  width: 100%;
+  min-width: 50px;
+  padding: 3px 5px;
+  font-size: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  outline: none;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.ca-edit-input:focus {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
+}
+
+.ca-edit-input.ca-changed {
+  border-color: #f59e0b;
+  background: #fffbeb;
+  font-weight: 600;
+}
+
+/* ===== Invite Column & Button ===== */
+.ca-invite-col {
+  width: 140px;
+  text-align: center;
+}
+
+.ca-invite-cell {
+  text-align: center;
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  align-items: center;
+}
+
+.ca-invite-btn {
+  padding: 5px 12px;
+  font-size: 11px;
+  border-radius: 6px;
+  border: 1.5px solid #7c3aed;
+  background: #faf5ff;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: #7c3aed;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ca-invite-btn:hover:not(:disabled) {
+  background: #7c3aed;
+  color: #fff;
+}
+
+.ca-invite-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.ca-epv-btn {
+  padding: 5px 10px;
+  font-size: 11px;
+  border-radius: 6px;
+  border: 1.5px solid #0d9488;
+  background: #f0fdfa;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: #0d9488;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ca-epv-btn:hover:not(:disabled) {
+  background: #0d9488;
+  color: #fff;
+}
+
+.ca-epv-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ===== Facility Contact Details Column & Expand Button ===== */
+.ca-details-col {
+  width: 140px;
+  text-align: center;
+  font-size: 10px !important;
+}
+
+.ca-details-cell {
+  text-align: center;
+}
+
+.ca-expand-btn {
+  padding: 5px 10px;
+  font-size: 11px;
+  border-radius: 6px;
+  border: 1.5px solid #6366f1;
+  background: #eef2ff;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: #4f46e5;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ca-expand-btn:hover {
+  background: #e0e7ff;
+}
+
+.ca-expand-btn.active {
+  background: #4f46e5;
+  color: #fff;
+  border-color: #4f46e5;
+}
+
+/* ===== Expandable Detail Row ===== */
+.ca-detail-row td {
+  padding: 0 !important;
+  border-top: none !important;
+  background: #f8fafc !important;
+}
+
+.ca-detail-row:hover td {
+  background: #f8fafc !important;
+}
+
+.ca-detail-groups {
+  display: flex;
+  gap: 0;
+  padding: 14px 20px;
+  background: #f8fafc;
+  border-top: 2px solid #818cf8;
+}
+
+.ca-detail-group {
+  flex: 1;
+  padding: 0 20px;
+  border-right: 1px solid #e2e8f0;
+}
+
+.ca-detail-group:first-child {
+  padding-left: 0;
+}
+
+.ca-detail-group:last-child {
+  border-right: none;
+  padding-right: 0;
+}
+
+.ca-detail-group-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: #4338ca;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-bottom: 8px;
+  padding-bottom: 5px;
+  border-bottom: 2px solid #c7d2fe;
+}
+
+.ca-detail-group-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.ca-detail-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ca-detail-field label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  min-width: 95px;
+  flex-shrink: 0;
+}
+
+.ca-detail-value {
+  font-size: 14px;
+  color: #1f2937;
+}
+
+.ca-detail-field .ca-edit-input {
+  flex: 1;
+  font-size: 14px;
+}
+
+/* ===== Add New Button ===== */
+.ca-add-btn {
+  padding: 7px 16px;
+  background: #16a34a;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.ca-add-btn:hover:not(:disabled) {
+  background: #15803d;
+}
+
+.ca-add-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ===== Add New Row ===== */
+.ca-adding-row {
+  background: #ecfdf5 !important;
+}
+
+.ca-adding-row td {
+  border-bottom: 2px solid #16a34a !important;
+}
+
+.ca-new-input {
+  border-color: #16a34a;
+}
+
+.ca-new-input:focus {
+  border-color: #15803d;
+  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.1);
+}
+
+/* ===== Audit Log ===== */
+.ca-audit-header {
+  margin-bottom: 16px;
+}
+
+.ca-audit-header h3 {
+  margin: 0;
+  color: #333;
+  font-size: 18px;
+}
+
+.ca-audit-filter {
+  font-weight: 400;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.ca-clear-filter {
+  margin-top: 8px;
+  padding: 4px 12px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid #dc2626;
+  background: #fff;
+  color: #dc2626;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ca-clear-filter:hover {
+  background: #dc2626;
+  color: #fff;
+}
+
+.ca-audit-table .ca-old-value {
+  color: #dc2626;
+  background: #fef2f2 !important;
+  text-decoration: line-through;
+}
+
+.ca-audit-table .ca-new-value {
+  color: #16a34a;
+  background: #f0fdf4 !important;
+  font-weight: 600;
+}
+
+.ca-field-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #e0e7ff;
+  color: #4338ca;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.ca-date-cell {
+  font-size: 11px;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+/* ===== Audit Badge Variants ===== */
+.ca-badge-created {
+  background: #dcfce7 !important;
+  color: #16a34a !important;
+}
+
+.ca-badge-deleted {
+  background: #fef2f2 !important;
+  color: #dc2626 !important;
+}
+
+.ca-badge-verified {
+  background: #dbeafe !important;
+  color: #2563eb !important;
+}
+
+/* ===== Status Column ===== */
+.ca-status-col {
+  width: 75px;
+  text-align: center;
+}
+
+.ca-status-cell {
+  text-align: center;
+}
+
+.ca-verified-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  background: #dcfce7;
+  color: #15803d;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.ca-unverified-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  background: #fef3c7;
+  color: #a16207;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* ===== Pagination ===== */
+.ca-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.ca-page-btn {
+  padding: 7px 16px;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #374151;
+}
+
+.ca-page-btn:hover:not(:disabled) {
+  background: #f9fafb;
+  border-color: #4f46e5;
+  color: #4f46e5;
+}
+
+.ca-page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ca-page-info {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+/* ===== Modals ===== */
+.ca-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.ca-modal {
+  background: #fff;
+  border-radius: 12px;
+  padding: 28px;
+  max-width: 440px;
+  width: 90%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+}
+
+.ca-modal h3 {
+  margin: 0 0 12px;
+  color: #dc2626;
+  font-size: 20px;
+}
+
+.ca-modal p {
+  margin: 0 0 8px;
+  color: #4b5563;
+  font-size: 14px;
+}
+
+.ca-modal-record {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 12px 0;
+  font-size: 14px;
+  color: #1f2937;
+}
+
+.ca-modal-warning {
+  color: #dc2626;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.ca-modal-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.ca-delete-confirm-btn {
+  padding: 8px 20px;
+  background: #dc2626;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.ca-delete-confirm-btn:hover {
+  background: #b91c1c;
+}
+
+/* ===== Invite Modal ===== */
+.ca-invite-role-select {
+  margin: 16px 0;
+}
+
+.ca-invite-role-select label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 10px;
+}
+
+.ca-invite-role-options {
+  display: flex;
+  gap: 10px;
+}
+
+.ca-invite-role-btn {
+  flex: 1;
+  padding: 14px;
+  border: 2px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+}
+
+.ca-invite-role-btn strong {
+  display: block;
+  font-size: 14px;
+  color: #1f2937;
+  margin-bottom: 4px;
+}
+
+.ca-invite-role-btn span {
+  display: block;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.ca-invite-role-btn.active {
+  border-color: #7c3aed;
+  background: #f5f3ff;
+}
+
+.ca-invite-role-btn.active strong {
+  color: #7c3aed;
+}
+
+.ca-invite-role-btn:hover:not(.active) {
+  border-color: #c4b5fd;
+}
+
+.ca-invite-send-btn {
+  padding: 8px 20px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.ca-invite-send-btn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.ca-invite-send-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

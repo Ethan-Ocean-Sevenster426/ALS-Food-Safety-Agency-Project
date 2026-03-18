@@ -1,0 +1,354 @@
+.settings-page .page-card {
+  max-width: 900px;
+}
+
+.settings-subtitle {
+  color: #6b7280;
+  font-size: 14px;
+  margin: 4px 0 16px;
+}
+
+/* ===== Role Badges ===== */
+.role-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.role-super-admin {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.role-admin {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.role-company-admin {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.role-user {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+/* ===== Role Select ===== */
+.role-select {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.role-select:focus {
+  border-color: #4f46e5;
+}
+
+.role-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.role-select.role-super-admin {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.role-select.role-admin {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.role-select.role-company-admin {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.role-select.role-user {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+/* ===== User Table ===== */
+.settings-table-wrapper {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid #9ca3af;
+}
+
+.settings-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.settings-table thead {
+  background: #e5e7eb;
+}
+
+.settings-table th {
+  padding: 10px 16px;
+  text-align: left;
+  font-weight: 600;
+  color: #1f2937;
+  border: 1px solid #9ca3af;
+}
+
+.settings-table td {
+  padding: 10px 16px;
+  border: 1px solid #d1d5db;
+  color: #4b5563;
+}
+
+.settings-table tbody tr:nth-child(even) {
+  background: #f3f4f6;
+}
+
+.settings-table tbody tr:nth-child(odd) {
+  background: #ffffff;
+}
+
+.settings-table tbody tr:hover {
+  background: #dbeafe;
+}
+
+.settings-date {
+  font-size: 13px;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.settings-loading {
+  text-align: center;
+  padding: 30px;
+  color: #888;
+}
+
+/* ===== Allocation Column ===== */
+.settings-allocation {
+  font-size: 13px;
+  color: #1f2937;
+}
+
+.settings-no-allocation {
+  font-size: 13px;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+/* ===== Profile Info ===== */
+.settings-info {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.settings-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.settings-label {
+  font-weight: 600;
+  color: #6b7280;
+  min-width: 80px;
+}
+
+/* ===== Delete Button ===== */
+.settings-delete-btn {
+  padding: 5px 12px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #374151;
+}
+
+.settings-delete-btn:hover:not(:disabled) {
+  background: #dc2626;
+  color: #fff;
+  border-color: #dc2626;
+}
+
+.settings-delete-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ===== Messages ===== */
+.settings-error {
+  color: #dc2626;
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+.settings-success {
+  color: #16a34a;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  padding: 10px 16px;
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+/* ===== Delete Modal ===== */
+.settings-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.settings-modal {
+  background: #fff;
+  border-radius: 12px;
+  padding: 30px;
+  max-width: 440px;
+  width: 90%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+}
+
+.settings-modal h3 {
+  margin: 0 0 12px;
+  color: #dc2626;
+  font-size: 20px;
+}
+
+.settings-modal p {
+  margin: 0 0 8px;
+  color: #4b5563;
+  font-size: 15px;
+}
+
+.settings-modal-record {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 12px 0;
+  font-size: 14px;
+  color: #1f2937;
+}
+
+.settings-modal-warning {
+  color: #dc2626;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.settings-modal-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.settings-delete-confirm {
+  padding: 8px 20px;
+  background: #dc2626;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.settings-delete-confirm:hover {
+  background: #b91c1c;
+}
+
+.settings-cancel-btn {
+  padding: 8px 20px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  color: #374151;
+  transition: all 0.2s;
+}
+
+.settings-cancel-btn:hover {
+  background: #f3f4f6;
+}
+
+/* ===== Reset Password ===== */
+.settings-actions-cell {
+  display: flex;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.settings-reset-btn {
+  padding: 5px 12px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1.5px solid #4f46e5;
+  background: #eef2ff;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: #4f46e5;
+  font-weight: 600;
+}
+
+.settings-reset-btn:hover {
+  background: #4f46e5;
+  color: #fff;
+}
+
+.settings-reset-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.settings-reset-input:focus {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
+}
+
+.settings-reset-confirm {
+  padding: 8px 20px;
+  background: #4f46e5;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.settings-reset-confirm:hover:not(:disabled) {
+  background: #4338ca;
+}
+
+.settings-reset-confirm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

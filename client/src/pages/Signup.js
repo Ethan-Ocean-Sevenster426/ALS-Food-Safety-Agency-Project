@@ -11,6 +11,7 @@ function Signup() {
     email: '',
     password: '',
     confirmPassword: '',
+    role: 'User',
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -43,6 +44,7 @@ function Signup() {
         lastName: formData.lastName,
         email: formData.email,
         password: formData.password,
+        role: formData.role,
       });
       navigate('/login', { state: { message: 'Account created! Please sign in.' } });
     } catch (err) {
@@ -102,6 +104,22 @@ function Signup() {
               placeholder="Enter your email"
               required
             />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="role">Role</label>
+            <select
+              id="role"
+              name="role"
+              value={formData.role}
+              onChange={handleChange}
+              className="auth-select"
+            >
+              <option value="User">User</option>
+              <option value="Company Admin">Company Admin</option>
+              <option value="Admin">Admin</option>
+              <option value="Super Admin">Super Admin</option>
+            </select>
           </div>
 
           <div className="form-group">

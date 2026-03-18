@@ -89,9 +89,24 @@
   outline: none;
 }
 
-.auth-form input:focus {
+.auth-form input:focus,
+.auth-form select:focus {
   border-color: #667eea;
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+}
+
+.auth-form select,
+.auth-select {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1.5px solid #ddd;
+  border-radius: 8px;
+  font-size: 15px;
+  transition: border-color 0.2s;
+  outline: none;
+  background: #fff;
+  color: #333;
+  cursor: pointer;
 }
 
 .form-row {
@@ -144,5 +159,36 @@
 }
 
 .auth-switch a:hover {
+  text-decoration: underline;
+}
+
+/* ===== Forgot Password ===== */
+.auth-forgot {
+  text-align: right;
+  margin: -8px 0 16px;
+}
+
+.auth-link-btn {
+  background: none;
+  border: none;
+  color: #667eea;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: none;
+}
+
+.auth-link-btn:hover {
+  text-decoration: underline;
+}
+
+.auth-back-link {
+  color: #667eea;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.auth-back-link:hover {
   text-decoration: underline;
 }

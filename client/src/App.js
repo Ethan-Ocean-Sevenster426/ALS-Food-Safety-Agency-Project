@@ -7,11 +7,32 @@ import Production from './pages/Production';
 import Inventory from './pages/Inventory';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
+import ClientAllocation from './pages/ClientAllocation';
+import CompanyOverview from './pages/CompanyOverview';
+import ResetPassword from './pages/ResetPassword';
+import AcceptInvite from './pages/AcceptInvite';
+import EPVForm from './pages/EPVForm';
 import AppLayout from './components/AppLayout';
 
 function PrivateRoute({ children }) {
   const token = localStorage.getItem('token');
   return token ? children : <Navigate to="/login" />;
+}
+
+function AdminRoute({ children }) {
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  if (user.role === 'Company Admin' || user.role === 'User') {
+    return <Navigate to="/company" />;
+  }
+  return children;
+}
+
+function DefaultRedirect() {
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  if (user.role === 'Company Admin' || user.role === 'User') {
+    return <Navigate to="/company" />;
+  }
+  return <Navigate to="/dashboard" />;
 }
 
 function App() {
@@ -20,6 +41,9 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/accept-invite/:token" element={<AcceptInvite />} />
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
+        <Route path="/epv/:token" element={<EPVForm />} />
         <Route
           element={
             <PrivateRoute>
@@ -32,8 +56,10 @@ function App() {
           <Route path="/inventory" element={<Inventory />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/clients" element={<AdminRoute><ClientAllocation /></AdminRoute>} />
+          <Route path="/company" element={<CompanyOverview />} />
         </Route>
-        <Route path="*" element={<Navigate to="/login" />} />
+        <Route path="*" element={<PrivateRoute><DefaultRedirect /></PrivateRoute>} />
       </Routes>
     </Router>
   );

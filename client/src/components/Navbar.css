@@ -58,6 +58,17 @@
   font-weight: 500;
 }
 
+.navbar-role {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.15);
+  padding: 3px 10px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 .navbar-logout {
   background: rgba(255, 255, 255, 0.15);
   color: #fff;

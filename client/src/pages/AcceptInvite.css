@@ -1,0 +1,165 @@
+.wizard-card {
+  max-width: 560px;
+}
+
+/* ===== Progress Bar ===== */
+.wizard-progress {
+  display: flex;
+  justify-content: space-between;
+  margin: 0 0 28px;
+  padding: 0;
+  position: relative;
+}
+
+.wizard-progress::before {
+  content: '';
+  position: absolute;
+  top: 16px;
+  left: 40px;
+  right: 40px;
+  height: 2px;
+  background: #e5e7eb;
+  z-index: 0;
+}
+
+.wizard-progress-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  z-index: 1;
+  flex: 1;
+}
+
+.wizard-progress-dot {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #e5e7eb;
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  transition: all 0.3s;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 2px #e5e7eb;
+}
+
+.wizard-progress-step.active .wizard-progress-dot {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+  box-shadow: 0 0 0 2px #667eea;
+}
+
+.wizard-progress-step.completed .wizard-progress-dot {
+  background: #16a34a;
+  color: #fff;
+  box-shadow: 0 0 0 2px #16a34a;
+}
+
+.wizard-progress-label {
+  font-size: 11px;
+  color: #9ca3af;
+  margin-top: 8px;
+  text-align: center;
+  max-width: 90px;
+}
+
+.wizard-progress-step.active .wizard-progress-label {
+  color: #4f46e5;
+  font-weight: 600;
+}
+
+.wizard-progress-step.completed .wizard-progress-label {
+  color: #16a34a;
+}
+
+/* ===== Wizard Fields ===== */
+.wizard-fields {
+  margin-bottom: 20px;
+}
+
+.wizard-fields .form-group {
+  margin-bottom: 16px;
+}
+
+.wizard-fields label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #444;
+}
+
+.wizard-fields input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1.5px solid #ddd;
+  border-radius: 8px;
+  font-size: 15px;
+  outline: none;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.wizard-fields input:focus {
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+}
+
+.required {
+  color: #dc2626;
+}
+
+.input-error {
+  border-color: #dc2626 !important;
+}
+
+.input-error:focus {
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15) !important;
+}
+
+.field-error {
+  display: block;
+  color: #dc2626;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.input-disabled {
+  background: #f3f4f6;
+  color: #6b7280;
+  cursor: not-allowed;
+}
+
+/* ===== Wizard Navigation ===== */
+.wizard-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.wizard-back-btn {
+  padding: 12px 24px;
+  background: #fff;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.wizard-back-btn:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.wizard-next-btn {
+  flex: 1;
+  max-width: none;
+}

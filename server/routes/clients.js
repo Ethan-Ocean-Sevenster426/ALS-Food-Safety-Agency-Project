@@ -1,0 +1,290 @@
+const express = require('express');
+const { sql, getPool } = require('../config/db');
+
+const router = express.Router();
+
+const EDITABLE_FIELDS = [
+  'ClientID', 'BusinessName', 'Email',
+  'Town', 'CorporateGroup', 'GroupType', 'FacilityType',
+  'CompanyRegNumber', 'PhysicalAddress', 'VATNumber',
+  'AbattoirOwnerName', 'AbattoirOwnerCell', 'AbattoirOwnerEmail',
+  'AccountsContactName', 'AccountsTelephone', 'AccountsEmail',
+  'AbattoirManagerName', 'AbattoirManagerCell', 'AbattoirManagerEmail'
+];
+
+// GET /api/clients - list all clients with optional search & pagination
+router.get('/', async (req, res) => {
+  try {
+    const pool = await getPool();
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const search = req.query.search || '';
+    const offset = (page - 1) * limit;
+
+    let whereClause = '';
+    const request = pool.request();
+
+    if (search) {
+      whereClause = `WHERE BusinessName LIKE @search OR ClientID LIKE @search OR AccountCode LIKE @search OR Email LIKE @search OR Town LIKE @search OR CorporateGroup LIKE @search`;
+      request.input('search', sql.NVarChar, `%${search}%`);
+    }
+
+    const countResult = await request.query(
+      `SELECT COUNT(*) AS total FROM ConsolidatedMasterAbattoirDatabase ${whereClause}`
+    );
+    const total = countResult.recordset[0].total;
+
+    const dataRequest = pool.request();
+    if (search) {
+      dataRequest.input('search', sql.NVarChar, `%${search}%`);
+    }
+    dataRequest.input('offset', sql.Int, offset);
+    dataRequest.input('limit', sql.Int, limit);
+
+    const result = await dataRequest.query(
+      `SELECT Id, ClientID, BusinessName, AccountCode, Email, Town, CorporateGroup, GroupType, FacilityType,
+              CompanyRegNumber, PhysicalAddress, VATNumber,
+              AbattoirOwnerName, AbattoirOwnerCell, AbattoirOwnerEmail,
+              AccountsContactName, AccountsTelephone, AccountsEmail,
+              AbattoirManagerName, AbattoirManagerCell, AbattoirManagerEmail,
+              VerifiedAt, VerifiedBy
+       FROM ConsolidatedMasterAbattoirDatabase
+       ${whereClause}
+       ORDER BY Id
+       OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`
+    );
+
+    res.json({
+      data: result.recordset,
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    });
+  } catch (err) {
+    console.error('Clients fetch error:', err);
+    res.status(500).json({ message: 'Server error fetching clients.' });
+  }
+});
+
+// POST /api/clients - create a new client record
+router.post('/', async (req, res) => {
+  const { client, createdBy } = req.body;
+
+  if (!client || !createdBy) {
+    return res.status(400).json({ message: 'client and createdBy are required.' });
+  }
+
+  try {
+    const pool = await getPool();
+    const request = pool.request();
+
+    EDITABLE_FIELDS.forEach((field, i) => {
+      request.input(`f${i}`, sql.NVarChar, String(client[field] || ''));
+    });
+
+    const columns = EDITABLE_FIELDS.join(', ');
+    const params = EDITABLE_FIELDS.map((_, i) => `@f${i}`).join(', ');
+
+    const result = await request.query(
+      `INSERT INTO ConsolidatedMasterAbattoirDatabase (${columns}) OUTPUT INSERTED.Id VALUES (${params})`
+    );
+
+    const newId = result.recordset[0].Id;
+
+    // Log the creation in the audit log
+    await pool.request()
+      .input('recordId', sql.Int, newId)
+      .input('fieldName', sql.NVarChar, '_CREATED')
+      .input('oldValue', sql.NVarChar, '')
+      .input('newValue', sql.NVarChar, `New record: ${client.BusinessName || client.ClientID || 'Unknown'}`)
+      .input('changedBy', sql.NVarChar, createdBy)
+      .query(
+        `INSERT INTO ClientAuditLog (RecordId, FieldName, OldValue, NewValue, ChangedBy)
+         VALUES (@recordId, @fieldName, @oldValue, @newValue, @changedBy)`
+      );
+
+    res.status(201).json({ message: 'Client created.', id: newId });
+  } catch (err) {
+    console.error('Client create error:', err);
+    res.status(500).json({ message: 'Server error creating client.' });
+  }
+});
+
+// PUT /api/clients/:id - update a client record and log changes
+router.put('/:id', async (req, res) => {
+  const { id } = req.params;
+  const updates = req.body.updates; // { field: newValue, ... }
+  const changedBy = req.body.changedBy; // user email or name
+
+  if (!updates || !changedBy) {
+    return res.status(400).json({ message: 'updates and changedBy are required.' });
+  }
+
+  try {
+    const pool = await getPool();
+
+    // Fetch current record
+    const current = await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .query('SELECT * FROM ConsolidatedMasterAbattoirDatabase WHERE Id = @id');
+
+    if (current.recordset.length === 0) {
+      return res.status(404).json({ message: 'Record not found.' });
+    }
+
+    const oldRecord = current.recordset[0];
+
+    // Build update SET clause and audit log entries
+    const setClauses = [];
+    const auditEntries = [];
+
+    for (const [field, newValue] of Object.entries(updates)) {
+      if (!EDITABLE_FIELDS.includes(field)) continue;
+      const oldValue = oldRecord[field] || '';
+      if (String(oldValue) === String(newValue)) continue; // no change
+
+      setClauses.push({ field, value: newValue });
+      auditEntries.push({ field, oldValue: String(oldValue), newValue: String(newValue) });
+    }
+
+    if (setClauses.length === 0) {
+      return res.json({ message: 'No changes detected.' });
+    }
+
+    // Update the record
+    const updateRequest = pool.request();
+    updateRequest.input('id', sql.Int, parseInt(id));
+    const setParts = setClauses.map((c, i) => {
+      updateRequest.input(`val${i}`, sql.NVarChar, String(c.value));
+      return `${c.field} = @val${i}`;
+    });
+
+    await updateRequest.query(
+      `UPDATE ConsolidatedMasterAbattoirDatabase SET ${setParts.join(', ')} WHERE Id = @id`
+    );
+
+    // Insert audit log entries
+    for (const entry of auditEntries) {
+      await pool.request()
+        .input('recordId', sql.Int, parseInt(id))
+        .input('fieldName', sql.NVarChar, entry.field)
+        .input('oldValue', sql.NVarChar, entry.oldValue)
+        .input('newValue', sql.NVarChar, entry.newValue)
+        .input('changedBy', sql.NVarChar, changedBy)
+        .query(
+          `INSERT INTO ClientAuditLog (RecordId, FieldName, OldValue, NewValue, ChangedBy)
+           VALUES (@recordId, @fieldName, @oldValue, @newValue, @changedBy)`
+        );
+    }
+
+    res.json({ message: `${auditEntries.length} field(s) updated.`, changes: auditEntries });
+  } catch (err) {
+    console.error('Client update error:', err);
+    res.status(500).json({ message: 'Server error updating client.' });
+  }
+});
+
+// DELETE /api/clients/:id - delete a client record
+router.delete('/:id', async (req, res) => {
+  const { id } = req.params;
+  const { deletedBy } = req.body;
+
+  if (!deletedBy) {
+    return res.status(400).json({ message: 'deletedBy is required.' });
+  }
+
+  try {
+    const pool = await getPool();
+
+    // Fetch current record before deleting
+    const current = await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .query('SELECT * FROM ConsolidatedMasterAbattoirDatabase WHERE Id = @id');
+
+    if (current.recordset.length === 0) {
+      return res.status(404).json({ message: 'Record not found.' });
+    }
+
+    const record = current.recordset[0];
+
+    // Remove the foreign key constraint audit logs first, then delete
+    // Log the deletion in the audit log (set RecordId to 0 since record will be gone)
+    // Actually, we need to delete audit logs referencing this record due to FK constraint
+    await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .query('DELETE FROM ClientAuditLog WHERE RecordId = @id');
+
+    await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .query('DELETE FROM ConsolidatedMasterAbattoirDatabase WHERE Id = @id');
+
+    // Log deletion with RecordId 0 (record no longer exists)
+    await pool.request()
+      .input('recordId', sql.Int, 0)
+      .input('fieldName', sql.NVarChar, '_DELETED')
+      .input('oldValue', sql.NVarChar, `${record.ClientID} - ${record.BusinessName}`)
+      .input('newValue', sql.NVarChar, '')
+      .input('changedBy', sql.NVarChar, deletedBy)
+      .query(
+        `INSERT INTO ClientAuditLog (RecordId, FieldName, OldValue, NewValue, ChangedBy)
+         VALUES (@recordId, @fieldName, @oldValue, @newValue, @changedBy)`
+      );
+
+    res.json({ message: 'Client deleted.' });
+  } catch (err) {
+    console.error('Client delete error:', err);
+    res.status(500).json({ message: 'Server error deleting client.' });
+  }
+});
+
+// GET /api/clients/audit-log - get audit log with optional filters
+router.get('/audit-log', async (req, res) => {
+  try {
+    const pool = await getPool();
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const recordId = req.query.recordId || '';
+    const offset = (page - 1) * limit;
+
+    let whereClause = '';
+    const countReq = pool.request();
+    const dataReq = pool.request();
+
+    if (recordId) {
+      whereClause = 'WHERE a.RecordId = @recordId';
+      countReq.input('recordId', sql.Int, parseInt(recordId));
+      dataReq.input('recordId', sql.Int, parseInt(recordId));
+    }
+
+    const countResult = await countReq.query(
+      `SELECT COUNT(*) AS total FROM ClientAuditLog a ${whereClause}`
+    );
+    const total = countResult.recordset[0].total;
+
+    dataReq.input('offset', sql.Int, offset);
+    dataReq.input('limit', sql.Int, limit);
+
+    const result = await dataReq.query(
+      `SELECT a.Id, a.RecordId, c.ClientID, c.BusinessName, a.FieldName, a.OldValue, a.NewValue, a.ChangedBy, a.ChangedAt
+       FROM ClientAuditLog a
+       LEFT JOIN ConsolidatedMasterAbattoirDatabase c ON a.RecordId = c.Id
+       ${whereClause}
+       ORDER BY a.ChangedAt DESC
+       OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`
+    );
+
+    res.json({
+      data: result.recordset,
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    });
+  } catch (err) {
+    console.error('Audit log fetch error:', err);
+    res.status(500).json({ message: 'Server error fetching audit log.' });
+  }
+});
+
+module.exports = router;

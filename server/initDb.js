@@ -34,6 +34,7 @@ async function initializeDatabase() {
           LastName NVARCHAR(100) NOT NULL,
           Email NVARCHAR(255) NOT NULL UNIQUE,
           PasswordHash NVARCHAR(255) NOT NULL,
+          Role NVARCHAR(50) NOT NULL DEFAULT 'User',
           CreatedAt DATETIME DEFAULT GETDATE()
         )
       END
@@ -53,8 +54,8 @@ async function initializeDatabase() {
       .query(`
         IF NOT EXISTS (SELECT Id FROM Users WHERE Email = @email)
         BEGIN
-          INSERT INTO Users (FirstName, LastName, Email, PasswordHash)
-          VALUES (@firstName, @lastName, @email, @passwordHash)
+          INSERT INTO Users (FirstName, LastName, Email, PasswordHash, Role)
+          VALUES (@firstName, @lastName, @email, @passwordHash, 'Super Admin')
         END
       `);
 
