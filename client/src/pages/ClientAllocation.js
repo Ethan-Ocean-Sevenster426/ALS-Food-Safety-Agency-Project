@@ -10,9 +10,8 @@ const TABLE_FIELDS = [
   { key: 'AccountCode', label: 'Acc. Code', readOnly: true },
   { key: 'Email', label: 'Email' },
   { key: 'Town', label: 'Town' },
-  { key: 'CorporateGroup', label: 'Corporate Group' },
-  { key: 'GroupType', label: 'Group Type' },
   { key: 'FacilityType', label: 'Facility Type' },
+  { key: 'FacilityProvince', label: 'Province' },
   { key: 'CompanyRegNumber', label: 'Reg No.' },
   { key: 'PhysicalAddress', label: 'Physical Address' },
   { key: 'VATNumber', label: 'VAT No.' },
@@ -500,13 +499,26 @@ function ClientAllocation() {
                         <td></td>
                         {TABLE_FIELDS.map(f => (
                           <td key={f.key}>
-                            <input
-                              type="text"
-                              className="ca-edit-input ca-new-input"
-                              placeholder={f.label}
-                              value={newRow[f.key]}
-                              onChange={(e) => handleNewRowChange(f.key, e.target.value)}
-                            />
+                            {f.key === 'FacilityProvince' ? (
+                              <select
+                                className="ca-edit-input ca-new-input"
+                                value={newRow[f.key]}
+                                onChange={(e) => handleNewRowChange(f.key, e.target.value)}
+                              >
+                                <option value="">— Select —</option>
+                                {['Eastern Cape', 'Free State', 'Gauteng', 'KwaZulu-Natal', 'Limpopo', 'Mpumalanga', 'North West', 'Northern Cape', 'Western Cape'].map(p => (
+                                  <option key={p} value={p}>{p}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input
+                                type="text"
+                                className="ca-edit-input ca-new-input"
+                                placeholder={f.label}
+                                value={newRow[f.key]}
+                                onChange={(e) => handleNewRowChange(f.key, e.target.value)}
+                              />
+                            )}
                           </td>
                         ))}
                         <td className="ca-details-cell">
@@ -576,12 +588,25 @@ function ClientAllocation() {
                           {TABLE_FIELDS.map(f => (
                             <td key={f.key}>
                               {editingId === c.Id && !f.readOnly ? (
-                                <input
-                                  type="text"
-                                  className={`ca-edit-input ${editValues[f.key] !== originalValues[f.key] ? 'ca-changed' : ''}`}
-                                  value={editValues[f.key]}
-                                  onChange={(e) => handleFieldChange(f.key, e.target.value)}
-                                />
+                                f.key === 'FacilityProvince' ? (
+                                  <select
+                                    className={`ca-edit-input ${editValues[f.key] !== originalValues[f.key] ? 'ca-changed' : ''}`}
+                                    value={editValues[f.key]}
+                                    onChange={(e) => handleFieldChange(f.key, e.target.value)}
+                                  >
+                                    <option value="">— Select —</option>
+                                    {['Eastern Cape', 'Free State', 'Gauteng', 'KwaZulu-Natal', 'Limpopo', 'Mpumalanga', 'North West', 'Northern Cape', 'Western Cape'].map(p => (
+                                      <option key={p} value={p}>{p}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <input
+                                    type="text"
+                                    className={`ca-edit-input ${editValues[f.key] !== originalValues[f.key] ? 'ca-changed' : ''}`}
+                                    value={editValues[f.key]}
+                                    onChange={(e) => handleFieldChange(f.key, e.target.value)}
+                                  />
+                                )
                               ) : (
                                 c[f.key]
                               )}

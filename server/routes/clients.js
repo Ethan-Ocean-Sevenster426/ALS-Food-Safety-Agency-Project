@@ -5,7 +5,7 @@ const router = express.Router();
 
 const EDITABLE_FIELDS = [
   'ClientID', 'BusinessName', 'AccountCode', 'Email',
-  'Town', 'CorporateGroup', 'GroupType', 'FacilityType',
+  'Town', 'FacilityType', 'FacilityProvince',
   'CompanyRegNumber', 'PhysicalAddress', 'VATNumber',
   'AbattoirOwnerName', 'AbattoirOwnerCell', 'AbattoirOwnerEmail',
   'AccountsContactName', 'AccountsTelephone', 'AccountsEmail',
@@ -25,7 +25,7 @@ router.get('/', async (req, res) => {
     const request = pool.request();
 
     if (search) {
-      whereClause = `WHERE BusinessName LIKE @search OR ClientID LIKE @search OR AccountCode LIKE @search OR Email LIKE @search OR Town LIKE @search OR CorporateGroup LIKE @search`;
+      whereClause = `WHERE BusinessName LIKE @search OR ClientID LIKE @search OR AccountCode LIKE @search OR Email LIKE @search OR Town LIKE @search OR FacilityProvince LIKE @search`;
       request.input('search', sql.NVarChar, `%${search}%`);
     }
 
@@ -42,7 +42,7 @@ router.get('/', async (req, res) => {
     dataRequest.input('limit', sql.Int, limit);
 
     const result = await dataRequest.query(
-      `SELECT Id, ClientID, BusinessName, AccountCode, Email, Town, CorporateGroup, GroupType, FacilityType,
+      `SELECT Id, ClientID, BusinessName, AccountCode, Email, Town, FacilityType, FacilityProvince,
               CompanyRegNumber, PhysicalAddress, VATNumber,
               AbattoirOwnerName, AbattoirOwnerCell, AbattoirOwnerEmail,
               AccountsContactName, AccountsTelephone, AccountsEmail,

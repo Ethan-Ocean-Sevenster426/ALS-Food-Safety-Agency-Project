@@ -10,6 +10,10 @@ const WIZARD_STEPS = [
     title: 'Business Information',
     fields: [
       { key: 'BusinessName', label: 'Business Name' },
+      { key: 'FacilityProvince', label: 'Facility Province', type: 'select', options: [
+        '', 'Eastern Cape', 'Free State', 'Gauteng', 'KwaZulu-Natal', 'Limpopo',
+        'Mpumalanga', 'North West', 'Northern Cape', 'Western Cape',
+      ]},
       { key: 'CompanyRegNumber', label: 'Company Registration Number' },
       { key: 'PhysicalAddress', label: 'Physical Address' },
       { key: 'VATNumber', label: 'VAT Number' },
@@ -235,14 +239,28 @@ function AcceptInvite() {
             {currentStep.fields.map(f => (
               <div key={f.key} className="form-group">
                 <label htmlFor={f.key}>{f.label} <span className="required">*</span></label>
-                <input
-                  type={f.key.toLowerCase().includes('email') ? 'email' : 'text'}
-                  id={f.key}
-                  value={wizardData[f.key] || ''}
-                  onChange={(e) => handleWizardFieldChange(f.key, e.target.value)}
-                  placeholder={f.label}
-                  className={wizardErrors[f.key] ? 'input-error' : ''}
-                />
+                {f.type === 'select' ? (
+                  <select
+                    id={f.key}
+                    value={wizardData[f.key] || ''}
+                    onChange={(e) => handleWizardFieldChange(f.key, e.target.value)}
+                    className={wizardErrors[f.key] ? 'input-error' : ''}
+                  >
+                    <option value="">Select {f.label}...</option>
+                    {f.options.filter(o => o).map(o => (
+                      <option key={o} value={o}>{o}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type={f.key.toLowerCase().includes('email') ? 'email' : 'text'}
+                    id={f.key}
+                    value={wizardData[f.key] || ''}
+                    onChange={(e) => handleWizardFieldChange(f.key, e.target.value)}
+                    placeholder={f.label}
+                    className={wizardErrors[f.key] ? 'input-error' : ''}
+                  />
+                )}
                 {wizardErrors[f.key] && <span className="field-error">{wizardErrors[f.key]}</span>}
               </div>
             ))}

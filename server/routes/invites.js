@@ -98,7 +98,7 @@ router.get('/:token', async (req, res) => {
       .input('token', sql.NVarChar, token)
       .query(
         `SELECT i.*, c.BusinessName, c.ClientID, c.AccountCode, c.Email as ClientEmail,
-                c.ManualEmail, c.Town, c.CorporateGroup, c.GroupType, c.FacilityType,
+                c.ManualEmail, c.Town, c.FacilityType, c.FacilityProvince,
                 c.CompanyRegNumber, c.PhysicalAddress, c.VATNumber,
                 c.AbattoirOwnerName, c.AbattoirOwnerCell, c.AbattoirOwnerEmail,
                 c.AccountsContactName, c.AccountsTelephone, c.AccountsEmail,
@@ -183,7 +183,7 @@ router.post('/:token/accept', async (req, res) => {
     // If Company Admin and verification data provided, update the client record and log changes
     if (invite.Role === 'Company Admin' && verificationData) {
       const fields = [
-        'BusinessName', 'CompanyRegNumber', 'PhysicalAddress', 'VATNumber',
+        'BusinessName', 'FacilityProvince', 'CompanyRegNumber', 'PhysicalAddress', 'VATNumber',
         'AbattoirOwnerName', 'AbattoirOwnerCell', 'AbattoirOwnerEmail',
         'AccountsContactName', 'AccountsTelephone', 'AccountsEmail',
         'AbattoirManagerName', 'AbattoirManagerCell', 'AbattoirManagerEmail'

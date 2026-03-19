@@ -92,6 +92,18 @@
   border: 1px solid #a8d8d8;
 }
 
+.epv-ref-badge {
+  background: #f8fafc;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: 'Courier New', monospace;
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1px solid #cbd5e1;
+  letter-spacing: 0.5px;
+}
+
 .epv-completed-badge {
   background: #dcfce7;
   color: #15803d;
@@ -100,6 +112,51 @@
   padding: 4px 10px;
   border-radius: 20px;
   border: 1px solid #bbf7d0;
+}
+
+.epv-edit-badge {
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid #fde68a;
+}
+
+.epv-readonly-banner {
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin: 16px 0;
+}
+
+.epv-readonly-banner p {
+  margin: 0;
+  color: #92400e;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.epv-back-to-company {
+  background: #0E7C7B;
+  color: #fff;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 10px 20px;
+  margin-bottom: 16px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.2s;
+}
+
+.epv-back-to-company:hover {
+  background: #095c5b;
 }
 
 /* Step Indicator */
@@ -372,6 +429,109 @@
 
 .epv-closing-stock.negative {
   color: #dc2626;
+}
+
+.epv-lossgain-row {
+  padding: 10px 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.epv-lossgain-row.loss {
+  background: #fef2f2;
+}
+
+.epv-lossgain-row.gain {
+  background: #f0fdf4;
+}
+
+.epv-lossgain-row label {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.epv-lossgain-value {
+  font-size: 18px;
+  font-weight: 800;
+  min-width: 160px;
+  text-align: right;
+  color: #333;
+}
+
+.epv-lossgain-row.loss .epv-lossgain-value {
+  color: #dc2626;
+}
+
+.epv-lossgain-row.gain .epv-lossgain-value {
+  color: #15803d;
+}
+
+.epv-closing-section {
+  border: 2px solid #0E7C7B;
+  border-radius: 8px;
+}
+
+.epv-review-section-header td {
+  background: #f1f5f9;
+  font-weight: 700;
+  color: #334155;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 8px 12px;
+}
+
+.epv-review-lossgain td {
+  font-weight: 700;
+  border-top: 2px solid #333;
+}
+
+.epv-review-lossgain.loss td {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.epv-review-lossgain.gain td {
+  background: #f0fdf4;
+  color: #15803d;
+}
+
+/* Pulp Section */
+.epv-pulp-header {
+  display: grid;
+  grid-template-columns: 1fr 160px 120px;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.epv-pulp-col-label {
+  font-weight: 700;
+  font-size: 13px;
+  text-transform: uppercase;
+  color: #334155;
+  text-align: center;
+  letter-spacing: 0.5px;
+}
+
+.epv-pulp-row {
+  display: grid !important;
+  grid-template-columns: 1fr 160px 120px;
+  gap: 12px;
+  align-items: center;
+}
+
+.epv-pulp-row input {
+  text-align: right;
+}
+
+.epv-pulp-dozens {
+  text-align: center;
+  font-weight: 700;
+  font-size: 15px;
+  color: #0E7C7B;
+  background: #e6f4f4;
+  border-radius: 6px;
+  padding: 8px 12px;
 }
 
 /* Navigation Buttons */

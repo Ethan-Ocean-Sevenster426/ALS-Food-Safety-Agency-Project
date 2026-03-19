@@ -37,7 +37,7 @@ router.put('/:clientRecordId', async (req, res) => {
   }
 
   const EDITABLE_FIELDS = [
-    'BusinessName', 'Email', 'Town', 'CorporateGroup', 'GroupType', 'FacilityType',
+    'BusinessName', 'Email', 'Town', 'FacilityType', 'FacilityProvince',
     'CompanyRegNumber', 'PhysicalAddress', 'VATNumber',
     'AbattoirOwnerName', 'AbattoirOwnerCell', 'AbattoirOwnerEmail',
     'AccountsContactName', 'AccountsTelephone', 'AccountsEmail',

@@ -10,9 +10,8 @@ const DETAIL_FIELDS = [
   { key: 'AccountCode', label: 'Account Code', readOnly: true },
   { key: 'Email', label: 'Email' },
   { key: 'Town', label: 'Town' },
-  { key: 'CorporateGroup', label: 'Corporate Group' },
-  { key: 'GroupType', label: 'Group Type' },
   { key: 'FacilityType', label: 'Facility Type' },
+  { key: 'FacilityProvince', label: 'Facility Province' },
   { key: 'CompanyRegNumber', label: 'Company Reg No.' },
   { key: 'PhysicalAddress', label: 'Physical Address' },
   { key: 'VATNumber', label: 'VAT Number' },
@@ -51,6 +50,11 @@ const ALL_EDITABLE = [
 ];
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+const SA_PROVINCES = [
+  'Eastern Cape', 'Free State', 'Gauteng', 'KwaZulu-Natal', 'Limpopo',
+  'Mpumalanga', 'North West', 'Northern Cape', 'Western Cape',
+];
 
 function CompanyOverview() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -107,6 +111,15 @@ function CompanyOverview() {
   const [epvLoading, setEpvLoading] = useState(false);
   const [epvSending, setEpvSending] = useState(false);
 
+  // Add EPV modal state (for company users to submit old VPS forms)
+  const [showAddEpvModal, setShowAddEpvModal] = useState(false);
+  const [addEpvMonth, setAddEpvMonth] = useState('');
+  const [addEpvYear, setAddEpvYear] = useState('');
+  const [addEpvCreating, setAddEpvCreating] = useState(false);
+
+  // POP upload state
+  const [popUploading, setPopUploading] = useState(null); // EPV Id being uploaded
+
   // ===== FETCH ALL COMPANIES (admin only) =====
   const fetchAllCompanies = useCallback(async () => {
     if (!isAdmin) return;
@@ -151,6 +164,19 @@ function CompanyOverview() {
     }
   }, [activeCompanyId]);
 
+  // Fetch just the audit log count (always, not only when expanded)
+  const fetchAuditCount = useCallback(async () => {
+    if (!activeCompanyId) return;
+    try {
+      const res = await axios.get(`http://localhost:5000/api/company/${activeCompanyId}/audit-log`, {
+        params: { page: 1, limit: 1 },
+      });
+      setAuditTotal(res.data.total);
+    } catch (err) {
+      console.error('Failed to load audit count');
+    }
+  }, [activeCompanyId]);
+
   const fetchAuditLog = useCallback(async () => {
     if (!activeCompanyId) return;
     setAuditLoading(true);
@@ -184,6 +210,7 @@ function CompanyOverview() {
   useEffect(() => { fetchCompany(); }, [fetchCompany]);
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
   useEffect(() => { fetchEPVs(); }, [fetchEPVs]);
+  useEffect(() => { fetchAuditCount(); }, [fetchAuditCount]);
   useEffect(() => { if (showAuditLog) fetchAuditLog(); }, [fetchAuditLog, showAuditLog]);
 
   // Reset sub-sections when switching company
@@ -325,6 +352,85 @@ function CompanyOverview() {
       setError(err.response?.data?.message || 'Failed to reset password.');
     } finally {
       setResetting(false);
+    }
+  };
+
+  // ===== CREATE MANUAL EPV (company users for old months) =====
+  const openAddEpvModal = () => {
+    const now = new Date();
+    setAddEpvMonth(String(now.getMonth() + 1));
+    setAddEpvYear(String(now.getFullYear()));
+    setShowAddEpvModal(true);
+  };
+
+  const createManualEPV = async () => {
+    if (!addEpvMonth || !addEpvYear) return;
+    setAddEpvCreating(true);
+    setError('');
+    try {
+      const res = await axios.post('http://localhost:5000/api/epv/create-manual', {
+        clientRecordId: activeCompanyId,
+        periodMonth: parseInt(addEpvMonth),
+        periodYear: parseInt(addEpvYear),
+        createdBy: userLabel,
+      });
+      setShowAddEpvModal(false);
+      fetchEPVs();
+      // Navigate to the form
+      navigate(`/epv/${res.data.token}`);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to create verification.');
+    } finally {
+      setAddEpvCreating(false);
+    }
+  };
+
+  // ===== UPLOAD POP =====
+  const handlePopUpload = async (epvId, file) => {
+    if (!file) return;
+    setPopUploading(epvId);
+    setError('');
+    try {
+      const formData = new FormData();
+      formData.append('pop', file);
+      formData.append('uploadedBy', userLabel);
+      await axios.post(`http://localhost:5000/api/epv/${epvId}/upload-pop`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setSuccessMsg('Proof of Payment uploaded successfully.');
+      fetchEPVs();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to upload POP.');
+    } finally {
+      setPopUploading(null);
+    }
+  };
+
+  // ===== DELETE POP (admin only) =====
+  const deletePop = async (epvId) => {
+    if (!window.confirm('Are you sure you want to delete this Proof of Payment? This will also remove reconciliation.')) return;
+    setError('');
+    try {
+      await axios.delete(`http://localhost:5000/api/epv/${epvId}/pop`);
+      setSuccessMsg('POP deleted successfully.');
+      fetchEPVs();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to delete POP.');
+    }
+  };
+
+  // ===== RECONCILE EPV (admin only) =====
+  const toggleReconcile = async (epvId, currentValue) => {
+    setError('');
+    try {
+      await axios.put(`http://localhost:5000/api/epv/${epvId}/reconcile`, {
+        reconciled: !currentValue,
+        reconciledBy: userLabel,
+      });
+      setSuccessMsg(!currentValue ? 'EPV marked as reconciled.' : 'Reconciliation removed.');
+      fetchEPVs();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update reconciliation.');
     }
   };
 
@@ -489,6 +595,43 @@ function CompanyOverview() {
         </div>
       )}
 
+      {/* Add EPV Modal */}
+      {showAddEpvModal && (
+        <div className="co-modal-overlay">
+          <div className="co-modal">
+            <h3 style={{ color: '#0E7C7B' }}>Add Verification</h3>
+            <p>Select the month and year for the verification you want to submit.</p>
+            <div style={{ display: 'flex', gap: '12px', margin: '16px 0' }}>
+              <select value={addEpvMonth} onChange={(e) => setAddEpvMonth(e.target.value)} className="co-input" style={{ flex: 1 }}>
+                {MONTH_NAMES.map((m, i) => (
+                  <option key={i} value={i + 1}>{m}</option>
+                ))}
+              </select>
+              <select value={addEpvYear} onChange={(e) => setAddEpvYear(e.target.value)} className="co-input" style={{ width: '120px' }}>
+                {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+            {epvList.some(e => e.PeriodMonth === parseInt(addEpvMonth) && e.PeriodYear === parseInt(addEpvYear)) && (
+              <p style={{ color: '#DC3545', fontSize: '13px', margin: '0 0 12px' }}>
+                A verification for {MONTH_NAMES[parseInt(addEpvMonth) - 1]} {addEpvYear} already exists.
+              </p>
+            )}
+            <div className="co-modal-actions">
+              <button
+                className="co-save-btn"
+                onClick={createManualEPV}
+                disabled={addEpvCreating || epvList.some(e => e.PeriodMonth === parseInt(addEpvMonth) && e.PeriodYear === parseInt(addEpvYear))}
+              >
+                {addEpvCreating ? 'Creating...' : 'Create & Complete'}
+              </button>
+              <button className="co-cancel-btn" onClick={() => setShowAddEpvModal(false)} disabled={addEpvCreating}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ===== COMPANY HEADER ===== */}
       <div className="page-card co-header-card">
         <div className="co-header">
@@ -553,12 +696,23 @@ function CompanyOverview() {
             <div key={f.key} className="co-detail-item">
               <label>{f.label}</label>
               {editing && !f.readOnly ? (
-                <input
-                  type="text"
-                  className={`co-input ${editValues[f.key] !== originalValues[f.key] ? 'co-changed' : ''}`}
-                  value={editValues[f.key]}
-                  onChange={(e) => setEditValues(prev => ({ ...prev, [f.key]: e.target.value }))}
-                />
+                f.key === 'FacilityProvince' ? (
+                  <select
+                    className={`co-input ${editValues[f.key] !== originalValues[f.key] ? 'co-changed' : ''}`}
+                    value={editValues[f.key]}
+                    onChange={(e) => setEditValues(prev => ({ ...prev, [f.key]: e.target.value }))}
+                  >
+                    <option value="">— Select Province —</option>
+                    {SA_PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    className={`co-input ${editValues[f.key] !== originalValues[f.key] ? 'co-changed' : ''}`}
+                    value={editValues[f.key]}
+                    onChange={(e) => setEditValues(prev => ({ ...prev, [f.key]: e.target.value }))}
+                  />
+                )
               ) : (
                 <span className="co-detail-value">{company?.[f.key] || '—'}</span>
               )}
@@ -745,11 +899,18 @@ function CompanyOverview() {
       <div className="page-card co-section">
         <div className="co-section-header">
           <h3>Egg Production Verifications ({epvList.length})</h3>
-          {isAdmin && (
-            <button className="co-epv-send-btn" onClick={sendEPV} disabled={epvSending}>
-              {epvSending ? 'Sending...' : 'Send EPV'}
-            </button>
-          )}
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {(user.role === 'Company Admin' || user.role === 'User') && (
+              <button className="co-epv-send-btn" onClick={openAddEpvModal}>
+                + Add
+              </button>
+            )}
+            {isAdmin && (
+              <button className="co-epv-send-btn" onClick={sendEPV} disabled={epvSending}>
+                {epvSending ? 'Sending...' : 'Send EPV'}
+              </button>
+            )}
+          </div>
         </div>
 
         {epvLoading ? (
@@ -757,20 +918,22 @@ function CompanyOverview() {
         ) : epvList.length === 0 ? (
           <p className="co-loading">No verifications sent yet.{isAdmin ? ' Click "Send EPV" to send the first one.' : ' Your administrator will send the first one.'}</p>
         ) : (
-          <table className="co-table">
+          <table className="co-table co-epv-table">
             <thead>
               <tr>
+                <th>Ref #</th>
                 <th>Period</th>
                 <th>Status</th>
-                <th>Sent</th>
                 <th>Completed</th>
-                <th>Completed By</th>
+                <th>POP</th>
+                <th>Reconciled</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {epvList.map(epv => (
-                <tr key={epv.Id}>
+                <tr key={epv.Id} className={epv.IsReconciled ? 'co-epv-reconciled' : ''}>
+                  <td className="co-epv-ref">{epv.ReferenceNumber || '—'}</td>
                   <td className="co-epv-period">
                     {MONTH_NAMES[(epv.PeriodMonth || 1) - 1]} {epv.PeriodYear}
                   </td>
@@ -779,15 +942,68 @@ function CompanyOverview() {
                       {epv.Status}
                     </span>
                   </td>
-                  <td className="co-date">{formatDate(epv.SentAt)}</td>
                   <td className="co-date">{epv.CompletedAt ? formatDate(epv.CompletedAt) : '—'}</td>
-                  <td>{epv.CompletedBy || '—'}</td>
+                  <td className="co-epv-pop">
+                    {epv.POPFilePath ? (
+                      <div className="co-pop-uploaded-container">
+                        <a href={`http://localhost:5000/api/epv/${epv.Id}/pop`} target="_blank" rel="noreferrer" className="co-pop-view-btn">
+                          <span className="co-pop-icon">&#128196;</span> View POP
+                        </a>
+                        <span className="co-pop-date">{formatDate(epv.POPUploadedAt)}</span>
+                        {isAdmin && (
+                          <button className="co-pop-delete-btn" onClick={() => deletePop(epv.Id)} title="Delete POP">
+                            &#10005;
+                          </button>
+                        )}
+                      </div>
+                    ) : epv.Status === 'Completed' && !epv.IsReconciled ? (
+                      <label className="co-pop-upload-btn">
+                        {popUploading === epv.Id ? 'Uploading...' : '+ Upload POP'}
+                        <input
+                          type="file"
+                          accept=".pdf,.png,.jpg,.jpeg"
+                          style={{ display: 'none' }}
+                          onChange={(e) => { if (e.target.files[0]) handlePopUpload(epv.Id, e.target.files[0]); }}
+                          disabled={popUploading === epv.Id}
+                        />
+                      </label>
+                    ) : (
+                      <span className="co-pop-na">—</span>
+                    )}
+                  </td>
+                  <td className="co-epv-reconcile">
+                    {epv.IsReconciled ? (
+                      isAdmin ? (
+                        <label className="co-reconcile-checkbox">
+                          <input
+                            type="checkbox"
+                            checked
+                            onChange={() => toggleReconcile(epv.Id, epv.IsReconciled)}
+                          />
+                          <span>Reconciled</span>
+                        </label>
+                      ) : (
+                        <span className="co-reconciled-badge">Reconciled</span>
+                      )
+                    ) : epv.POPFilePath && isAdmin ? (
+                      <label className="co-reconcile-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={false}
+                          onChange={() => toggleReconcile(epv.Id, epv.IsReconciled)}
+                        />
+                        <span>Mark</span>
+                      </label>
+                    ) : (
+                      <span className="co-not-reconciled">Not Reconciled</span>
+                    )}
+                  </td>
                   <td className="co-epv-actions">
                     {epv.Status === 'Pending' ? (
                       <button className="co-epv-complete-btn" onClick={() => navigate(`/epv/${epv.Token}`)}>
                         Complete
                       </button>
-                    ) : (isAdmin || user.role === 'Company Admin') ? (
+                    ) : isAdmin ? (
                       <button className="co-epv-edit-btn" onClick={() => navigate(`/epv/${epv.Token}`)}>
                         View / Edit
                       </button>

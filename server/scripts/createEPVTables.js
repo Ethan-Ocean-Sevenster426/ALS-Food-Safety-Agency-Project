@@ -65,6 +65,92 @@ async function createEPVTables() {
 
     console.log('EggProductionVerifications table ensured.');
 
+    // Add ActualClosingStock column if it doesn't exist
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = 'ActualClosingStock')
+      BEGIN
+        ALTER TABLE EggProductionVerifications ADD ActualClosingStock DECIMAL(18,2) DEFAULT 0
+      END
+    `);
+
+    // Add LossGain column if it doesn't exist
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = 'LossGain')
+      BEGIN
+        ALTER TABLE EggProductionVerifications ADD LossGain DECIMAL(18,2) DEFAULT 0
+      END
+    `);
+
+    // Add TotalE column if it doesn't exist
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = 'TotalE')
+      BEGIN
+        ALTER TABLE EggProductionVerifications ADD TotalE DECIMAL(18,2) DEFAULT 0
+      END
+    `);
+
+    console.log('New columns ensured (ActualClosingStock, LossGain, TotalE).');
+
+    // Add Pulp calculation columns
+    const pulpColumns = [
+      { name: 'PulpOpeningStock', type: 'INT DEFAULT 0' },
+      { name: 'PulpPurchased', type: 'INT DEFAULT 0' },
+      { name: 'PulpConverted', type: 'INT DEFAULT 0' },
+    ];
+
+    for (const col of pulpColumns) {
+      await pool.request().query(`
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = '${col.name}')
+        BEGIN
+          ALTER TABLE EggProductionVerifications ADD ${col.name} ${col.type}
+        END
+      `);
+    }
+
+    console.log('Pulp columns ensured.');
+
+    // Add Reference Number, POP, and Reconciled columns
+    const refColumns = [
+      { name: 'ReferenceNumber', type: 'NVARCHAR(50) NULL' },
+      { name: 'POPFilePath', type: 'NVARCHAR(500) NULL' },
+      { name: 'POPUploadedAt', type: 'DATETIME NULL' },
+      { name: 'POPUploadedBy', type: 'NVARCHAR(255) NULL' },
+      { name: 'IsReconciled', type: 'BIT NOT NULL DEFAULT 0' },
+      { name: 'ReconciledBy', type: 'NVARCHAR(255) NULL' },
+      { name: 'ReconciledAt', type: 'DATETIME NULL' },
+    ];
+
+    for (const col of refColumns) {
+      await pool.request().query(`
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = '${col.name}')
+        BEGIN
+          ALTER TABLE EggProductionVerifications ADD ${col.name} ${col.type}
+        END
+      `);
+    }
+
+    console.log('Reference/POP/Reconciled columns ensured.');
+
+    // Add FacilityProvince column to ConsolidatedMasterAbattoirDatabase if it doesn't exist
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ConsolidatedMasterAbattoirDatabase') AND name = 'FacilityProvince')
+      BEGIN
+        ALTER TABLE ConsolidatedMasterAbattoirDatabase ADD FacilityProvince NVARCHAR(255) NULL
+      END
+    `);
+
+    console.log('FacilityProvince column ensured on ConsolidatedMasterAbattoirDatabase.');
+
+    // Add FacilityProvince column to EggProductionVerifications if it doesn't exist
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = 'FacilityProvince')
+      BEGIN
+        ALTER TABLE EggProductionVerifications ADD FacilityProvince NVARCHAR(255) NULL
+      END
+    `);
+
+    console.log('FacilityProvince column ensured on EggProductionVerifications.');
+
     // Create EPVAuditLog table
     await pool.request().query(`
       IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='EPVAuditLog' AND xtype='U')

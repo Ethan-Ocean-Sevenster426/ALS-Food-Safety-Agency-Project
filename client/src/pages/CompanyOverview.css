@@ -1,6 +1,6 @@
 /* ===== Page ===== */
 .co-page {
-  max-width: 1100px;
+  max-width: 100%;
 }
 
 .co-page .page-card {
@@ -592,7 +592,7 @@
 /* ===== Future Cards ===== */
 /* ===== Company Selector (Admin) ===== */
 .co-selector-card {
-  max-width: 900px;
+  max-width: 100%;
 }
 
 .co-selector-desc {
@@ -939,4 +939,203 @@
 
 .co-delete-confirm-btn:hover {
   background: #b91c1c;
+}
+
+/* ===== EPV Table Enhancements ===== */
+.co-epv-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.co-epv-ref {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: #0E7C7B;
+  white-space: nowrap;
+}
+
+.co-pop-upload-btn {
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1.5px solid #2563eb;
+  background: #eff6ff;
+  color: #2563eb;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.co-pop-upload-btn:hover:not(:disabled) {
+  background: #2563eb;
+  color: #fff;
+}
+
+.co-pop-upload-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.co-pop-uploaded-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.co-pop-view-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: #eff6ff;
+  border: 1.5px solid #2563eb;
+  border-radius: 6px;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.co-pop-view-btn:hover {
+  background: #2563eb;
+  color: #fff;
+}
+
+.co-pop-icon {
+  font-size: 13px;
+}
+
+.co-pop-date {
+  font-size: 11px;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.co-pop-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: #fef2f2;
+  border: 1.5px solid #dc2626;
+  border-radius: 4px;
+  color: #dc2626;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+  padding: 0;
+  line-height: 1;
+}
+
+.co-pop-delete-btn:hover {
+  background: #dc2626;
+  color: #fff;
+}
+
+.co-reconcile-checkbox {
+  width: 18px;
+  height: 18px;
+  accent-color: #0E7C7B;
+  cursor: pointer;
+}
+
+.co-reconcile-checkbox:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.co-epv-reconciled td {
+  background: #f0fdf4 !important;
+}
+
+.co-epv-reconciled:hover td {
+  background: #dcfce7 !important;
+}
+
+.co-reconciled-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.co-not-reconciled {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+/* ===== Add EPV Button ===== */
+.co-add-epv-btn {
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1.5px solid #16a34a;
+  background: #f0fdf4;
+  color: #16a34a;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-left: 8px;
+}
+
+.co-add-epv-btn:hover {
+  background: #16a34a;
+  color: #fff;
+}
+
+/* ===== Add EPV Modal ===== */
+.co-add-epv-modal h3 {
+  color: #0E7C7B;
+}
+
+.co-add-epv-selects {
+  display: flex;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.co-add-epv-selects select {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  outline: none;
+}
+
+.co-add-epv-selects select:focus {
+  border-color: #0E7C7B;
+  box-shadow: 0 0 0 2px rgba(14, 124, 123, 0.1);
+}
+
+.co-add-epv-create-btn {
+  padding: 8px 20px;
+  background: #0E7C7B;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.co-add-epv-create-btn:hover:not(:disabled) {
+  background: #0a5f5e;
+}
+
+.co-add-epv-create-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
