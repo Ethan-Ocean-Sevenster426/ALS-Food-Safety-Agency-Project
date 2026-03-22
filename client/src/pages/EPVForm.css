@@ -104,6 +104,16 @@
   letter-spacing: 0.5px;
 }
 
+.epv-inspector-badge {
+  background: #e0e7ff;
+  color: #3730a3;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid #c7d2fe;
+}
+
 .epv-completed-badge {
   background: #dcfce7;
   color: #15803d;
@@ -777,4 +787,121 @@
   .epv-step-label {
     display: none;
   }
+}
+
+/* ===== Variance Explanation Section ===== */
+.epv-variance-section {
+  background: #fef3c7 !important;
+  border: 2px solid #f59e0b !important;
+  border-radius: 10px;
+  margin-top: 16px;
+}
+
+.epv-variance-section h4 {
+  color: #92400e;
+}
+
+.epv-variance-desc {
+  font-size: 14px;
+  color: #78350f;
+  margin: 0 0 14px;
+  line-height: 1.5;
+}
+
+.epv-variance-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.epv-variance-field label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #92400e;
+}
+
+.epv-variance-textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #d97706;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+  box-sizing: border-box;
+  background: #fff;
+  min-height: 80px;
+}
+
+.epv-variance-textarea:focus {
+  border-color: #92400e;
+  box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.2);
+}
+
+.epv-variance-textarea:disabled {
+  background: #fef9ee;
+  cursor: not-allowed;
+}
+
+.epv-review-variance td {
+  background: #fef3c7;
+  color: #92400e;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ===== Deduction rows (red) ===== */
+.epv-deduction-section {
+  border-left: 3px solid #dc2626;
+}
+
+.epv-deduction-row label {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.epv-deduction-row input {
+  border-color: #fca5a5;
+  color: #dc2626;
+}
+
+.epv-deduction-value {
+  color: #dc2626 !important;
+  font-weight: 600;
+}
+
+.epv-deduction-total .epv-calc-total {
+  color: #dc2626;
+}
+
+.epv-review-deduction td {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.epv-calc-total.negative {
+  color: #dc2626;
+}
+
+/* ===== Total Owed Section ===== */
+.epv-total-owed-section {
+  background: #f0fdf4;
+  border: 2px solid #16a34a;
+  border-radius: 10px;
+  padding: 20px;
+}
+
+.epv-total-owed-section h4 {
+  color: #065f46;
+  margin-bottom: 12px;
+}
+
+.epv-review-grand-total td {
+  background: #065f46 !important;
+  color: #fff !important;
+  font-weight: 700;
+  font-size: 16px;
+  padding: 12px 14px;
 }

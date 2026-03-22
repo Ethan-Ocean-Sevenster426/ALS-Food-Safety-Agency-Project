@@ -3,7 +3,12 @@ import axios from 'axios';
 import './PageStyles.css';
 import './Settings.css';
 
-const ROLES = ['Super Admin', 'Admin', 'Company Admin', 'User'];
+const ROLES = ['Super Admin', 'Admin', 'Inspector', 'Company Admin', 'User'];
+
+const SA_PROVINCES = [
+  'Eastern Cape', 'Free State', 'Gauteng', 'KwaZulu-Natal', 'Limpopo',
+  'Mpumalanga', 'North West', 'Northern Cape', 'Western Cape',
+];
 
 function Settings() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -19,8 +24,14 @@ function Settings() {
   const [resetting, setResetting] = useState(false);
   const [deactivateConfirm, setDeactivateConfirm] = useState(null);
   const [editModal, setEditModal] = useState(null);
-  const [editData, setEditData] = useState({ firstName: '', lastName: '', email: '', role: 'User' });
+  const [editData, setEditData] = useState({ firstName: '', lastName: '', email: '', role: 'User', inspectorProvince: '' });
   const [editSubmitting, setEditSubmitting] = useState(false);
+  const [addUserModal, setAddUserModal] = useState(false);
+  const [addUserData, setAddUserData] = useState({ firstName: '', lastName: '', email: '', password: '', role: 'User', inspectorProvince: '', clientRecordId: '' });
+  const [addUserSubmitting, setAddUserSubmitting] = useState(false);
+  const [companies, setCompanies] = useState([]);
+  const [companySearch, setCompanySearch] = useState('');
+  const [companiesLoading, setCompaniesLoading] = useState(false);
 
   const fetchUsers = useCallback(async () => {
     if (!isAdmin) return;
@@ -109,12 +120,74 @@ function Settings() {
     }
   };
 
+  const fetchCompanies = useCallback(async (search) => {
+    setCompaniesLoading(true);
+    try {
+      const res = await axios.get(`http://localhost:5000/api/clients?limit=20&search=${encodeURIComponent(search)}`);
+      setCompanies(res.data.clients || []);
+    } catch {
+      setCompanies([]);
+    } finally {
+      setCompaniesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (addUserModal && (addUserData.role === 'Company Admin' || addUserData.role === 'User')) {
+      const timer = setTimeout(() => fetchCompanies(companySearch), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [companySearch, addUserModal, addUserData.role, fetchCompanies]);
+
+  const executeAddUser = async () => {
+    const { firstName, lastName, email, password, role, inspectorProvince, clientRecordId } = addUserData;
+    if (!firstName || !lastName || !email || !password) {
+      setError('All fields are required.');
+      return;
+    }
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters.');
+      return;
+    }
+    if (role === 'Inspector' && !inspectorProvince) {
+      setError('Please select a province for the inspector.');
+      return;
+    }
+    if ((role === 'Company Admin' || role === 'User') && !clientRecordId) {
+      setError('Please select a company to link this user to.');
+      return;
+    }
+    setAddUserSubmitting(true);
+    setError('');
+    try {
+      await axios.post('http://localhost:5000/api/auth/signup', {
+        firstName,
+        lastName,
+        email,
+        password,
+        role,
+        inspectorProvince: role === 'Inspector' ? inspectorProvince : undefined,
+        clientRecordId: (role === 'Company Admin' || role === 'User') ? clientRecordId : undefined,
+      });
+      setAddUserModal(false);
+      setAddUserData({ firstName: '', lastName: '', email: '', password: '', role: 'User', inspectorProvince: '', clientRecordId: '' });
+      setCompanySearch('');
+      setSuccessMsg(`${role} "${firstName} ${lastName}" added successfully.`);
+      fetchUsers();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to add user.');
+    } finally {
+      setAddUserSubmitting(false);
+    }
+  };
+
   const openEditModal = (u) => {
     setEditData({
       firstName: u.FirstName,
       lastName: u.LastName,
       email: u.Email,
       role: u.Role,
+      inspectorProvince: u.InspectorProvince || '',
     });
     setEditModal(u);
     setError('');
@@ -154,6 +227,7 @@ function Settings() {
     switch (role) {
       case 'Super Admin': return 'role-super-admin';
       case 'Admin': return 'role-admin';
+      case 'Inspector': return 'role-inspector';
       case 'Company Admin': return 'role-company-admin';
       default: return 'role-user';
     }
@@ -181,8 +255,20 @@ function Settings() {
 
       {isAdmin && (
         <div className="page-card" style={{ marginTop: 20 }}>
-          <h2>All Users</h2>
-          <p className="settings-subtitle">Manage all user accounts, roles, and access.</p>
+          <div className="settings-header-row">
+            <div>
+              <h2 style={{ margin: 0 }}>All Users</h2>
+              <p className="settings-subtitle" style={{ margin: '4px 0 0' }}>Manage all user accounts, roles, and access.</p>
+            </div>
+            {user.role === 'Super Admin' && (
+              <button
+                className="settings-add-user-btn"
+                onClick={() => { setAddUserModal(true); setError(''); setCompanySearch(''); setCompanies([]); }}
+              >
+                + Add User
+              </button>
+            )}
+          </div>
 
           {error && <p className="settings-error">{error}</p>}
           {successMsg && <p className="settings-success">{successMsg}</p>}
@@ -301,18 +387,148 @@ function Settings() {
                     <label>Role</label>
                     <select
                       value={editData.role}
-                      onChange={(e) => setEditData({ ...editData, role: e.target.value })}
+                      onChange={(e) => setEditData({ ...editData, role: e.target.value, inspectorProvince: e.target.value === 'Inspector' ? editData.inspectorProvince : '' })}
                       className="settings-edit-select"
                     >
                       {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                     </select>
                   </div>
+                  {editData.role === 'Inspector' && (
+                    <div className="settings-edit-row">
+                      <label>Allocated Province</label>
+                      <select
+                        value={editData.inspectorProvince}
+                        onChange={(e) => setEditData({ ...editData, inspectorProvince: e.target.value })}
+                        className="settings-edit-select"
+                      >
+                        <option value="">-- Select Province --</option>
+                        {SA_PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                    </div>
+                  )}
                 </div>
                 <div className="settings-modal-actions">
                   <button className="settings-reset-confirm" onClick={executeEdit} disabled={editSubmitting}>
                     {editSubmitting ? 'Saving...' : 'Save Changes'}
                   </button>
                   <button className="settings-cancel-btn" onClick={() => setEditModal(null)} disabled={editSubmitting}>Cancel</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Add User Modal */}
+          {addUserModal && (
+            <div className="settings-modal-overlay">
+              <div className="settings-modal settings-modal-wide">
+                <h3 style={{ color: '#0E7C7B' }}>Add User</h3>
+                <p>Create a new user account.</p>
+                <div className="settings-edit-form">
+                  <div className="settings-add-row-group">
+                    <div className="settings-edit-row">
+                      <label>First Name</label>
+                      <input
+                        type="text"
+                        value={addUserData.firstName}
+                        onChange={(e) => setAddUserData({ ...addUserData, firstName: e.target.value })}
+                        className="settings-reset-input"
+                        placeholder="First name"
+                      />
+                    </div>
+                    <div className="settings-edit-row">
+                      <label>Last Name</label>
+                      <input
+                        type="text"
+                        value={addUserData.lastName}
+                        onChange={(e) => setAddUserData({ ...addUserData, lastName: e.target.value })}
+                        className="settings-reset-input"
+                        placeholder="Last name"
+                      />
+                    </div>
+                  </div>
+                  <div className="settings-edit-row">
+                    <label>Email</label>
+                    <input
+                      type="email"
+                      value={addUserData.email}
+                      onChange={(e) => setAddUserData({ ...addUserData, email: e.target.value })}
+                      className="settings-reset-input"
+                      placeholder="Email address"
+                    />
+                  </div>
+                  <div className="settings-edit-row">
+                    <label>Password</label>
+                    <input
+                      type="password"
+                      value={addUserData.password}
+                      onChange={(e) => setAddUserData({ ...addUserData, password: e.target.value })}
+                      className="settings-reset-input"
+                      placeholder="Min 6 characters"
+                    />
+                  </div>
+                  <div className="settings-edit-row">
+                    <label>Role</label>
+                    <select
+                      value={addUserData.role}
+                      onChange={(e) => setAddUserData({ ...addUserData, role: e.target.value, inspectorProvince: '', clientRecordId: '' })}
+                      className="settings-edit-select"
+                    >
+                      {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Inspector: Province selector */}
+                  {addUserData.role === 'Inspector' && (
+                    <div className="settings-edit-row">
+                      <label>Allocated Province</label>
+                      <select
+                        value={addUserData.inspectorProvince}
+                        onChange={(e) => setAddUserData({ ...addUserData, inspectorProvince: e.target.value })}
+                        className="settings-edit-select"
+                      >
+                        <option value="">-- Select Province --</option>
+                        {SA_PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Company Admin / User: Company selector */}
+                  {(addUserData.role === 'Company Admin' || addUserData.role === 'User') && (
+                    <div className="settings-edit-row">
+                      <label>Link to Company</label>
+                      <input
+                        type="text"
+                        value={companySearch}
+                        onChange={(e) => setCompanySearch(e.target.value)}
+                        className="settings-reset-input"
+                        placeholder="Search company by name, ID, or town..."
+                      />
+                      <div className="settings-company-list">
+                        {companiesLoading ? (
+                          <div className="settings-company-loading">Searching...</div>
+                        ) : companies.length === 0 ? (
+                          <div className="settings-company-loading">{companySearch ? 'No companies found.' : 'Type to search companies...'}</div>
+                        ) : (
+                          companies.map(c => (
+                            <div
+                              key={c.Id}
+                              className={`settings-company-item ${addUserData.clientRecordId === c.Id ? 'selected' : ''}`}
+                              onClick={() => setAddUserData({ ...addUserData, clientRecordId: c.Id })}
+                            >
+                              <strong>{c.BusinessName}</strong>
+                              <span className="settings-company-meta">{c.ClientID} {c.Town ? `— ${c.Town}` : ''} {c.FacilityProvince ? `(${c.FacilityProvince})` : ''}</span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="settings-modal-actions">
+                  <button className="settings-add-user-confirm" onClick={executeAddUser} disabled={addUserSubmitting}>
+                    {addUserSubmitting ? 'Adding...' : 'Add User'}
+                  </button>
+                  <button className="settings-cancel-btn" onClick={() => setAddUserModal(false)} disabled={addUserSubmitting}>Cancel</button>
                 </div>
               </div>
             </div>
@@ -326,6 +542,7 @@ function Settings() {
                   <th>Email</th>
                   <th>Role</th>
                   <th>Status</th>
+                  <th>Province</th>
                   <th>Company</th>
                   <th>Created</th>
                   <th>Actions</th>
@@ -333,9 +550,9 @@ function Settings() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan="7" className="settings-loading">Loading...</td></tr>
+                  <tr><td colSpan="8" className="settings-loading">Loading...</td></tr>
                 ) : users.length === 0 ? (
-                  <tr><td colSpan="7" className="settings-loading">No users found.</td></tr>
+                  <tr><td colSpan="8" className="settings-loading">No users found.</td></tr>
                 ) : (
                   users.map((u) => (
                     <tr key={u.Id} className={u.IsActive === false || u.IsActive === 0 ? 'user-inactive-row' : ''}>
@@ -355,6 +572,15 @@ function Settings() {
                         <span className={`status-badge ${u.IsActive === false || u.IsActive === 0 ? 'status-inactive' : 'status-active'}`}>
                           {u.IsActive === false || u.IsActive === 0 ? 'Inactive' : 'Active'}
                         </span>
+                      </td>
+                      <td>
+                        {u.Role === 'Inspector' && u.InspectorProvince ? (
+                          <span className="settings-province-badge">{u.InspectorProvince}</span>
+                        ) : u.Role === 'Inspector' ? (
+                          <span className="settings-no-allocation" style={{ color: '#dc2626' }}>Not Assigned</span>
+                        ) : (
+                          <span className="settings-no-allocation">—</span>
+                        )}
                       </td>
                       <td>
                         {u.AllocatedClient ? (

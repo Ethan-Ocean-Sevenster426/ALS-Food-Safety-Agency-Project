@@ -9,6 +9,8 @@ const companyRoutes = require('./routes/company');
 const epvRoutes = require('./routes/epv');
 const supportRoutes = require('./routes/support');
 const dashboardRoutes = require('./routes/dashboard');
+const invoiceRoutes = require('./routes/invoices');
+const adminRoutes = require('./routes/admin');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -25,6 +27,8 @@ app.use('/api/company', companyRoutes);
 app.use('/api/epv', epvRoutes);
 app.use('/api/support', supportRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/invoices', invoiceRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

@@ -3,11 +3,31 @@ const crypto = require('crypto');
 const path = require('path');
 const multer = require('multer');
 const { sql, getPool } = require('../config/db');
-const { sendEmail } = require('../services/emailService');
+const { sendEmail, sendEmailToEach } = require('../services/emailService');
 
 const router = express.Router();
 
 const LEVY_RATE = 0.018;
+
+// Helper: log to ClientAuditLog for company-level change log
+async function logCompanyAudit(pool, recordId, fieldName, oldValue, newValue, changedBy, userRole) {
+  // Ensure UserRole column exists
+  await pool.request().query(
+    `IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ClientAuditLog') AND name = 'UserRole')
+     BEGIN ALTER TABLE ClientAuditLog ADD UserRole NVARCHAR(50) NULL END`
+  );
+  await pool.request()
+    .input('recordId', sql.Int, recordId)
+    .input('fieldName', sql.NVarChar, fieldName)
+    .input('oldValue', sql.NVarChar, oldValue || null)
+    .input('newValue', sql.NVarChar, newValue || null)
+    .input('changedBy', sql.NVarChar, changedBy)
+    .input('userRole', sql.NVarChar, userRole || null)
+    .query(
+      `INSERT INTO ClientAuditLog (RecordId, FieldName, OldValue, NewValue, ChangedBy, UserRole)
+       VALUES (@recordId, @fieldName, @oldValue, @newValue, @changedBy, @userRole)`
+    );
+}
 
 // Multer setup for POP uploads
 const storage = multer.diskStorage({
@@ -42,9 +62,10 @@ async function generateReferenceNumber(pool, month, year) {
 const NUMERIC_FIELDS = [
   'OpeningStock', 'GradedEggsPurchased', 'UngradedEggsPurchased',
   'MarketReturns', 'MachineLoss', 'SentToPulp', 'Destroyed',
-  'SoldToTrade', 'Exported', 'SoldToStaff', 'SoldThroughFarmStall',
-  'TransferredToOtherProducers', 'ActualClosingStock',
+  'SoldToTrade', 'SoldToStaff', 'SoldThroughFarmStall',
+  'TransferredToOtherProducers',
   'PulpOpeningStock', 'PulpPurchased', 'PulpConverted',
+  'PulpSoldToTrade', 'PulpSoldToProducers',
 ];
 
 // All text fields that can be submitted
@@ -52,6 +73,7 @@ const TEXT_FIELDS = [
   'BusinessName', 'FacilityType', 'FacilityProvince', 'TradingName',
   'AuthorizedPersonName', 'PositionInCompany',
   'TelephoneNumber', 'CellPhoneNumber', 'EmailAddress',
+  'VarianceReason',
 ];
 
 const ALL_FIELDS = [...TEXT_FIELDS, ...NUMERIC_FIELDS];
@@ -74,10 +96,9 @@ function calculateTotals(data) {
 
   // D = Sales
   const soldToTrade = parseFloat(data.SoldToTrade) || 0;
-  const exported = parseFloat(data.Exported) || 0;
   const soldToStaff = parseFloat(data.SoldToStaff) || 0;
   const soldThroughFarmStall = parseFloat(data.SoldThroughFarmStall) || 0;
-  const totalD = soldToTrade + exported + soldToStaff + soldThroughFarmStall;
+  const totalD = soldToTrade + soldToStaff + soldThroughFarmStall;
   const levyAmount = totalD * LEVY_RATE;
 
   // E = Transfers
@@ -127,7 +148,8 @@ router.post('/send', async (req, res) => {
       .input('year', sql.Int, year)
       .query(
         `SELECT Id, Status FROM EggProductionVerifications
-         WHERE ClientRecordId = @clientRecordId AND PeriodMonth = @month AND PeriodYear = @year`
+         WHERE ClientRecordId = @clientRecordId AND PeriodMonth = @month AND PeriodYear = @year
+         AND (EPVType = 'Client' OR EPVType IS NULL)`
       );
 
     if (existingResult.recordset.length > 0) {
@@ -175,34 +197,82 @@ router.post('/send', async (req, res) => {
                  @businessName, @facilityType, @email, @ownerName, @openingStock)`
       );
 
-    // Build CC list from facility contact emails
-    const ccEmails = [];
-    if (client.AbattoirOwnerEmail && client.AbattoirOwnerEmail.includes('@')) {
-      ccEmails.push(client.AbattoirOwnerEmail);
-    }
-    if (client.AccountsEmail && client.AccountsEmail.includes('@')) {
-      ccEmails.push(client.AccountsEmail);
-    }
-    if (client.AbattoirManagerEmail && client.AbattoirManagerEmail.includes('@')) {
-      ccEmails.push(client.AbattoirManagerEmail);
-    }
+    // Collect all valid facility emails
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const allEmails = [client.Email, client.AbattoirOwnerEmail, client.AccountsEmail, client.AbattoirManagerEmail, client.ManualEmail]
+      .filter(e => e && e.trim() && emailRegex.test(e.trim()));
+    const uniqueEmails = [...new Set(allEmails.map(e => e.trim().toLowerCase()))];
 
     const formUrl = `http://localhost:3000/epv/${token}`;
     const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-    await sendEmail({
-      to: client.Email,
-      cc: ccEmails.length > 0 ? ccEmails.join(', ') : undefined,
-      subject: `EPVS - Egg Production Verification Due: ${monthNames[month - 1]} ${year}`,
-      html: buildEPVEmail({
-        businessName: client.BusinessName,
-        month: monthNames[month - 1],
-        year,
-        formUrl,
-        openingStock: prevClosingStock,
-      }),
+    const emailSubject = `EPVS - Egg Production Verification Due: ${monthNames[month - 1]} ${year}`;
+    const emailHtml = buildEPVEmail({
+      businessName: client.BusinessName,
+      month: monthNames[month - 1],
+      year,
+      formUrl,
+      openingStock: prevClosingStock,
     });
 
+    // Send to each recipient individually to track failures
+    const { succeeded, failed } = await sendEmailToEach({
+      recipients: uniqueEmails,
+      subject: emailSubject,
+      html: emailHtml,
+    });
+
+    // Log results to EmailSendLog
+    const pool2 = await getPool();
+    await pool2.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='EmailSendLog' AND xtype='U')
+      BEGIN
+        CREATE TABLE EmailSendLog (
+          Id INT IDENTITY(1,1) PRIMARY KEY,
+          ClientRecordId INT NOT NULL,
+          EmailAddress NVARCHAR(255) NOT NULL,
+          EmailType NVARCHAR(50) NOT NULL,
+          Subject NVARCHAR(500) NULL,
+          Status NVARCHAR(20) NOT NULL,
+          ErrorMessage NVARCHAR(MAX) NULL,
+          SentAt DATETIME DEFAULT GETDATE(),
+          SentBy NVARCHAR(255) NULL
+        )
+      END
+    `);
+    for (const email of succeeded) {
+      await pool2.request()
+        .input('crid', sql.Int, parseInt(clientRecordId))
+        .input('addr', sql.NVarChar, email)
+        .input('type', sql.NVarChar, 'EPV')
+        .input('subj', sql.NVarChar, emailSubject)
+        .input('status', sql.NVarChar, 'Sent')
+        .input('by', sql.NVarChar, sentBy)
+        .query(`INSERT INTO EmailSendLog (ClientRecordId, EmailAddress, EmailType, Subject, Status, SentBy)
+                VALUES (@crid, @addr, @type, @subj, @status, @by)`);
+    }
+    for (const email of failed) {
+      await pool2.request()
+        .input('crid', sql.Int, parseInt(clientRecordId))
+        .input('addr', sql.NVarChar, email)
+        .input('type', sql.NVarChar, 'EPV')
+        .input('subj', sql.NVarChar, emailSubject)
+        .input('status', sql.NVarChar, 'Failed')
+        .input('by', sql.NVarChar, sentBy)
+        .query(`INSERT INTO EmailSendLog (ClientRecordId, EmailAddress, EmailType, Subject, Status, SentBy)
+                VALUES (@crid, @addr, @type, @subj, @status, @by)`);
+    }
+
+    if (succeeded.length === 0) {
+      return res.status(500).json({ message: 'All emails failed to send.' });
+    }
+
+    // Mark client as "On EPV Cycle"
+    await pool.request()
+      .input('clientId', sql.Int, parseInt(clientRecordId))
+      .query(`UPDATE ConsolidatedMasterAbattoirDatabase SET EPVCycleStatus = 'On EPV Cycle' WHERE Id = @clientId`);
+
+    await logCompanyAudit(pool, parseInt(clientRecordId), 'EPV Sent', null, `${referenceNumber} for ${monthNames[month - 1]} ${year}`, sentBy, req.body.userRole);
     res.json({ message: `EPV sent to ${client.Email} for ${monthNames[month - 1]} ${year}.` });
   } catch (err) {
     console.error('EPV send error:', err);
@@ -243,7 +313,8 @@ router.post('/create-manual', async (req, res) => {
       .input('year', sql.Int, year)
       .query(
         `SELECT Id, Status FROM EggProductionVerifications
-         WHERE ClientRecordId = @clientRecordId AND PeriodMonth = @month AND PeriodYear = @year`
+         WHERE ClientRecordId = @clientRecordId AND PeriodMonth = @month AND PeriodYear = @year
+         AND (EPVType = 'Client' OR EPVType IS NULL)`
       );
 
     if (existingResult.recordset.length > 0) {
@@ -536,17 +607,62 @@ router.get('/company/:clientRecordId', async (req, res) => {
 
   try {
     const pool = await getPool();
+
+    // Ensure verification columns exist
+    for (const col of [
+      { name: 'IsVerified', type: 'BIT NOT NULL DEFAULT 0' },
+      { name: 'VerifiedBy', type: 'NVARCHAR(255) NULL' },
+      { name: 'VerifiedAt', type: 'DATETIME NULL' },
+      { name: 'InspectorComment', type: 'NVARCHAR(MAX) NULL' },
+      { name: 'ReconciledAmount', type: 'DECIMAL(18,2) NULL' },
+      { name: 'POPComment', type: 'NVARCHAR(MAX) NULL' },
+    ]) {
+      await pool.request().query(
+        `IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = '${col.name}')
+         BEGIN ALTER TABLE EggProductionVerifications ADD ${col.name} ${col.type} END`
+      );
+    }
+
+    // Get client EPVs
     const result = await pool.request()
       .input('clientRecordId', sql.Int, parseInt(clientRecordId))
       .query(
         `SELECT Id, ClientRecordId, PeriodMonth, PeriodYear, Status, SentAt, CompletedAt, CompletedBy, Token,
-                ReferenceNumber, POPFilePath, POPUploadedAt, POPUploadedBy, IsReconciled, ReconciledBy, ReconciledAt
+                ReferenceNumber, POPFilePath, POPUploadedAt, POPUploadedBy, IsReconciled, ReconciledBy, ReconciledAt,
+                IsVerified, VerifiedBy, VerifiedAt, InspectorComment, ReconciledAmount, POPComment,
+                ManualInspection, ManualInspectionBy, ManualInspectionAt,
+                EPVType, InspectorId, LinkedEPVId,
+                LevyAmount, PulpSoldToTrade
          FROM EggProductionVerifications
-         WHERE ClientRecordId = @clientRecordId
+         WHERE ClientRecordId = @clientRecordId AND (EPVType = 'Client' OR EPVType IS NULL)
          ORDER BY PeriodYear DESC, PeriodMonth DESC`
       );
 
-    res.json({ verifications: result.recordset });
+    // Get inspector EPVs linked to this company's client EPVs
+    const inspectorResult = await pool.request()
+      .input('clientRecordId', sql.Int, parseInt(clientRecordId))
+      .query(
+        `SELECT e.Id, e.Status, e.Token, e.ReferenceNumber, e.CompletedAt, e.CompletedBy, e.LinkedEPVId, e.InspectorId,
+                e.LevyAmount, e.PulpSoldToTrade,
+                u.FirstName AS InspectorFirstName, u.LastName AS InspectorLastName
+         FROM EggProductionVerifications e
+         LEFT JOIN Users u ON e.InspectorId = u.Id
+         WHERE e.ClientRecordId = @clientRecordId AND e.EPVType = 'Inspector'`
+      );
+
+    // Build map of inspector EPVs by LinkedEPVId
+    const inspectorMap = {};
+    inspectorResult.recordset.forEach(ie => {
+      inspectorMap[ie.LinkedEPVId] = ie;
+    });
+
+    // Attach inspector EPV to each client EPV
+    const verifications = result.recordset.map(ce => ({
+      ...ce,
+      inspectorEPV: inspectorMap[ce.Id] || null,
+    }));
+
+    res.json({ verifications });
   } catch (err) {
     console.error('EPV list error:', err);
     res.status(500).json({ message: 'Server error.' });
@@ -611,7 +727,7 @@ router.post('/:id/upload-pop', upload.single('pop'), async (req, res) => {
     // Verify EPV exists
     const existing = await pool.request()
       .input('id', sql.Int, parseInt(id))
-      .query('SELECT Id, IsReconciled FROM EggProductionVerifications WHERE Id = @id');
+      .query('SELECT Id, ClientRecordId, ReferenceNumber, IsReconciled FROM EggProductionVerifications WHERE Id = @id');
 
     if (existing.recordset.length === 0) {
       return res.status(404).json({ message: 'Verification not found.' });
@@ -631,6 +747,7 @@ router.post('/:id/upload-pop', upload.single('pop'), async (req, res) => {
          WHERE Id = @id`
       );
 
+    await logCompanyAudit(pool, existing.recordset[0].ClientRecordId, 'POP Uploaded', null, `${existing.recordset[0].ReferenceNumber || 'EPV'} - ${req.file.filename}`, uploadedBy, req.body.userRole);
     res.json({ message: 'Proof of Payment uploaded successfully.', filename: req.file.filename });
   } catch (err) {
     console.error('POP upload error:', err);
@@ -670,13 +787,16 @@ router.put('/:id/reconcile', async (req, res) => {
 
     const existing = await pool.request()
       .input('id', sql.Int, parseInt(id))
-      .query('SELECT Id, POPFilePath FROM EggProductionVerifications WHERE Id = @id');
+      .query('SELECT Id, ClientRecordId, ReferenceNumber, POPFilePath, IsReconciled FROM EggProductionVerifications WHERE Id = @id');
 
     if (existing.recordset.length === 0) {
       return res.status(404).json({ message: 'Verification not found.' });
     }
 
-    if (reconciled && !existing.recordset[0].POPFilePath) {
+    // Admin/Super Admin can reconcile without POP; other roles require it
+    const userRole = req.body.userRole || '';
+    const isAdminRole = userRole === 'Super Admin' || userRole === 'Admin';
+    if (reconciled && !existing.recordset[0].POPFilePath && !isAdminRole) {
       return res.status(400).json({ message: 'Cannot reconcile without a Proof of Payment uploaded.' });
     }
 
@@ -692,10 +812,230 @@ router.put('/:id/reconcile', async (req, res) => {
          WHERE Id = @id`
       );
 
+    await logCompanyAudit(pool, existing.recordset[0].ClientRecordId, 'Reconciled', String(!!existing.recordset[0].IsReconciled), String(reconciled), reconciledBy, req.body.userRole);
     res.json({ message: reconciled ? 'EPV marked as reconciled.' : 'Reconciliation removed.' });
   } catch (err) {
     console.error('Reconcile error:', err);
     res.status(500).json({ message: 'Failed to update reconciliation.' });
+  }
+});
+
+// PUT /api/epv/:id/verify - Toggle verified status (Inspector/Super Admin only)
+router.put('/:id/verify', async (req, res) => {
+  const { id } = req.params;
+  const { verified, verifiedBy } = req.body;
+
+  try {
+    const pool = await getPool();
+
+    // Ensure verification columns exist
+    const verifyCols = [
+      { name: 'IsVerified', type: 'BIT NOT NULL DEFAULT 0' },
+      { name: 'VerifiedBy', type: 'NVARCHAR(255) NULL' },
+      { name: 'VerifiedAt', type: 'DATETIME NULL' },
+    ];
+    for (const col of verifyCols) {
+      await pool.request().query(
+        `IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = '${col.name}')
+         BEGIN ALTER TABLE EggProductionVerifications ADD ${col.name} ${col.type} END`
+      );
+    }
+
+    const existing = await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .query('SELECT Id, ClientRecordId, ReferenceNumber, Status, IsVerified FROM EggProductionVerifications WHERE Id = @id');
+
+    if (existing.recordset.length === 0) {
+      return res.status(404).json({ message: 'Verification not found.' });
+    }
+
+    if (verified && existing.recordset[0].Status !== 'Completed') {
+      return res.status(400).json({ message: 'Cannot verify an incomplete EPV.' });
+    }
+
+    await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .input('verified', sql.Bit, verified ? 1 : 0)
+      .input('verifiedBy', sql.NVarChar, verified ? (verifiedBy || 'Unknown') : null)
+      .query(
+        `UPDATE EggProductionVerifications
+         SET IsVerified = @verified,
+             VerifiedBy = ${verified ? '@verifiedBy' : 'NULL'},
+             VerifiedAt = ${verified ? 'GETDATE()' : 'NULL'}
+         WHERE Id = @id`
+      );
+
+    await logCompanyAudit(pool, existing.recordset[0].ClientRecordId, 'Verified', existing.recordset[0].IsVerified ? 'Approved' : 'Not Verified', verified ? 'Inspector Approved' : 'Verification Removed', verifiedBy, req.body.userRole);
+    res.json({ message: verified ? 'EPV marked as verified.' : 'Verification removed.' });
+  } catch (err) {
+    console.error('Verify error:', err);
+    res.status(500).json({ message: 'Failed to update verification.', error: err.message });
+  }
+});
+
+// PUT /api/epv/:id/manual-inspection - Toggle manual inspection checkbox
+router.put('/:id/manual-inspection', async (req, res) => {
+  const { id } = req.params;
+  const { checked, changedBy, userRole } = req.body;
+
+  try {
+    const pool = await getPool();
+
+    // Ensure columns exist
+    const cols = [
+      { name: 'ManualInspection', type: 'BIT NOT NULL DEFAULT 0' },
+      { name: 'ManualInspectionBy', type: 'NVARCHAR(255) NULL' },
+      { name: 'ManualInspectionAt', type: 'DATETIME NULL' },
+    ];
+    for (const col of cols) {
+      await pool.request().query(
+        `IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = '${col.name}')
+         BEGIN ALTER TABLE EggProductionVerifications ADD ${col.name} ${col.type} END`
+      );
+    }
+
+    const existing = await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .query('SELECT Id, ClientRecordId, ReferenceNumber, ManualInspection FROM EggProductionVerifications WHERE Id = @id');
+
+    if (existing.recordset.length === 0) {
+      return res.status(404).json({ message: 'Verification not found.' });
+    }
+
+    await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .input('checked', sql.Bit, checked ? 1 : 0)
+      .input('by', sql.NVarChar, checked ? (changedBy || 'Unknown') : null)
+      .query(
+        `UPDATE EggProductionVerifications
+         SET ManualInspection = @checked,
+             ManualInspectionBy = ${checked ? '@by' : 'NULL'},
+             ManualInspectionAt = ${checked ? 'GETDATE()' : 'NULL'}
+         WHERE Id = @id`
+      );
+
+    const epv = existing.recordset[0];
+    await logCompanyAudit(pool, epv.ClientRecordId, 'Manual Inspection', epv.ManualInspection ? 'Yes' : 'No', checked ? 'Yes' : 'No', changedBy, userRole);
+    res.json({ message: checked ? 'Manual inspection marked.' : 'Manual inspection removed.' });
+  } catch (err) {
+    console.error('Manual inspection error:', err);
+    res.status(500).json({ message: 'Failed to update manual inspection.', error: err.message });
+  }
+});
+
+// PUT /api/epv/:id/reconciled-amount - Save reconciled amount (Admin/Super Admin only)
+router.put('/:id/reconciled-amount', async (req, res) => {
+  const { id } = req.params;
+  const { amount, changedBy, userRole } = req.body;
+
+  try {
+    const pool = await getPool();
+
+    // Ensure column exists
+    await pool.request().query(
+      `IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = 'ReconciledAmount')
+       BEGIN ALTER TABLE EggProductionVerifications ADD ReconciledAmount DECIMAL(18,2) NULL END`
+    );
+
+    // Get old value and ClientRecordId for audit
+    const prev = await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .query('SELECT ReconciledAmount, ClientRecordId FROM EggProductionVerifications WHERE Id = @id');
+    const oldAmount = prev.recordset[0]?.ReconciledAmount;
+    const clientRecordId = prev.recordset[0]?.ClientRecordId;
+
+    const newAmount = amount !== null && amount !== '' ? parseFloat(amount) : null;
+
+    await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .input('amount', sql.Decimal(18, 2), newAmount)
+      .query('UPDATE EggProductionVerifications SET ReconciledAmount = @amount WHERE Id = @id');
+
+    // Audit log
+    if (clientRecordId) {
+      await logCompanyAudit(pool, clientRecordId, 'Reconciled Amount', oldAmount != null ? `R ${oldAmount}` : null, newAmount != null ? `R ${newAmount}` : null, changedBy || 'Unknown', userRole);
+    }
+
+    res.json({ message: 'Reconciled amount saved.' });
+  } catch (err) {
+    console.error('Reconciled amount error:', err);
+    res.status(500).json({ message: 'Failed to save reconciled amount.' });
+  }
+});
+
+// PUT /api/epv/:id/comment - Save inspector comment
+router.put('/:id/comment', async (req, res) => {
+  const { id } = req.params;
+  const { comment, commentBy, userRole } = req.body;
+
+  try {
+    const pool = await getPool();
+
+    // Ensure column exists
+    await pool.request().query(
+      `IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = 'InspectorComment')
+       BEGIN ALTER TABLE EggProductionVerifications ADD InspectorComment NVARCHAR(MAX) NULL END`
+    );
+
+    // Get old value and ClientRecordId for audit
+    const prev = await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .query('SELECT InspectorComment, ClientRecordId FROM EggProductionVerifications WHERE Id = @id');
+    const oldComment = prev.recordset[0]?.InspectorComment;
+    const clientRecordId = prev.recordset[0]?.ClientRecordId;
+
+    await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .input('comment', sql.NVarChar, comment || null)
+      .query('UPDATE EggProductionVerifications SET InspectorComment = @comment WHERE Id = @id');
+
+    // Audit log
+    if (clientRecordId) {
+      await logCompanyAudit(pool, clientRecordId, 'Inspector Comment', oldComment || null, comment || null, commentBy || 'Unknown', userRole);
+    }
+
+    res.json({ message: 'Comment saved.' });
+  } catch (err) {
+    console.error('Comment error:', err);
+    res.status(500).json({ message: 'Failed to save comment.' });
+  }
+});
+
+// PUT /api/epv/:id/pop-comment - Save POP comment (any user)
+router.put('/:id/pop-comment', async (req, res) => {
+  const { id } = req.params;
+  const { comment, commentBy, userRole } = req.body;
+
+  try {
+    const pool = await getPool();
+
+    // Ensure column exists
+    await pool.request().query(
+      `IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = 'POPComment')
+       BEGIN ALTER TABLE EggProductionVerifications ADD POPComment NVARCHAR(MAX) NULL END`
+    );
+
+    // Get old value and ClientRecordId for audit
+    const prev = await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .query('SELECT POPComment, ClientRecordId FROM EggProductionVerifications WHERE Id = @id');
+    const oldComment = prev.recordset[0]?.POPComment;
+    const clientRecordId = prev.recordset[0]?.ClientRecordId;
+
+    await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .input('comment', sql.NVarChar, comment || null)
+      .query('UPDATE EggProductionVerifications SET POPComment = @comment WHERE Id = @id');
+
+    // Audit log
+    if (clientRecordId) {
+      await logCompanyAudit(pool, clientRecordId, 'POP Comment', oldComment || null, comment || null, commentBy || 'Unknown', userRole);
+    }
+
+    res.json({ message: 'POP comment saved.' });
+  } catch (err) {
+    console.error('POP comment error:', err);
+    res.status(500).json({ message: 'Failed to save POP comment.' });
   }
 });
 
@@ -725,6 +1065,12 @@ router.delete('/:id/pop', async (req, res) => {
     const filePath = path.join(__dirname, '..', 'uploads', 'pop', epv.POPFilePath);
     try { fs.unlinkSync(filePath); } catch (e) { /* file may already be gone */ }
 
+    // Get ClientRecordId for audit
+    const full = await pool.request()
+      .input('id2', sql.Int, parseInt(id))
+      .query('SELECT ClientRecordId FROM EggProductionVerifications WHERE Id = @id2');
+    const clientRecordId = full.recordset[0]?.ClientRecordId;
+
     // Clear POP and reconcile fields in DB
     await pool.request()
       .input('id', sql.Int, parseInt(id))
@@ -734,6 +1080,12 @@ router.delete('/:id/pop', async (req, res) => {
              IsReconciled = 0, ReconciledBy = NULL, ReconciledAt = NULL
          WHERE Id = @id`
       );
+
+    // Audit log
+    const { deletedBy, userRole } = req.body || {};
+    if (clientRecordId) {
+      await logCompanyAudit(pool, clientRecordId, 'POP Deleted', epv.POPFilePath, null, deletedBy || 'Unknown', userRole);
+    }
 
     res.json({ message: 'POP deleted successfully.' });
   } catch (err) {
@@ -782,5 +1134,449 @@ function buildEPVEmail({ businessName, month, year, formUrl, openingStock }) {
     </div>
   `;
 }
+
+// DELETE /api/epv/inspector/:id - Delete an Inspector EPV (Super Admin only)
+router.delete('/inspector/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const pool = await getPool();
+
+    const result = await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .query(`SELECT Id, EPVType, ClientRecordId, ReferenceNumber FROM EggProductionVerifications WHERE Id = @id`);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ message: 'Inspector EPV not found.' });
+    }
+
+    if (result.recordset[0].EPVType !== 'Inspector') {
+      return res.status(400).json({ message: 'Can only delete Inspector EPVs.' });
+    }
+
+    const clientRecordId = result.recordset[0].ClientRecordId;
+    const refNumber = result.recordset[0].ReferenceNumber;
+
+    // Delete audit log entries first
+    await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .query('DELETE FROM EPVAuditLog WHERE VerificationId = @id');
+
+    // Delete the inspector EPV
+    await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .query('DELETE FROM EggProductionVerifications WHERE Id = @id');
+
+    // Audit log
+    const { deletedBy, userRole } = req.body || {};
+    if (clientRecordId) {
+      await logCompanyAudit(pool, clientRecordId, 'Inspector EPV Deleted', refNumber || `EPV #${id}`, null, deletedBy || 'Unknown', userRole);
+    }
+
+    res.json({ message: 'Inspector EPV deleted.' });
+  } catch (err) {
+    console.error('Inspector EPV delete error:', err);
+    res.status(500).json({ message: 'Failed to delete Inspector EPV.' });
+  }
+});
+
+// ===== INSPECTOR EPV ENDPOINTS =====
+
+// POST /api/epv/inspector/create - Create an Inspector EPV linked to a Client EPV
+router.post('/inspector/create', async (req, res) => {
+  const { clientEpvId, inspectorId, inspectorName, userRole } = req.body;
+
+  if (!clientEpvId || !inspectorId) {
+    return res.status(400).json({ message: 'clientEpvId and inspectorId are required.' });
+  }
+
+  try {
+    const pool = await getPool();
+
+    // Get the client EPV
+    const clientEpv = await pool.request()
+      .input('id', sql.Int, parseInt(clientEpvId))
+      .query('SELECT * FROM EggProductionVerifications WHERE Id = @id');
+
+    if (clientEpv.recordset.length === 0) {
+      return res.status(404).json({ message: 'Client EPV not found.' });
+    }
+
+    const epv = clientEpv.recordset[0];
+
+    // Check if Inspector EPV already exists for this inspector + client EPV
+    const existing = await pool.request()
+      .input('linkedId', sql.Int, parseInt(clientEpvId))
+      .input('inspectorId', sql.Int, parseInt(inspectorId))
+      .query(
+        `SELECT Id FROM EggProductionVerifications
+         WHERE LinkedEPVId = @linkedId AND InspectorId = @inspectorId AND EPVType = 'Inspector'`
+      );
+
+    if (existing.recordset.length > 0) {
+      return res.status(409).json({ message: 'An Inspector EPV already exists for this verification.' });
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const refNumber = await generateReferenceNumber(pool, epv.PeriodMonth, epv.PeriodYear);
+
+    // Create the Inspector EPV with same client/period info, pre-filled business details
+    await pool.request()
+      .input('clientRecordId', sql.Int, epv.ClientRecordId)
+      .input('month', sql.Int, epv.PeriodMonth)
+      .input('year', sql.Int, epv.PeriodYear)
+      .input('token', sql.NVarChar, token)
+      .input('refNumber', sql.NVarChar, refNumber)
+      .input('businessName', sql.NVarChar, epv.BusinessName || '')
+      .input('facilityType', sql.NVarChar, epv.FacilityType || '')
+      .input('facilityProvince', sql.NVarChar, epv.FacilityProvince || '')
+      .input('email', sql.NVarChar, epv.EmailAddress || '')
+      .input('ownerName', sql.NVarChar, epv.AuthorizedPersonName || '')
+      .input('inspectorId', sql.Int, parseInt(inspectorId))
+      .input('linkedEPVId', sql.Int, parseInt(clientEpvId))
+      .input('completedBy', sql.NVarChar, inspectorName || '')
+      .query(
+        `INSERT INTO EggProductionVerifications
+         (ClientRecordId, PeriodMonth, PeriodYear, Token, ReferenceNumber, Status,
+          BusinessName, FacilityType, FacilityProvince, EmailAddress, AuthorizedPersonName,
+          EPVType, InspectorId, LinkedEPVId)
+         VALUES (@clientRecordId, @month, @year, @token, @refNumber, 'Pending',
+                 @businessName, @facilityType, @facilityProvince, @email, @ownerName,
+                 'Inspector', @inspectorId, @linkedEPVId)`
+      );
+
+    // Audit log
+    await logCompanyAudit(pool, epv.ClientRecordId, 'Inspector EPV Created', null, refNumber, inspectorName || 'Unknown', userRole);
+
+    res.json({ message: 'Inspector EPV created.', token });
+  } catch (err) {
+    console.error('Inspector EPV create error:', err);
+    res.status(500).json({ message: 'Failed to create Inspector EPV.' });
+  }
+});
+
+// GET /api/epv/inspector/company/:clientRecordId - Get both Client and Inspector EPVs for a company
+router.get('/inspector/company/:clientRecordId', async (req, res) => {
+  const { clientRecordId } = req.params;
+  const { inspectorId } = req.query;
+
+  try {
+    const pool = await getPool();
+
+    // Get client EPVs
+    const clientResult = await pool.request()
+      .input('clientRecordId', sql.Int, parseInt(clientRecordId))
+      .query(
+        `SELECT Id, ClientRecordId, PeriodMonth, PeriodYear, Status, SentAt, CompletedAt, CompletedBy, Token,
+                ReferenceNumber, POPFilePath, POPUploadedAt, IsReconciled, IsVerified, VerifiedBy, VerifiedAt, InspectorComment, ReconciledAmount,
+                ManualInspection, ManualInspectionBy, ManualInspectionAt,
+                EPVType, InspectorId, LinkedEPVId,
+                LevyAmount, PulpSoldToTrade
+         FROM EggProductionVerifications
+         WHERE ClientRecordId = @clientRecordId AND (EPVType = 'Client' OR EPVType IS NULL)
+         ORDER BY PeriodYear DESC, PeriodMonth DESC`
+      );
+
+    // Get inspector EPVs for this company (optionally filtered by inspectorId)
+    let inspectorQuery = `
+      SELECT Id, ClientRecordId, PeriodMonth, PeriodYear, Status, CompletedAt, CompletedBy, Token,
+             ReferenceNumber, EPVType, InspectorId, LinkedEPVId, LevyAmount, PulpSoldToTrade
+      FROM EggProductionVerifications
+      WHERE ClientRecordId = @clientRecordId AND EPVType = 'Inspector'
+    `;
+    const request = pool.request().input('clientRecordId', sql.Int, parseInt(clientRecordId));
+
+    if (inspectorId) {
+      inspectorQuery += ' AND InspectorId = @inspectorId';
+      request.input('inspectorId', sql.Int, parseInt(inspectorId));
+    }
+
+    inspectorQuery += ' ORDER BY PeriodYear DESC, PeriodMonth DESC';
+    const inspectorResult = await request.query(inspectorQuery);
+
+    // Build a map of inspector EPVs by LinkedEPVId for quick lookup
+    const inspectorMap = {};
+    inspectorResult.recordset.forEach(ie => {
+      if (!inspectorMap[ie.LinkedEPVId]) inspectorMap[ie.LinkedEPVId] = [];
+      inspectorMap[ie.LinkedEPVId].push(ie);
+    });
+
+    // Combine: attach inspector EPV info to each client EPV
+    const combined = clientResult.recordset.map(ce => ({
+      ...ce,
+      inspectorEPV: inspectorMap[ce.Id] ? inspectorMap[ce.Id][0] : null,
+    }));
+
+    res.json({ epvList: combined, inspectorEPVs: inspectorResult.recordset });
+  } catch (err) {
+    console.error('Inspector EPV list error:', err);
+    res.status(500).json({ message: 'Server error.' });
+  }
+});
+
+// GET /api/epv/inspector/stats - Dashboard stats for inspector page
+// ===== FACILITIES NOT YET COMPLETED EPVs per month for current year =====
+router.get('/inspector/not-completed', async (req, res) => {
+  const { province } = req.query;
+
+  try {
+    const pool = await getPool();
+    const curYear = new Date().getFullYear();
+    const curMonth = new Date().getMonth() + 1;
+    const provFilter = province ? "AND c.FacilityProvince = @province" : "";
+
+    // For each month Jan..currentMonth in current year, find facilities that either:
+    // - Have no EPV at all for that month, OR
+    // - Have an EPV with Status = 'Pending' (sent but not completed)
+    const months = [];
+    for (let m = 1; m <= curMonth; m++) months.push(m);
+
+    const results = [];
+    for (const month of months) {
+      const r = pool.request();
+      r.input('year', sql.Int, curYear);
+      r.input('month', sql.Int, month);
+      if (province) r.input('province', sql.NVarChar, province);
+
+      const result = await r.query(`
+        SELECT c.Id, c.BusinessName, c.ClientID, c.FacilityProvince, c.FacilityType, c.Town,
+               e.Id AS EPVId, e.Status AS EPVStatus, e.ReferenceNumber, e.Token AS EPVToken,
+               ${month} AS PeriodMonth, ${curYear} AS PeriodYear
+        FROM ConsolidatedMasterAbattoirDatabase c
+        LEFT JOIN EggProductionVerifications e
+          ON e.ClientRecordId = c.Id
+          AND (e.EPVType = 'Client' OR e.EPVType IS NULL)
+          AND e.PeriodMonth = @month
+          AND e.PeriodYear = @year
+        WHERE c.FacilityProvince IS NOT NULL ${provFilter}
+          AND (e.Id IS NULL OR e.Status = 'Pending')
+        ORDER BY c.FacilityProvince, c.BusinessName
+      `);
+      results.push(...result.recordset);
+    }
+
+    res.json({ notCompleted: results });
+  } catch (err) {
+    console.error('Not completed error:', err);
+    res.status(500).json({ message: 'Failed to load not-completed facilities.' });
+  }
+});
+
+// ===== PENDING APPROVALS — completed facility EPVs not yet verified =====
+router.get('/inspector/pending-approvals', async (req, res) => {
+  const { province } = req.query;
+
+  try {
+    const pool = await getPool();
+    const provFilter = province ? "AND c.FacilityProvince = @province" : "";
+
+    const r = pool.request();
+    if (province) r.input('province', sql.NVarChar, province);
+
+    const result = await r.query(`
+      SELECT
+        e.Id, e.ClientRecordId, e.PeriodMonth, e.PeriodYear, e.Status, e.CompletedAt, e.CompletedBy,
+        e.Token, e.ReferenceNumber, e.LevyAmount, e.PulpSoldToTrade, e.SoldToTrade,
+        e.IsVerified, e.VerifiedBy, e.VerifiedAt, e.InspectorComment,
+        e.ManualInspection, e.ManualInspectionBy, e.ManualInspectionAt,
+        e.POPFilePath, e.POPUploadedAt, e.IsReconciled, e.ReconciledAmount,
+        c.BusinessName, c.ClientID, c.FacilityProvince, c.FacilityType, c.Town,
+        ie.Id AS InspEPVId, ie.Token AS InspEPVToken, ie.Status AS InspEPVStatus,
+        ie.ReferenceNumber AS InspEPVRef, ie.LevyAmount AS InspLevyAmount,
+        ie.PulpSoldToTrade AS InspPulpSoldToTrade
+      FROM EggProductionVerifications e
+      JOIN ConsolidatedMasterAbattoirDatabase c ON e.ClientRecordId = c.Id
+      LEFT JOIN EggProductionVerifications ie ON ie.LinkedEPVId = e.Id AND ie.EPVType = 'Inspector'
+      WHERE e.EPVType = 'Client'
+        AND e.Status = 'Completed'
+        AND (e.IsVerified = 0 OR e.IsVerified IS NULL)
+        AND ie.Id IS NULL
+        ${provFilter}
+      ORDER BY e.CompletedAt DESC
+    `);
+
+    // Also get EPVs where inspector EPV is pending (rejected, needs inspector to complete)
+    const r2 = pool.request();
+    if (province) r2.input('province', sql.NVarChar, province);
+
+    const inspPending = await r2.query(`
+      SELECT
+        e.Id, e.ClientRecordId, e.PeriodMonth, e.PeriodYear, e.Status, e.CompletedAt, e.CompletedBy,
+        e.Token, e.ReferenceNumber, e.LevyAmount, e.PulpSoldToTrade, e.SoldToTrade,
+        c.BusinessName, c.ClientID, c.FacilityProvince, c.FacilityType, c.Town,
+        ie.Id AS InspEPVId, ie.Token AS InspEPVToken, ie.Status AS InspEPVStatus,
+        ie.ReferenceNumber AS InspEPVRef
+      FROM EggProductionVerifications e
+      JOIN ConsolidatedMasterAbattoirDatabase c ON e.ClientRecordId = c.Id
+      JOIN EggProductionVerifications ie ON ie.LinkedEPVId = e.Id AND ie.EPVType = 'Inspector' AND ie.Status = 'Pending'
+      WHERE e.EPVType = 'Client'
+        AND e.Status = 'Completed'
+        AND (e.IsVerified = 0 OR e.IsVerified IS NULL)
+        ${provFilter}
+      ORDER BY e.CompletedAt DESC
+    `);
+
+    res.json({ pendingApprovals: result.recordset, inspectorEPVsToComplete: inspPending.recordset });
+  } catch (err) {
+    console.error('Pending approvals error:', err);
+    res.status(500).json({ message: 'Failed to load pending approvals.' });
+  }
+});
+
+router.get('/inspector/stats', async (req, res) => {
+  const { province } = req.query; // null = all (super admin)
+
+  try {
+    const pool = await getPool();
+    const now = new Date();
+    const curMonth = now.getMonth() + 1;
+    const curYear = now.getFullYear();
+    const curQuarter = Math.ceil(curMonth / 3);
+    const qStartMonth = (curQuarter - 1) * 3 + 1;
+
+    // Build province filter
+    const provFilter = province ? "AND c.FacilityProvince = @province" : "";
+
+    // 1. Facility summary per province
+    const facByProv = await (() => {
+      const r = pool.request();
+      if (province) r.input('province', sql.NVarChar, province);
+      return r.query(`
+        SELECT c.FacilityProvince, COUNT(DISTINCT c.Id) as FacilityCount
+        FROM ConsolidatedMasterAbattoirDatabase c
+        WHERE c.FacilityProvince IS NOT NULL ${provFilter}
+        GROUP BY c.FacilityProvince
+        ORDER BY c.FacilityProvince
+      `);
+    })();
+
+    // 2. Facilities needing visit this quarter (no ManualInspection=1 in current quarter)
+    const needVisit = await (() => {
+      const r = pool.request();
+      r.input('qStart', sql.Int, qStartMonth);
+      r.input('qEnd', sql.Int, qStartMonth + 2);
+      r.input('year', sql.Int, curYear);
+      if (province) r.input('province', sql.NVarChar, province);
+      return r.query(`
+        SELECT c.Id, c.BusinessName, c.ClientID, c.Town, c.FacilityProvince, c.FacilityType
+        FROM ConsolidatedMasterAbattoirDatabase c
+        WHERE c.FacilityProvince IS NOT NULL ${provFilter}
+          AND NOT EXISTS (
+            SELECT 1 FROM EggProductionVerifications e
+            WHERE e.ClientRecordId = c.Id
+              AND e.EPVType = 'Client'
+              AND e.PeriodYear = @year
+              AND e.PeriodMonth BETWEEN @qStart AND @qEnd
+              AND e.ManualInspection = 1
+          )
+        ORDER BY c.FacilityProvince, c.BusinessName
+      `);
+    })();
+
+    // 3. Outstanding amounts (not reconciled)
+    const outstanding = await (() => {
+      const r = pool.request();
+      if (province) r.input('province', sql.NVarChar, province);
+      return r.query(`
+        SELECT
+          c.Id AS ClientRecordId, c.BusinessName, c.ClientID, c.Town, c.FacilityProvince,
+          SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.018, 0)) AS TotalBilled,
+          SUM(ISNULL(e.ReconciledAmount, 0)) AS TotalPaid,
+          SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.018, 0) - ISNULL(e.ReconciledAmount, 0)) AS TotalOwing
+        FROM EggProductionVerifications e
+        JOIN ConsolidatedMasterAbattoirDatabase c ON e.ClientRecordId = c.Id
+        WHERE e.EPVType = 'Client' AND e.Status = 'Completed' AND (e.IsReconciled = 0 OR e.IsReconciled IS NULL)
+          ${provFilter}
+        GROUP BY c.Id, c.BusinessName, c.ClientID, c.Town, c.FacilityProvince
+        HAVING SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.018, 0) - ISNULL(e.ReconciledAmount, 0)) > 0
+        ORDER BY TotalOwing DESC
+      `);
+    })();
+
+    // 4. Aggregate stats
+    const stats = await (() => {
+      const r = pool.request();
+      if (province) r.input('province', sql.NVarChar, province);
+      return r.query(`
+        SELECT
+          COUNT(DISTINCT e.ClientRecordId) AS TotalFacilitiesWithEPV,
+          COUNT(e.Id) AS TotalEPVs,
+          SUM(CASE WHEN e.IsReconciled = 1 THEN 1 ELSE 0 END) AS ReconciledCount,
+          SUM(CASE WHEN e.IsReconciled = 0 OR e.IsReconciled IS NULL THEN 1 ELSE 0 END) AS UnreconciledCount,
+          SUM(ISNULL(e.LevyAmount, 0)) AS TotalEggLevy,
+          SUM(ISNULL(e.PulpSoldToTrade, 0) * 1.7 * 0.018) AS TotalPulpLevy,
+          SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.018, 0)) AS TotalBilled,
+          SUM(ISNULL(e.ReconciledAmount, 0)) AS TotalPaid,
+          SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.018, 0) - ISNULL(e.ReconciledAmount, 0)) AS TotalOutstanding,
+          SUM(ISNULL(e.SoldToTrade, 0)) AS TotalEggDozens,
+          SUM(ISNULL(e.PulpSoldToTrade, 0)) AS TotalPulpDozens,
+          SUM(CASE WHEN ie.Id IS NOT NULL THEN 1 ELSE 0 END) AS TotalRejections,
+          SUM(CASE WHEN ie.Id IS NOT NULL AND ie.Status = 'Pending' THEN 1 ELSE 0 END) AS PendingInspectorEPVs,
+          SUM(CASE WHEN e.ManualInspection = 1 THEN 1 ELSE 0 END) AS ManualInspections,
+          SUM(CASE WHEN e.IsVerified = 1 THEN 1 ELSE 0 END) AS VerifiedCount
+        FROM EggProductionVerifications e
+        JOIN ConsolidatedMasterAbattoirDatabase c ON e.ClientRecordId = c.Id
+        LEFT JOIN EggProductionVerifications ie ON ie.LinkedEPVId = e.Id AND ie.EPVType = 'Inspector'
+        WHERE e.EPVType = 'Client' AND e.Status = 'Completed'
+          ${provFilter}
+      `);
+    })();
+
+    // 5. Per-month breakdown
+    const monthly = await (() => {
+      const r = pool.request();
+      if (province) r.input('province', sql.NVarChar, province);
+      return r.query(`
+        SELECT
+          e.PeriodMonth, e.PeriodYear,
+          COUNT(e.Id) AS EPVCount,
+          SUM(ISNULL(e.LevyAmount, 0)) AS EggLevy,
+          SUM(ISNULL(e.PulpSoldToTrade, 0) * 1.7 * 0.018) AS PulpLevy,
+          SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.018, 0)) AS TotalBilled,
+          SUM(ISNULL(e.ReconciledAmount, 0)) AS TotalPaid,
+          SUM(CASE WHEN e.IsReconciled = 1 THEN 1 ELSE 0 END) AS PaidCount,
+          SUM(ISNULL(e.SoldToTrade, 0)) AS EggDozens,
+          SUM(ISNULL(e.PulpSoldToTrade, 0)) AS PulpDozens,
+          SUM(CASE WHEN ie.Id IS NOT NULL THEN 1 ELSE 0 END) AS Rejections
+        FROM EggProductionVerifications e
+        JOIN ConsolidatedMasterAbattoirDatabase c ON e.ClientRecordId = c.Id
+        LEFT JOIN EggProductionVerifications ie ON ie.LinkedEPVId = e.Id AND ie.EPVType = 'Inspector'
+        WHERE e.EPVType = 'Client' AND e.Status = 'Completed'
+          ${provFilter}
+        GROUP BY e.PeriodMonth, e.PeriodYear
+        ORDER BY e.PeriodYear DESC, e.PeriodMonth DESC
+      `);
+    })();
+
+    // 6. Rejections per province
+    const rejByProv = await (() => {
+      const r = pool.request();
+      if (province) r.input('province', sql.NVarChar, province);
+      return r.query(`
+        SELECT c.FacilityProvince, COUNT(ie.Id) AS Rejections
+        FROM EggProductionVerifications e
+        JOIN ConsolidatedMasterAbattoirDatabase c ON e.ClientRecordId = c.Id
+        JOIN EggProductionVerifications ie ON ie.LinkedEPVId = e.Id AND ie.EPVType = 'Inspector'
+        WHERE e.EPVType = 'Client' AND e.Status = 'Completed'
+          ${provFilter}
+        GROUP BY c.FacilityProvince
+        ORDER BY Rejections DESC
+      `);
+    })();
+
+    res.json({
+      facilitiesByProvince: facByProv.recordset,
+      needVisitThisQuarter: needVisit.recordset,
+      outstandingByFacility: outstanding.recordset,
+      stats: stats.recordset[0],
+      monthly: monthly.recordset,
+      rejectionsByProvince: rejByProv.recordset,
+      quarter: { quarter: curQuarter, year: curYear, startMonth: qStartMonth, endMonth: qStartMonth + 2 },
+    });
+  } catch (err) {
+    console.error('Inspector stats error:', err);
+    res.status(500).json({ message: 'Failed to load inspector stats.' });
+  }
+});
 
 module.exports = router;

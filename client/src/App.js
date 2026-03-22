@@ -13,6 +13,8 @@ import ResetPassword from './pages/ResetPassword';
 import AcceptInvite from './pages/AcceptInvite';
 import EPVForm from './pages/EPVForm';
 import Support from './pages/Support';
+import Inspectors from './pages/Inspectors';
+import Administrators from './pages/Administrators';
 import AppLayout from './components/AppLayout';
 
 function PrivateRoute({ children }) {
@@ -25,6 +27,17 @@ function AdminRoute({ children }) {
   if (user.role === 'Company Admin' || user.role === 'User') {
     return <Navigate to="/company" />;
   }
+  if (user.role === 'Inspector') {
+    return <Navigate to="/inspectors" />;
+  }
+  return children;
+}
+
+function InspectorRoute({ children }) {
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  if (user.role === 'Company Admin' || user.role === 'User') {
+    return <Navigate to="/company" />;
+  }
   return children;
 }
 
@@ -32,6 +45,9 @@ function DefaultRedirect() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   if (user.role === 'Company Admin' || user.role === 'User') {
     return <Navigate to="/company" />;
+  }
+  if (user.role === 'Inspector') {
+    return <Navigate to="/inspectors" />;
   }
   return <Navigate to="/dashboard" />;
 }
@@ -58,6 +74,8 @@ function App() {
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/clients" element={<AdminRoute><ClientAllocation /></AdminRoute>} />
+          <Route path="/inspectors" element={<InspectorRoute><Inspectors /></InspectorRoute>} />
+          <Route path="/administrators" element={<AdminRoute><Administrators /></AdminRoute>} />
           <Route path="/company" element={<CompanyOverview />} />
           <Route path="/support" element={<Support />} />
         </Route>

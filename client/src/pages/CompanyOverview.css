@@ -171,67 +171,108 @@
 /* ===== Company Details Grid ===== */
 .co-details-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 .co-detail-item {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  border-right: 1px solid #f1f5f9;
+  background: #fff;
 }
 
 .co-detail-item label {
-  font-size: 12px;
-  font-weight: 600;
-  color: #6b7280;
+  font-size: 10px;
+  font-weight: 700;
+  color: #94a3b8;
   text-transform: uppercase;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.5px;
 }
 
 .co-detail-value {
-  font-size: 15px;
-  color: #1f2937;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1e293b;
+  word-break: break-word;
+}
+
+.co-detail-value.co-email-failed {
+  color: #dc2626;
+  font-weight: 600;
+  background: #fef2f2;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid #fecaca;
+}
+
+.co-email-failed-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+  background: #dc2626;
+  border-radius: 10px;
+  vertical-align: middle;
 }
 
 /* ===== Contact Groups ===== */
 .co-contacts {
-  display: flex;
-  gap: 0;
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 1px solid #e5e7eb;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 16px;
 }
 
 .co-contact-group {
-  flex: 1;
-  padding: 0 20px;
-  border-right: 1px solid #e5e7eb;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 14px;
 }
 
 .co-contact-group:first-child {
-  padding-left: 0;
+  padding-left: 14px;
 }
 
 .co-contact-group:last-child {
-  border-right: none;
-  padding-right: 0;
+  border-right: 1px solid #e2e8f0;
+  padding-right: 14px;
 }
 
 .co-contact-group h4 {
-  margin: 0 0 12px;
-  font-size: 14px;
-  color: #0a5f5e;
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0E7C7B;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  padding-bottom: 6px;
-  border-bottom: 2px solid #a8d8d8;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #0E7C7B;
 }
 
 .co-contact-fields {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
+}
+
+.co-contact-fields .co-detail-item {
+  border: none;
+  padding: 0;
+  background: transparent;
+}
+
+.co-contact-fields .co-detail-value {
+  font-size: 13px;
 }
 
 /* ===== Inputs ===== */
@@ -416,6 +457,34 @@
   color: #374151;
 }
 
+.co-filter-row th {
+  padding: 4px 6px;
+  background: #f8fafc;
+}
+
+.co-filter-input {
+  width: 100%;
+  padding: 4px 8px;
+  font-size: 11px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #fff;
+  color: #1e293b;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.co-filter-input:focus {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
+}
+
+.co-filter-input::placeholder {
+  color: #94a3b8;
+  font-style: italic;
+}
+
 .co-table tbody tr:nth-child(even) {
   background: #f8fafc;
 }
@@ -425,9 +494,10 @@
 }
 
 .co-date {
-  font-size: 13px;
+  font-size: 11px;
   color: #6b7280;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .co-role-badge {
@@ -550,6 +620,16 @@
 
 .co-new-value {
   color: #16a34a;
+  font-weight: 600;
+}
+
+.co-role-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #f3e8ff;
+  color: #7c3aed;
+  border-radius: 4px;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -743,6 +823,19 @@
 .co-epv-send-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.co-epv-sent-label {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  background: #d1fae5;
+  color: #065f46;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
 
 /* ===== EPV Section ===== */
@@ -945,15 +1038,43 @@
 .co-epv-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 14px;
+  font-size: 12px;
+  table-layout: fixed;
+}
+
+.co-epv-table th,
+.co-epv-table td {
+  padding: 6px 6px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.co-epv-table th {
+  font-size: 11px;
+  white-space: normal;
+}
+
+.co-epv-row {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.co-epv-row:hover {
+  background: #f0f4ff;
+}
+
+.co-epv-row.co-epv-expanded {
+  background: #eef2ff;
+  border-bottom: none;
 }
 
 .co-epv-ref {
   font-family: 'Courier New', monospace;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: #0E7C7B;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .co-pop-upload-btn {
@@ -1075,6 +1196,356 @@
   color: #9ca3af;
 }
 
+/* ===== Inspector Verification Column ===== */
+.co-epv-verify {
+  min-width: 120px;
+}
+
+.co-verify-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  color: #15803d;
+}
+
+.co-verify-checkbox input {
+  width: 18px;
+  height: 18px;
+  accent-color: #16a34a;
+  cursor: pointer;
+}
+
+/* ===== Manual Inspection Column ===== */
+.co-manual-insp-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  color: #6b7280;
+  flex-wrap: wrap;
+}
+
+.co-manual-insp-label input {
+  width: 16px;
+  height: 16px;
+  accent-color: #4f46e5;
+  cursor: pointer;
+}
+
+.co-manual-insp-yes {
+  color: #4f46e5;
+  font-weight: 700;
+}
+
+.co-manual-insp-by {
+  display: block;
+  font-size: 9px;
+  color: #94a3b8;
+  font-weight: 400;
+  width: 100%;
+}
+
+.co-verified-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.co-not-verified {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.co-rejected-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.co-verify-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.co-verify-approve-btn {
+  background: #16a34a;
+  color: #fff;
+  border: none;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.co-verify-approve-btn:hover {
+  background: #15803d;
+}
+
+.co-verify-reject-btn {
+  background: #dc2626;
+  color: #fff;
+  border: none;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.co-verify-reject-btn:hover {
+  background: #b91c1c;
+}
+
+.co-verify-reject-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.co-rejected-awaiting-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.co-insp-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ===== Amount Outstanding Column ===== */
+.co-epv-amount-outstanding {
+  white-space: normal;
+  word-break: break-word;
+}
+
+.co-amount-value {
+  font-weight: 700;
+  color: #0E7C7B;
+  font-size: 11px;
+}
+
+.co-amount-awaiting {
+  font-size: 10px;
+  color: #92400e;
+  font-weight: 600;
+  font-style: italic;
+}
+
+.co-amount-credit {
+  font-weight: 700;
+  color: #16a34a;
+  font-size: 11px;
+}
+
+.co-amount-settled {
+  font-weight: 600;
+  color: #6b7280;
+  font-size: 11px;
+}
+
+/* ===== Reconciled Amount Column ===== */
+.co-epv-reconciled-amount {
+  min-width: 120px;
+}
+
+.co-reconciled-amount-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.co-reconciled-amount-input {
+  width: 100%;
+  min-width: 90px;
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-family: inherit;
+}
+
+.co-reconciled-amount-input:focus {
+  outline: none;
+  border-color: #0E7C7B;
+  box-shadow: 0 0 0 2px rgba(14, 124, 123, 0.15);
+}
+
+.co-reconciled-amount-save {
+  align-self: flex-end;
+  background: #0E7C7B;
+  color: #fff;
+  border: none;
+  padding: 4px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.co-reconciled-amount-save:hover {
+  background: #0a5e5d;
+}
+
+.co-reconciled-amount-text {
+  font-size: 0.85rem;
+  color: #333;
+  font-weight: 600;
+}
+
+/* ===== Inspector Comment Column ===== */
+.co-epv-comment {
+  min-width: 150px;
+}
+
+.co-comment-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.co-comment-input {
+  width: 100%;
+  min-width: 90px;
+  padding: 4px 6px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 11px;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.co-comment-input:focus {
+  outline: none;
+  border-color: #0E7C7B;
+  box-shadow: 0 0 0 2px rgba(14, 124, 123, 0.15);
+}
+
+.co-comment-save-btn {
+  align-self: flex-end;
+  background: #0E7C7B;
+  color: #fff;
+  border: none;
+  padding: 4px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.co-comment-save-btn:hover {
+  background: #0a5e5d;
+}
+
+.co-comment-text {
+  font-size: 0.82rem;
+  color: #444;
+  white-space: pre-wrap;
+}
+
+/* ===== Inspector EPV Column ===== */
+.co-epv-inspection {
+  min-width: 140px;
+}
+
+.co-insp-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.co-insp-status {
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.co-insp-completed {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.co-insp-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.co-insp-name {
+  font-size: 0.78rem;
+  color: #666;
+}
+
+.co-insp-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.co-insp-view-btn {
+  background: #4f46e5;
+  color: #fff;
+  border: none;
+  padding: 3px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.co-insp-view-btn:hover {
+  background: #4338ca;
+}
+
+.co-insp-delete-btn {
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  padding: 3px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.co-insp-delete-btn:hover {
+  background: #dc2626;
+  color: #fff;
+}
+
+.co-insp-awaiting {
+  background: #fef3c7;
+  color: #92400e;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
 /* ===== Add EPV Button ===== */
 .co-add-epv-btn {
   padding: 5px 14px;
@@ -1138,4 +1609,435 @@
 .co-add-epv-create-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* ===== Payment Status ===== */
+.co-epv-amount {
+  font-weight: 600;
+  white-space: normal;
+  word-break: break-word;
+  color: #1f2937;
+}
+
+.co-pay-badge {
+  display: inline-block;
+  padding: 3px 6px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: normal;
+  word-break: break-word;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.co-pay-outstanding {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.co-pay-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.co-pay-paid {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.co-stat-outstanding .co-stat-number {
+  color: #dc2626;
+}
+
+.co-stat-positive .co-stat-number {
+  color: #16a34a;
+}
+
+.co-insp-create-btn {
+  padding: 4px 10px;
+  background: #3730a3;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+
+.co-insp-create-btn:hover:not(:disabled) {
+  background: #312e81;
+}
+
+.co-insp-create-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ===== PROGRESS TRACKER ===== */
+.co-progress-row td {
+  padding: 0 !important;
+  border-top: none !important;
+  background: #f8fafc;
+}
+
+.co-progress-tracker {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 20px 32px 24px;
+  gap: 0;
+}
+
+.co-progress-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+
+.co-step-indicator {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  position: relative;
+}
+
+.co-step-circle {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  z-index: 1;
+  margin: 0 auto;
+  transition: all 0.3s ease;
+}
+
+.co-step-line {
+  position: absolute;
+  top: 50%;
+  left: calc(50% + 16px);
+  right: calc(-50% + 16px);
+  height: 3px;
+  transform: translateY(-50%);
+  border-radius: 2px;
+  transition: background 0.3s ease;
+}
+
+/* Complete step */
+.co-step-complete .co-step-circle {
+  background: #16a34a;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.3);
+}
+
+.co-step-complete .co-step-line {
+  background: #16a34a;
+}
+
+.co-step-complete .co-step-label {
+  color: #15803d;
+  font-weight: 600;
+}
+
+/* Active step */
+.co-step-active .co-step-circle {
+  background: #fff;
+  color: #667eea;
+  border: 3px solid #667eea;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  animation: co-pulse 2s ease-in-out infinite;
+}
+
+.co-step-active .co-step-line {
+  background: #d1d5db;
+}
+
+.co-step-active .co-step-label {
+  color: #4f46e5;
+  font-weight: 700;
+}
+
+/* Pending step */
+.co-step-pending .co-step-circle {
+  background: #e5e7eb;
+  color: #9ca3af;
+  border: 2px solid #d1d5db;
+}
+
+.co-step-pending .co-step-line {
+  background: #e5e7eb;
+}
+
+.co-step-pending .co-step-label {
+  color: #9ca3af;
+}
+
+.co-step-label {
+  margin-top: 10px;
+  font-size: 11px;
+  text-align: center;
+  line-height: 1.3;
+  max-width: 100px;
+}
+
+.co-step-detail {
+  margin-top: 3px;
+  font-size: 10px;
+  text-align: center;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.co-step-complete .co-step-detail {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.co-step-active .co-step-detail {
+  background: #e0e7ff;
+  color: #4f46e5;
+}
+
+@keyframes co-pulse {
+  0%, 100% { box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3); }
+  50% { box-shadow: 0 2px 16px rgba(102, 126, 234, 0.5); }
+}
+
+/* ===== INVOICE STYLES ===== */
+.co-invoice-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.co-invoice-view-btn {
+  color: #4f46e5;
+  font-size: 10px;
+  font-weight: 700;
+  text-decoration: none;
+  font-family: 'Courier New', monospace;
+}
+
+.co-invoice-view-btn:hover {
+  text-decoration: underline;
+}
+
+.co-invoice-generate-btn {
+  display: inline-block;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #dbeafe;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.co-invoice-generate-btn:hover:not(:disabled) {
+  background: #1d4ed8;
+  color: #fff;
+}
+
+.co-invoice-generate-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.co-invoice-send-btn {
+  display: inline-block;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #dcfce7;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.co-invoice-send-btn:hover:not(:disabled) {
+  background: #16a34a;
+  color: #fff;
+}
+
+.co-invoice-send-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.co-invoice-sent {
+  font-size: 9px;
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.co-invoice-sent-badge {
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.co-invoice-pending {
+  font-size: 10px;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+.co-invoice-link {
+  color: #4f46e5;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.co-invoice-link:hover {
+  text-decoration: underline;
+}
+
+.co-invoice-table {
+  font-size: 12px;
+}
+
+.co-invoice-table th {
+  font-size: 11px;
+}
+
+.co-invoice-generate-section {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+}
+
+.co-invoice-generate-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  margin: 0 0 10px;
+}
+
+.co-invoice-generate-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.co-invoice-generate-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+
+.co-invoice-generate-ref {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: #0E7C7B;
+}
+
+.co-invoice-generate-period {
+  font-size: 12px;
+  color: #555;
+}
+
+.co-invoice-generate-amount {
+  font-size: 12px;
+  font-weight: 700;
+  color: #dc2626;
+  margin-left: auto;
+}
+
+.co-invoice-not-sent {
+  font-size: 11px;
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.co-invoice-sent-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #d1fae5;
+  color: #065f46;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.co-invoice-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.co-invoice-download-btn {
+  display: inline-block;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  background: #4f46e5;
+  border: none;
+  border-radius: 6px;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.co-invoice-download-btn:hover {
+  background: #4338ca;
+}
+
+.co-invoice-delete-btn {
+  display: inline-block;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.co-invoice-delete-btn:hover {
+  background: #dc2626;
+  color: #fff;
+}
+
+.co-invoice-ready-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.co-inv-sent-row {
+  background: #f0fdf4;
 }

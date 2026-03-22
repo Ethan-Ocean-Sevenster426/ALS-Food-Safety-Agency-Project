@@ -265,7 +265,7 @@ router.get('/:clientRecordId/audit-log', async (req, res) => {
       .input('offset', sql.Int, offset)
       .input('limit', sql.Int, limit)
       .query(
-        `SELECT Id, RecordId, FieldName, OldValue, NewValue, ChangedBy, ChangedAt
+        `SELECT Id, RecordId, FieldName, OldValue, NewValue, ChangedBy, ChangedAt, UserRole
          FROM ClientAuditLog
          WHERE RecordId = @recordId
          ORDER BY ChangedAt DESC

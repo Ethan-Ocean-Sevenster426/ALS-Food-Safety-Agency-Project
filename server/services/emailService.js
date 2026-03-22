@@ -79,4 +79,24 @@ function buildInviteEmail({ businessName, role, inviteUrl }) {
   };
 }
 
-module.exports = { sendEmail, buildInviteEmail };
+/**
+ * Send an email to each recipient individually and return per-recipient results.
+ * @param {Object} opts - { recipients: string[], subject, html }
+ * @returns {Promise<{ succeeded: string[], failed: string[] }>}
+ */
+async function sendEmailToEach({ recipients, subject, html }) {
+  const succeeded = [];
+  const failed = [];
+  for (const email of recipients) {
+    try {
+      await sendEmail({ to: email, subject, html });
+      succeeded.push(email);
+    } catch (err) {
+      console.error(`Email failed for ${email}:`, err.message);
+      failed.push(email);
+    }
+  }
+  return { succeeded, failed };
+}
+
+module.exports = { sendEmail, sendEmailToEach, buildInviteEmail };

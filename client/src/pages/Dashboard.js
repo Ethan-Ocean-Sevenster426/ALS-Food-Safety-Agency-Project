@@ -1,18 +1,29 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
 import './PageStyles.css';
 import './Dashboard.css';
+
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const PIE_COLORS = ['#0E7C7B', '#4f46e5', '#d97706', '#dc2626', '#16a34a', '#7c3aed', '#059669', '#e11d48', '#0284c7'];
 
 function Dashboard() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const navigate = useNavigate();
   const [stats, setStats] = useState(null);
+  const [epvData, setEpvData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    axios.get('http://localhost:5000/api/dashboard/stats')
-      .then(res => setStats(res.data))
+    Promise.all([
+      axios.get('http://localhost:5000/api/dashboard/stats'),
+      axios.get('http://localhost:5000/api/dashboard/epv-overview'),
+    ])
+      .then(([statsRes, epvRes]) => {
+        setStats(statsRes.data);
+        setEpvData(epvRes.data);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
@@ -20,6 +31,15 @@ function Dashboard() {
   const formatDate = (dateStr) => {
     if (!dateStr) return '';
     return new Date(dateStr).toLocaleDateString();
+  };
+
+  const formatR = (v) => `R ${(+v || 0).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const formatNum = (v) => (+v || 0).toLocaleString('en-ZA');
+  const formatRShort = (v) => {
+    const n = +v || 0;
+    if (n >= 1000000) return `R ${(n / 1000000).toFixed(1)}M`;
+    if (n >= 1000) return `R ${(n / 1000).toFixed(0)}K`;
+    return `R ${n.toFixed(0)}`;
   };
 
   const getPriorityClass = (p) => {
@@ -41,6 +61,32 @@ function Dashboard() {
     }
   };
 
+  // EPV chart data
+  const chartData = useMemo(() => {
+    if (!epvData?.monthly) return [];
+    return [...epvData.monthly]
+      .sort((a, b) => a.PeriodYear - b.PeriodYear || a.PeriodMonth - b.PeriodMonth)
+      .map(m => ({
+        name: `${MONTH_NAMES[m.PeriodMonth - 1].slice(0, 3)} ${m.PeriodYear}`,
+        'Total Billed': +(m.TotalBilled || 0).toFixed(2),
+        'Total Paid': +(m.TotalPaid || 0).toFixed(2),
+        'Egg Levy': +(m.EggLevy || 0).toFixed(2),
+        'Pulp Levy': +(m.PulpLevy || 0).toFixed(2),
+        'EPV Count': m.EPVCount || 0,
+        'Rejections': m.Rejections || 0,
+        paidPct: m.TotalBilled > 0 ? +((m.TotalPaid / m.TotalBilled) * 100).toFixed(0) : 0,
+      }));
+  }, [epvData]);
+
+  // Province pie data
+  const provincePieData = useMemo(() => {
+    if (!epvData?.facilitiesByProvince) return [];
+    return epvData.facilitiesByProvince.map(p => ({
+      name: p.FacilityProvince,
+      value: p.FacilityCount,
+    }));
+  }, [epvData]);
+
   if (loading) {
     return (
       <div className="page-container dash-page">
@@ -49,13 +95,51 @@ function Dashboard() {
     );
   }
 
+  const s = epvData?.stats || {};
+  const q = epvData?.quarter || {};
+  const monthly = epvData?.monthly || [];
+  const totalFacilities = epvData?.totalFacilities || 0;
+
+  // KPI computations
+  const now = new Date();
+  const curMonth = now.getMonth() + 1;
+  const curYear = now.getFullYear();
+  const prevMonths = monthly.filter(m => m.PeriodYear < curYear || (m.PeriodYear === curYear && m.PeriodMonth < curMonth));
+  const curMonthData = monthly.find(m => m.PeriodYear === curYear && m.PeriodMonth === curMonth);
+
+  const prevBilled = prevMonths.reduce((a, m) => a + (m.TotalBilled || 0), 0);
+  const prevPaid = prevMonths.reduce((a, m) => a + (m.TotalPaid || 0), 0);
+  const prevPct = prevBilled > 0 ? +((prevPaid / prevBilled) * 100).toFixed(1) : 0;
+  const prevMonthNames = [...prevMonths]
+    .sort((a, b) => a.PeriodYear - b.PeriodYear || a.PeriodMonth - b.PeriodMonth)
+    .map(m => MONTH_NAMES[m.PeriodMonth - 1].slice(0, 3))
+    .join(', ');
+
+  const curBilled = curMonthData ? (curMonthData.TotalBilled || 0) : 0;
+  const curPaid = curMonthData ? (curMonthData.TotalPaid || 0) : 0;
+  const curPct = curBilled > 0 ? +((curPaid / curBilled) * 100).toFixed(1) : 0;
+  const curMonthName = MONTH_NAMES[curMonth - 1];
+
+  const approvalPct = s.TotalEPVs > 0 ? +((s.VerifiedCount / s.TotalEPVs) * 100).toFixed(1) : 0;
+  const visitedDone = totalFacilities - (epvData?.needVisitCount || 0);
+  const visitedPct = totalFacilities > 0 ? +((visitedDone / totalFacilities) * 100).toFixed(1) : 0;
+
+  const paidPct = s.TotalBilled > 0 ? ((s.TotalPaid / s.TotalBilled) * 100).toFixed(1) : 0;
+
+  const kpis = [
+    { label: `Collection — ${prevMonthNames || 'Prior Months'}`, value: prevPct, target: 80, suffix: '%', detail: `${formatR(prevPaid)} of ${formatR(prevBilled)}`, color: prevPct >= 80 ? '#16a34a' : prevPct >= 60 ? '#d97706' : '#dc2626' },
+    { label: `Collection — ${curMonthName} (Current)`, value: curPct, target: 80, suffix: '%', detail: `${formatR(curPaid)} of ${formatR(curBilled)}`, color: curPct >= 80 ? '#16a34a' : curPct >= 60 ? '#d97706' : '#dc2626' },
+    { label: 'Approvals Actioned', value: approvalPct, target: 90, suffix: '%', detail: `${formatNum(s.VerifiedCount)} of ${formatNum(s.TotalEPVs)} EPVs`, color: approvalPct >= 90 ? '#16a34a' : approvalPct >= 70 ? '#d97706' : '#dc2626' },
+    { label: 'Facilities Visited', value: visitedPct, target: 100, suffix: '%', detail: `${formatNum(visitedDone)} of ${formatNum(totalFacilities)} (Q${q.quarter})`, color: visitedPct >= 100 ? '#16a34a' : visitedPct >= 75 ? '#d97706' : '#dc2626' },
+  ];
+
   return (
     <div className="page-container dash-page">
       {/* Welcome */}
       <div className="page-card dash-welcome">
         <div className="dash-welcome-text">
           <h2>Welcome back, {user.firstName}!</h2>
-          <p>Here's an overview of your EPVS system.</p>
+          <p>Here's a holistic overview of your EPVS system.</p>
         </div>
         <span className="dash-role-badge">{user.role}</span>
       </div>
@@ -86,14 +170,14 @@ function Dashboard() {
               </div>
             </div>
 
-            <div className="dash-stat-card">
+            <div className="dash-stat-card" onClick={() => navigate('/epv')}>
               <div className="dash-stat-icon dash-stat-epv">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
               </div>
               <div className="dash-stat-content">
                 <span className="dash-stat-number">{stats.epv.total}</span>
                 <span className="dash-stat-label">EPV Forms</span>
-                <span className="dash-stat-sub">{stats.epv.pending} pending</span>
+                <span className="dash-stat-sub">{stats.epv.completed} completed</span>
               </div>
             </div>
 
@@ -108,8 +192,200 @@ function Dashboard() {
               </div>
             </div>
           </div>
+        </>
+      )}
 
-          {/* Secondary Stats Row */}
+      {/* KPI Gauges */}
+      {epvData && (
+        <>
+          <div className="dash-section-title">EPV Performance KPIs</div>
+          <div className="dash-kpi-grid">
+            {kpis.map(kpi => {
+              const barPct = Math.min(100, kpi.value);
+              const meetsTarget = kpi.value >= kpi.target;
+              return (
+                <div key={kpi.label} className="dash-kpi-card">
+                  <div className="dash-kpi-header">
+                    <span className="dash-kpi-label">{kpi.label}</span>
+                    <span className={`dash-kpi-status ${meetsTarget ? 'dash-kpi-met' : 'dash-kpi-not-met'}`}>
+                      {meetsTarget ? 'ON TARGET' : 'BELOW TARGET'}
+                    </span>
+                  </div>
+                  <div className="dash-kpi-value-row">
+                    <span className="dash-kpi-value" style={{ color: kpi.color }}>{kpi.value}{kpi.suffix}</span>
+                    <span className="dash-kpi-target">Target: &ge;{kpi.target}{kpi.suffix}</span>
+                  </div>
+                  <div className="dash-kpi-bar">
+                    <div className="dash-kpi-bar-fill" style={{ width: `${barPct}%`, background: kpi.color }}></div>
+                    <div className="dash-kpi-bar-target" style={{ left: `${Math.min(100, kpi.target)}%` }}></div>
+                  </div>
+                  <div className="dash-kpi-detail">{kpi.detail}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Action Items + Financial Summary */}
+          <div className="dash-epv-top-grid">
+            {/* Action Items */}
+            <div className="dash-action-summary">
+              <div className="dash-action-card dash-action-urgent" onClick={() => navigate('/inspectors')}>
+                <span className="dash-action-count dash-action-count-urgent">{epvData.pendingApprovalsCount}</span>
+                <div className="dash-action-detail">
+                  <div className="dash-action-title">Pending Approvals</div>
+                  <div className="dash-action-desc">EPVs awaiting verification</div>
+                </div>
+              </div>
+              <div className="dash-action-card dash-action-warning" onClick={() => navigate('/inspectors')}>
+                <span className="dash-action-count dash-action-count-warning">{epvData.inspToCompleteCount}</span>
+                <div className="dash-action-detail">
+                  <div className="dash-action-title">Inspector EPVs to Complete</div>
+                  <div className="dash-action-desc">Rejected — awaiting inspector form</div>
+                </div>
+              </div>
+              <div className="dash-action-card dash-action-info" onClick={() => navigate('/inspectors')}>
+                <span className="dash-action-count dash-action-count-info">{epvData.needVisitCount}</span>
+                <div className="dash-action-detail">
+                  <div className="dash-action-title">Facilities Need Visit</div>
+                  <div className="dash-action-desc">Q{q.quarter} — no inspection yet</div>
+                </div>
+              </div>
+              <div className="dash-action-card dash-action-danger" onClick={() => navigate('/inspectors')}>
+                <span className="dash-action-count dash-action-count-danger">{epvData.notCompletedCount}</span>
+                <div className="dash-action-detail">
+                  <div className="dash-action-title">Not Completed EPVs</div>
+                  <div className="dash-action-desc">{curYear} — facilities missing EPVs</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Financial Summary */}
+            <div className="dash-finance-summary">
+              <div className="dash-finance-row-item">
+                <span className="dash-finance-label">Total Billed</span>
+                <span className="dash-finance-value dash-finance-billed">{formatR(s.TotalBilled)}</span>
+              </div>
+              <div className="dash-finance-row-item">
+                <span className="dash-finance-label">Total Paid</span>
+                <span className="dash-finance-value dash-finance-paid">{formatR(s.TotalPaid)}</span>
+              </div>
+              <div className="dash-finance-row-item">
+                <span className="dash-finance-label">Outstanding</span>
+                <span className="dash-finance-value dash-finance-outstanding">{formatR(s.TotalOutstanding)}</span>
+              </div>
+              <div className="dash-finance-divider"></div>
+              <div className="dash-finance-row-item">
+                <span className="dash-finance-label">Egg Levy</span>
+                <span className="dash-finance-value">{formatNum(s.TotalEggDozens)} doz — {formatR(s.TotalEggLevy)}</span>
+              </div>
+              <div className="dash-finance-row-item">
+                <span className="dash-finance-label">Pulp Levy</span>
+                <span className="dash-finance-value">{formatNum(s.TotalPulpDozens)} doz — {formatR(s.TotalPulpLevy)}</span>
+              </div>
+              <div className="dash-finance-divider"></div>
+              <div className="dash-finance-row-item">
+                <span className="dash-finance-label">Collection Rate</span>
+                <span className="dash-finance-value" style={{ color: paidPct >= 80 ? '#16a34a' : '#d97706', fontWeight: 800 }}>{paidPct}%</span>
+              </div>
+            </div>
+          </div>
+
+          {/* EPV Stats Row */}
+          <div className="dash-epv-stats-row">
+            <div className="dash-epv-stat">
+              <span className="dash-epv-stat-num" style={{ color: '#0E7C7B' }}>{formatNum(totalFacilities)}</span>
+              <span className="dash-epv-stat-label">Facilities</span>
+            </div>
+            <div className="dash-epv-stat">
+              <span className="dash-epv-stat-num" style={{ color: '#4f46e5' }}>{formatNum(s.TotalEPVs)}</span>
+              <span className="dash-epv-stat-label">Completed EPVs</span>
+            </div>
+            <div className="dash-epv-stat">
+              <span className="dash-epv-stat-num" style={{ color: '#16a34a' }}>{formatNum(s.VerifiedCount)}</span>
+              <span className="dash-epv-stat-label">Verified</span>
+            </div>
+            <div className="dash-epv-stat">
+              <span className="dash-epv-stat-num" style={{ color: '#dc2626' }}>{formatNum(s.TotalRejections)}</span>
+              <span className="dash-epv-stat-label">Rejections</span>
+            </div>
+            <div className="dash-epv-stat">
+              <span className="dash-epv-stat-num" style={{ color: '#d97706' }}>{formatNum(s.ManualInspections)}</span>
+              <span className="dash-epv-stat-label">Inspections Done</span>
+            </div>
+            <div className="dash-epv-stat">
+              <span className="dash-epv-stat-num" style={{ color: '#7c3aed' }}>{epvData.outstandingCount}</span>
+              <span className="dash-epv-stat-label">Outstanding</span>
+            </div>
+          </div>
+
+          {/* Charts */}
+          <div className="dash-charts-grid">
+            <div className="page-card dash-chart-card">
+              <h3>Total Billed vs Paid — Month Over Month</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={chartData} margin={{ top: 10, right: 30, left: 10, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={formatRShort} />
+                  <Tooltip formatter={(v) => formatR(v)} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Bar dataKey="Total Billed" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Total Paid" fill="#16a34a" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="page-card dash-chart-card">
+              <h3>Egg Levy vs Pulp Levy — Month Over Month</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <YAxis yAxisId="left" tick={{ fontSize: 11, fill: '#0E7C7B' }} tickFormatter={formatRShort} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#d97706' }} tickFormatter={formatRShort} />
+                  <Tooltip formatter={(v) => formatR(v)} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Line yAxisId="left" type="monotone" dataKey="Egg Levy" stroke="#0E7C7B" strokeWidth={3} dot={{ r: 5 }} />
+                  <Line yAxisId="right" type="monotone" dataKey="Pulp Levy" stroke="#d97706" strokeWidth={3} dot={{ r: 5 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Second row: Province Pie + Rejections by Province */}
+          <div className="dash-charts-grid">
+            <div className="page-card dash-chart-card">
+              <h3>Facilities by Province</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie data={provincePieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, value }) => `${name}: ${value}`}>
+                    {provincePieData.map((entry, idx) => (
+                      <Cell key={entry.name} fill={PIE_COLORS[idx % PIE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="page-card dash-chart-card">
+              <h3>Rejections by Province</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={(epvData.rejectionsByProvince || []).map(p => ({ name: p.FacilityProvince, Rejections: p.Rejections }))} margin={{ top: 10, right: 30, left: 10, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} angle={-30} textAnchor="end" height={60} />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                  <Bar dataKey="Rejections" fill="#dc2626" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Secondary Stats Row */}
+      {stats && (
+        <>
+          <div className="dash-section-title">System Overview</div>
           <div className="dash-secondary-grid">
             <div className="page-card dash-breakdown-card">
               <h3>Users by Role</h3>

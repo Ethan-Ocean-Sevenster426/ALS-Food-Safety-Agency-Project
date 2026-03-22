@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import './PageStyles.css';
 import './CompanyOverview.css';
@@ -51,6 +51,105 @@ const ALL_EDITABLE = [
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
+// Check if an EPV has a completed inspector EPV
+const hasInspectorAmount = (epv) => epv.inspectorEPV && epv.inspectorEPV.Status === 'Completed';
+
+const LEVY_RATE = 0.018;
+
+// Calculate total owed from a single EPV record
+const calcTotalOwed = (record) => {
+  const eggLevy = parseFloat(record.LevyAmount) || 0;
+  const pulpSoldToTrade = parseInt(record.PulpSoldToTrade) || 0;
+  const pulpLevyDozens = Math.round(pulpSoldToTrade * 1.7);
+  const pulpLevy = pulpLevyDozens * LEVY_RATE;
+  return eggLevy + pulpLevy;
+};
+
+// Get the amount outstanding based on verification status
+const getAmountOutstanding = (epv) => {
+  if (epv.Status !== 'Completed') return { label: '—', className: '' };
+  // Rejected but inspector EPV not yet completed
+  if (epv.inspectorEPV && epv.inspectorEPV.Status !== 'Completed') {
+    return { label: 'Awaiting Inspector EPV Result', className: 'co-amount-awaiting' };
+  }
+  // Facility EPV Rejected — use inspector EPV amount
+  if (!epv.IsVerified && epv.inspectorEPV && epv.inspectorEPV.Status === 'Completed') {
+    return { label: `R ${calcTotalOwed(epv.inspectorEPV).toFixed(2)}`, className: 'co-amount-value' };
+  }
+  // Inspector Approved — use facility EPV amount
+  if (epv.IsVerified) {
+    return { label: `R ${calcTotalOwed(epv).toFixed(2)}`, className: 'co-amount-value' };
+  }
+  // Not yet verified
+  return { label: '—', className: '' };
+};
+
+// Payment status based on POP and Reconciled — requires inspector EPV to be completed for amount
+const getPaymentStatus = (epv) => {
+  if (epv.Status !== 'Completed' && !hasInspectorAmount(epv)) return { label: '—', className: '' };
+  if (epv.IsReconciled && epv.POPFilePath) return { label: 'Paid', className: 'co-pay-paid' };
+  if (epv.POPFilePath) return { label: 'Pending Reconciliation', className: 'co-pay-pending' };
+  return { label: 'Outstanding', className: 'co-pay-outstanding' };
+};
+
+// Build progress steps for an EPV lifecycle
+const getProgressSteps = (epv) => {
+  const steps = [];
+
+  // Step 1: EPV Sent
+  steps.push({
+    label: 'EPV Sent',
+    status: 'complete', // always complete if it exists in the list
+  });
+
+  // Step 2: Facility Completes EPV
+  steps.push({
+    label: 'Facility Completes EPV',
+    status: epv.Status === 'Completed' ? 'complete' : 'active',
+  });
+
+  // Step 3: Inspector Approves / Rejects
+  const inspectorDecided = epv.IsVerified || (epv.inspectorEPV != null);
+  steps.push({
+    label: 'Inspector Verification',
+    status: epv.Status !== 'Completed' ? 'pending'
+      : inspectorDecided ? 'complete' : 'active',
+    detail: epv.IsVerified ? 'Approved' : epv.inspectorEPV ? 'Rejected' : null,
+  });
+
+  // Step 4: Inspector Completes EPV (only if rejected)
+  if (epv.inspectorEPV) {
+    steps.push({
+      label: 'Inspector Completes EPV',
+      status: epv.inspectorEPV.Status === 'Completed' ? 'complete' : 'active',
+    });
+  }
+
+  // Step 5: Invoice Sent
+  const invoiceReady = epv.Status === 'Completed' && (epv.IsVerified || (epv.inspectorEPV && epv.inspectorEPV.Status === 'Completed'));
+  const hasInvoice = epv._invoice != null;
+  const invoiceSentDone = hasInvoice && epv._invoice.SentAt;
+  steps.push({
+    label: 'Invoice Sent',
+    status: invoiceSentDone ? 'complete' : hasInvoice ? 'active' : invoiceReady ? 'active' : 'pending',
+    detail: invoiceSentDone ? 'Sent' : hasInvoice ? 'Generated' : null,
+  });
+
+  // Step 6: POP Uploaded
+  steps.push({
+    label: 'POP Uploaded',
+    status: epv.POPFilePath ? 'complete' : invoiceSentDone ? 'active' : 'pending',
+  });
+
+  // Step 7: Payment Reconciled
+  steps.push({
+    label: 'Payment Reconciled',
+    status: epv.IsReconciled ? 'complete' : epv.POPFilePath ? 'active' : 'pending',
+  });
+
+  return steps;
+};
+
 const SA_PROVINCES = [
   'Eastern Cape', 'Free State', 'Gauteng', 'KwaZulu-Natal', 'Limpopo',
   'Mpumalanga', 'North West', 'Northern Cape', 'Western Cape',
@@ -59,16 +158,22 @@ const SA_PROVINCES = [
 function CompanyOverview() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const isAdmin = user.role === 'Super Admin' || user.role === 'Admin';
+  const isInspector = user.role === 'Inspector';
+  const canSelectCompany = isAdmin || isInspector;
   const userLabel = `${user.firstName || ''} ${user.lastName || ''} (${user.email || 'unknown'})`.trim();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryCompanyId = searchParams.get('companyId');
 
-  // Company selector state (admin only)
+  // Company selector state (admin/inspector)
   const [allCompanies, setAllCompanies] = useState([]);
   const [companiesLoading, setCompaniesLoading] = useState(false);
   const [companySearch, setCompanySearch] = useState('');
 
-  // Active company ID - for admin it's selected, for company users it's from login
-  const [activeCompanyId, setActiveCompanyId] = useState(isAdmin ? null : user.clientRecordId);
+  // Active company ID - for admin/inspector it's selected (or from query param), for company users it's from login
+  const [activeCompanyId, setActiveCompanyId] = useState(
+    queryCompanyId ? parseInt(queryCompanyId) : (canSelectCompany ? null : user.clientRecordId)
+  );
 
   const [company, setCompany] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -119,10 +224,27 @@ function CompanyOverview() {
 
   // POP upload state
   const [popUploading, setPopUploading] = useState(null); // EPV Id being uploaded
+  const [inspCreating, setInspCreating] = useState(null); // EPV Id for inspector creation
+  const [epvComments, setEpvComments] = useState({}); // { epvId: commentText }
+  const [reconciledAmounts, setReconciledAmounts] = useState({}); // { epvId: amountString }
+  const [expandedEpvId, setExpandedEpvId] = useState(null); // EPV Id with progress tracker open
+  const [popComments, setPopComments] = useState({}); // { epvId: commentText }
+
+  // Invoice state
+  const [invoices, setInvoices] = useState([]); // array of invoice records
+  const [invoiceGenerating, setInvoiceGenerating] = useState(null); // EPV Id being generated
+  const [invoiceSending, setInvoiceSending] = useState(null); // Invoice Id being sent
+
+  // Email status state — tracks which emails have failed
+  const [emailStatus, setEmailStatus] = useState({}); // { email: 'Sent' | 'Failed' }
+
+  // Table filter state
+  const [epvFilters, setEpvFilters] = useState({});
+  const [invFilters, setInvFilters] = useState({});
 
   // ===== FETCH ALL COMPANIES (admin only) =====
   const fetchAllCompanies = useCallback(async () => {
-    if (!isAdmin) return;
+    if (!canSelectCompany) return;
     setCompaniesLoading(true);
     try {
       const res = await axios.get('http://localhost:5000/api/clients', { params: { limit: 9999 } });
@@ -132,7 +254,7 @@ function CompanyOverview() {
     } finally {
       setCompaniesLoading(false);
     }
-  }, [isAdmin]);
+  }, [canSelectCompany]);
 
   useEffect(() => { fetchAllCompanies(); }, [fetchAllCompanies]);
 
@@ -207,11 +329,42 @@ function CompanyOverview() {
     }
   }, [activeCompanyId]);
 
+  const fetchInvoices = useCallback(async () => {
+    if (!activeCompanyId) return;
+    try {
+      const res = await axios.get(`http://localhost:5000/api/invoices/company/${activeCompanyId}`);
+      setInvoices(res.data);
+    } catch (err) {
+      console.error('Failed to load invoices');
+    }
+  }, [activeCompanyId]);
+
+  const fetchEmailStatus = useCallback(async () => {
+    if (!activeCompanyId) return;
+    try {
+      const res = await axios.get(`http://localhost:5000/api/invoices/email-log/${activeCompanyId}`);
+      setEmailStatus(res.data.emailStatus || {});
+    } catch (err) {
+      console.error('Failed to load email status');
+    }
+  }, [activeCompanyId]);
+
   useEffect(() => { fetchCompany(); }, [fetchCompany]);
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
   useEffect(() => { fetchEPVs(); }, [fetchEPVs]);
+  useEffect(() => { fetchInvoices(); }, [fetchInvoices]);
+  useEffect(() => { fetchEmailStatus(); }, [fetchEmailStatus]);
   useEffect(() => { fetchAuditCount(); }, [fetchAuditCount]);
   useEffect(() => { if (showAuditLog) fetchAuditLog(); }, [fetchAuditLog, showAuditLog]);
+
+  // Helper: refresh EPVs + audit log after any action
+  const refreshAll = useCallback(() => {
+    fetchEPVs();
+    fetchInvoices();
+    fetchEmailStatus();
+    fetchAuditCount();
+    if (showAuditLog) fetchAuditLog();
+  }, [fetchEPVs, fetchInvoices, fetchEmailStatus, fetchAuditCount, fetchAuditLog, showAuditLog]);
 
   // Reset sub-sections when switching company
   useEffect(() => {
@@ -235,6 +388,7 @@ function CompanyOverview() {
   // ===== SWITCH COMPANY (admin) =====
   const selectCompany = (companyId) => {
     setActiveCompanyId(companyId);
+    setSearchParams({ companyId: String(companyId) }, { replace: true });
   };
 
   const filteredCompanies = allCompanies.filter(c => {
@@ -285,6 +439,8 @@ function CompanyOverview() {
       cancelEdit();
       setSuccessMsg('Company details updated successfully.');
       fetchCompany();
+      fetchAuditCount();
+      if (showAuditLog) fetchAuditLog();
     } catch (err) {
       setError('Failed to save changes.');
     } finally {
@@ -375,7 +531,7 @@ function CompanyOverview() {
         createdBy: userLabel,
       });
       setShowAddEpvModal(false);
-      fetchEPVs();
+      refreshAll();
       // Navigate to the form
       navigate(`/epv/${res.data.token}`);
     } catch (err) {
@@ -394,11 +550,12 @@ function CompanyOverview() {
       const formData = new FormData();
       formData.append('pop', file);
       formData.append('uploadedBy', userLabel);
+      formData.append('userRole', user.role);
       await axios.post(`http://localhost:5000/api/epv/${epvId}/upload-pop`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setSuccessMsg('Proof of Payment uploaded successfully.');
-      fetchEPVs();
+      refreshAll();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to upload POP.');
     } finally {
@@ -411,9 +568,9 @@ function CompanyOverview() {
     if (!window.confirm('Are you sure you want to delete this Proof of Payment? This will also remove reconciliation.')) return;
     setError('');
     try {
-      await axios.delete(`http://localhost:5000/api/epv/${epvId}/pop`);
+      await axios.delete(`http://localhost:5000/api/epv/${epvId}/pop`, { data: { deletedBy: userLabel, userRole: user.role } });
       setSuccessMsg('POP deleted successfully.');
-      fetchEPVs();
+      refreshAll();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to delete POP.');
     }
@@ -426,11 +583,230 @@ function CompanyOverview() {
       await axios.put(`http://localhost:5000/api/epv/${epvId}/reconcile`, {
         reconciled: !currentValue,
         reconciledBy: userLabel,
+        userRole: user.role,
       });
       setSuccessMsg(!currentValue ? 'EPV marked as reconciled.' : 'Reconciliation removed.');
-      fetchEPVs();
+      refreshAll();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to update reconciliation.');
+    }
+  };
+
+  // ===== TOGGLE VERIFY (Inspector/Super Admin only) =====
+  const toggleVerify = async (epvId, currentValue) => {
+    setError('');
+    try {
+      await axios.put(`http://localhost:5000/api/epv/${epvId}/verify`, {
+        verified: !currentValue,
+        verifiedBy: userLabel,
+        userRole: user.role,
+      });
+      setSuccessMsg(!currentValue ? 'EPV marked as verified.' : 'Verification removed.');
+      refreshAll();
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Failed to update verification.';
+      const detail = err.response?.data?.error || '';
+      setError(detail ? `${msg} (${detail})` : msg);
+    }
+  };
+
+  // ===== TOGGLE MANUAL INSPECTION =====
+  const toggleManualInspection = async (epvId, currentValue) => {
+    setError('');
+    try {
+      await axios.put(`http://localhost:5000/api/epv/${epvId}/manual-inspection`, {
+        checked: !currentValue,
+        changedBy: userLabel,
+        userRole: user.role,
+      });
+      setSuccessMsg(!currentValue ? 'Manual inspection marked.' : 'Manual inspection removed.');
+      refreshAll();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update manual inspection.');
+    }
+  };
+
+  // ===== SAVE RECONCILED AMOUNT =====
+  const saveReconciledAmount = async (epvId) => {
+    setError('');
+    try {
+      await axios.put(`http://localhost:5000/api/epv/${epvId}/reconciled-amount`, {
+        amount: reconciledAmounts[epvId] || null,
+        changedBy: userLabel,
+        userRole: user.role,
+      });
+      setSuccessMsg('Reconciled amount saved.');
+      setReconciledAmounts(prev => { const n = { ...prev }; delete n[epvId]; return n; });
+      refreshAll();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to save reconciled amount.');
+    }
+  };
+
+  // ===== SAVE INSPECTOR COMMENT =====
+  const saveComment = async (epvId) => {
+    setError('');
+    try {
+      await axios.put(`http://localhost:5000/api/epv/${epvId}/comment`, {
+        comment: epvComments[epvId] || '',
+        commentBy: userLabel,
+        userRole: user.role,
+      });
+      setSuccessMsg('Comment saved.');
+      setEpvComments(prev => { const n = { ...prev }; delete n[epvId]; return n; });
+      refreshAll();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to save comment.');
+    }
+  };
+
+  // ===== SAVE POP COMMENT =====
+  const savePopComment = async (epvId) => {
+    setError('');
+    try {
+      await axios.put(`http://localhost:5000/api/epv/${epvId}/pop-comment`, {
+        comment: popComments[epvId] || '',
+        commentBy: userLabel,
+        userRole: user.role,
+      });
+      setSuccessMsg('POP comment saved.');
+      setPopComments(prev => { const n = { ...prev }; delete n[epvId]; return n; });
+      refreshAll();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to save POP comment.');
+    }
+  };
+
+  // ===== GENERATE INVOICE =====
+  const generateInvoice = async (epvId) => {
+    setInvoiceGenerating(epvId);
+    setError('');
+    try {
+      const res = await axios.post('http://localhost:5000/api/invoices/generate', {
+        verificationId: epvId,
+        generatedBy: userLabel,
+        userRole: user.role,
+      });
+      setSuccessMsg(`Invoice ${res.data.invoiceNumber} generated.`);
+      refreshAll();
+    } catch (err) {
+      if (err.response?.status === 409) {
+        setSuccessMsg('Invoice already exists for this EPV.');
+      } else {
+        setError(err.response?.data?.message || 'Failed to generate invoice.');
+      }
+    } finally {
+      setInvoiceGenerating(null);
+    }
+  };
+
+  // ===== SEND INVOICE =====
+  const sendInvoice = async (invoiceId) => {
+    if (!window.confirm('Send this invoice to all facility email addresses?')) return;
+    setInvoiceSending(invoiceId);
+    setError('');
+    try {
+      const res = await axios.post(`http://localhost:5000/api/invoices/send/${invoiceId}`, {
+        sentBy: userLabel,
+        userRole: user.role,
+      });
+      setSuccessMsg(`Invoice sent to: ${res.data.sentTo}`);
+      refreshAll();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to send invoice.');
+    } finally {
+      setInvoiceSending(null);
+    }
+  };
+
+  // ===== DELETE INVOICE =====
+  const deleteInvoice = async (invoiceId) => {
+    if (!window.confirm('Are you sure you want to delete this invoice?')) return;
+    setError('');
+    try {
+      await axios.delete(`http://localhost:5000/api/invoices/${invoiceId}`, {
+        data: { deletedBy: userLabel, userRole: user.role },
+      });
+      setSuccessMsg('Invoice deleted.');
+      refreshAll();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to delete invoice.');
+    }
+  };
+
+  // Helper: get invoice for an EPV
+  const getInvoiceForEpv = (epvId) => invoices.find(inv => inv.VerificationId === epvId);
+
+  // Helper: get invoice status for an EPV
+  const getInvoiceStatus = (epv) => {
+    if (epv.Status !== 'Completed') return { status: 'not-ready', label: '—' };
+    // Awaiting inspector EPV
+    if (epv.inspectorEPV && epv.inspectorEPV.Status !== 'Completed') {
+      return { status: 'awaiting', label: 'Rejected — Awaiting Inspector EPV' };
+    }
+    // Not yet verified and no inspector EPV
+    if (!epv.IsVerified && !epv.inspectorEPV) {
+      return { status: 'not-verified', label: 'Awaiting Verification' };
+    }
+    // Has amount — ready for invoice
+    return { status: 'ready', label: 'Ready' };
+  };
+
+  // ===== REJECT EPV — create inspector EPV to correct amounts =====
+  const rejectAndInspect = async (epv) => {
+    if (!window.confirm('Reject this EPV? You will be redirected to complete an Inspector EPV with the correct amounts.')) return;
+    // If inspector EPV already exists, navigate to it
+    if (epv.inspectorEPV) {
+      navigate(`/epv/${epv.inspectorEPV.Token}`);
+      return;
+    }
+    // Otherwise create a new inspector EPV
+    setInspCreating(epv.Id);
+    setError('');
+    try {
+      const res = await axios.post('http://localhost:5000/api/epv/inspector/create', {
+        clientEpvId: epv.Id,
+        inspectorId: user.id,
+        inspectorName: `${user.firstName} ${user.lastName}`,
+        userRole: user.role,
+      });
+      setSuccessMsg('Inspector EPV created. Redirecting to form...');
+      setTimeout(() => navigate(`/epv/${res.data.token}`), 500);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to create Inspector EPV.');
+    } finally {
+      setInspCreating(null);
+    }
+  };
+
+  // ===== DELETE INSPECTOR EPV (Super Admin only) =====
+  const deleteInspectorEPV = async (inspEpvId) => {
+    if (!window.confirm('Are you sure you want to delete this Inspector EPV? This action cannot be undone.')) return;
+    try {
+      await axios.delete(`http://localhost:5000/api/epv/inspector/${inspEpvId}`, { data: { deletedBy: userLabel, userRole: user.role } });
+      setSuccessMsg('Inspector EPV deleted.');
+      refreshAll();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to delete Inspector EPV.');
+    }
+  };
+
+  // ===== CREATE INSPECTOR EPV =====
+  const createInspectorEPV = async (clientEpvId) => {
+    setInspCreating(clientEpvId);
+    setError('');
+    try {
+      const res = await axios.post('http://localhost:5000/api/epv/inspector/create', {
+        clientEpvId,
+        inspectorId: user.id,
+        inspectorName: `${user.firstName} ${user.lastName}`,
+      });
+      setSuccessMsg('Inspector EPV created. Redirecting to form...');
+      setTimeout(() => navigate(`/epv/${res.data.token}`), 500);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to create Inspector EPV.');
+    } finally {
+      setInspCreating(null);
     }
   };
 
@@ -443,9 +819,10 @@ function CompanyOverview() {
       const res = await axios.post('http://localhost:5000/api/epv/send', {
         clientRecordId: activeCompanyId,
         sentBy: userLabel,
+        userRole: user.role,
       });
       setSuccessMsg(res.data.message);
-      fetchEPVs();
+      refreshAll();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to send EPV.');
     } finally {
@@ -459,7 +836,7 @@ function CompanyOverview() {
   };
 
   // ===== NO COMPANY SELECTED (admin without selection) =====
-  if (isAdmin && !activeCompanyId) {
+  if (canSelectCompany && !activeCompanyId) {
     return (
       <div className="page-container co-page">
         <div className="page-card co-selector-card">
@@ -510,7 +887,7 @@ function CompanyOverview() {
   }
 
   // ===== NO COMPANY for company user =====
-  if (!isAdmin && !activeCompanyId) {
+  if (!canSelectCompany && !activeCompanyId) {
     return (
       <div className="page-container co-page">
         <div className="page-card">
@@ -532,15 +909,52 @@ function CompanyOverview() {
     );
   }
 
+  // ===== TABLE FILTERING =====
+  const matchesFilter = (value, filter) => {
+    if (!filter) return true;
+    return String(value || '').toLowerCase().includes(filter.toLowerCase());
+  };
+
+  const filteredEpvList = epvList.filter(epv => {
+    const f = epvFilters;
+    if (!Object.values(f).some(v => v)) return true;
+    const period = `${MONTH_NAMES[(epv.PeriodMonth || 1) - 1]} ${epv.PeriodYear}`;
+    const ps = getPaymentStatus(epv);
+    const ao = getAmountOutstanding(epv);
+    return matchesFilter(epv.ReferenceNumber, f.ref)
+      && matchesFilter(period, f.period)
+      && matchesFilter(epv.Status, f.status)
+      && matchesFilter(epv.CompletedAt ? formatDate(epv.CompletedAt) : '', f.completed)
+      && matchesFilter(ps.label, f.payment)
+      && matchesFilter(ao.label, f.amount)
+      && matchesFilter(epv.ReconciledAmount, f.reconciled);
+  });
+
+  const filteredInvEpvList = epvList.filter(e => e.Status === 'Completed').filter(epv => {
+    const f = invFilters;
+    if (!Object.values(f).some(v => v)) return true;
+    const inv = getInvoiceForEpv(epv.Id);
+    const invStatus = getInvoiceStatus(epv);
+    const ao = getAmountOutstanding(epv);
+    const period = `${MONTH_NAMES[(epv.PeriodMonth || 1) - 1]} ${epv.PeriodYear}`;
+    const statusLabel = inv ? (inv.SentAt ? 'Sent' : 'Ready to Send') : invStatus.label || 'No Invoice';
+    return matchesFilter(epv.ReferenceNumber, f.ref)
+      && matchesFilter(period, f.period)
+      && matchesFilter(inv?.InvoiceNumber, f.invoiceNum)
+      && matchesFilter(ao.label, f.amount)
+      && matchesFilter(statusLabel, f.status)
+      && matchesFilter(inv?.SentTo, f.sentTo);
+  });
+
   return (
     <div className="page-container co-page">
       {error && <p className="co-error">{error}</p>}
       {successMsg && <p className="co-success">{successMsg}</p>}
 
       {/* Admin: Switch Company Bar */}
-      {isAdmin && (
+      {canSelectCompany && (
         <div className="co-switch-bar">
-          <button className="co-switch-btn" onClick={() => { setActiveCompanyId(null); setCompany(null); setCompanyUsers([]); setPendingInvites([]); setEpvList([]); }}>
+          <button className="co-switch-btn" onClick={() => { setActiveCompanyId(null); setCompany(null); setCompanyUsers([]); setPendingInvites([]); setEpvList([]); setSearchParams({}, { replace: true }); }}>
             &larr; Switch Business
           </button>
           <span className="co-switch-label">Viewing as {user.role}</span>
@@ -663,10 +1077,6 @@ function CompanyOverview() {
             <span className="co-stat-label">Pending Invites</span>
           </div>
           <div className="co-stat">
-            <span className="co-stat-number co-stat-coming-soon">—</span>
-            <span className="co-stat-label">Invoices</span>
-          </div>
-          <div className="co-stat">
             <span className="co-stat-number">{epvList.filter(e => e.Status === 'Pending').length}</span>
             <span className="co-stat-label">Verifications Due</span>
           </div>
@@ -674,6 +1084,24 @@ function CompanyOverview() {
             <span className="co-stat-number">{epvList.filter(e => e.Status === 'Completed').length}</span>
             <span className="co-stat-label">Completed</span>
           </div>
+          {(() => {
+            const netTotal = epvList.reduce((sum, e) => {
+              const ao = getAmountOutstanding(e);
+              if (ao.className === 'co-amount-value') {
+                const owed = parseFloat(ao.label.replace('R ', ''));
+                const reconciled = parseFloat(e.ReconciledAmount) || 0;
+                return sum + (owed - reconciled);
+              }
+              return sum;
+            }, 0);
+            const isPositive = netTotal <= 0;
+            return (
+              <div className={`co-stat ${isPositive ? 'co-stat-positive' : 'co-stat-outstanding'}`}>
+                <span className="co-stat-number">R {Math.abs(netTotal).toFixed(2)}</span>
+                <span className="co-stat-label">{isPositive ? 'Positive Amount' : 'Amount Outstanding'}</span>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -714,7 +1142,12 @@ function CompanyOverview() {
                   />
                 )
               ) : (
-                <span className="co-detail-value">{company?.[f.key] || '—'}</span>
+                <span className={`co-detail-value${f.key === 'Email' && company?.[f.key] && emailStatus[company[f.key]?.trim().toLowerCase()] === 'Failed' ? ' co-email-failed' : ''}`}>
+                  {company?.[f.key] || '—'}
+                  {f.key === 'Email' && company?.[f.key] && emailStatus[company[f.key]?.trim().toLowerCase()] === 'Failed' && (
+                    <span className="co-email-failed-badge">Email Failed</span>
+                  )}
+                </span>
               )}
             </div>
           ))}
@@ -726,7 +1159,11 @@ function CompanyOverview() {
             <div key={group.title} className="co-contact-group">
               <h4>{group.title}</h4>
               <div className="co-contact-fields">
-                {group.fields.map(f => (
+                {group.fields.map(f => {
+                  const isEmailField = f.key.toLowerCase().includes('email');
+                  const emailVal = company?.[f.key]?.trim().toLowerCase();
+                  const isFailed = isEmailField && emailVal && emailStatus[emailVal] === 'Failed';
+                  return (
                   <div key={f.key} className="co-detail-item">
                     <label>{f.label}</label>
                     {editing ? (
@@ -737,10 +1174,14 @@ function CompanyOverview() {
                         onChange={(e) => setEditValues(prev => ({ ...prev, [f.key]: e.target.value }))}
                       />
                     ) : (
-                      <span className="co-detail-value">{company?.[f.key] || '—'}</span>
+                      <span className={`co-detail-value${isFailed ? ' co-email-failed' : ''}`}>
+                        {company?.[f.key] || '—'}
+                        {isFailed && <span className="co-email-failed-badge">Email Failed</span>}
+                      </span>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}
@@ -845,6 +1286,532 @@ function CompanyOverview() {
         )}
       </div>
 
+      {/* ===== EGG PRODUCTION VERIFICATIONS ===== */}
+      <div className="page-card co-section">
+        <div className="co-section-header">
+          <h3>Egg Production Verifications ({epvList.length})</h3>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {isAdmin && (() => {
+              const now = new Date();
+              const curMonth = now.getMonth() + 1;
+              const curYear = now.getFullYear();
+              const existsThisMonth = epvList.some(e => e.PeriodMonth === curMonth && e.PeriodYear === curYear);
+              return existsThisMonth ? (
+                <span className="co-epv-sent-label">EPV Sent for {MONTH_NAMES[curMonth - 1]} {curYear}</span>
+              ) : (
+                <button className="co-epv-send-btn" onClick={sendEPV} disabled={epvSending}>
+                  {epvSending ? 'Sending...' : 'Send EPV'}
+                </button>
+              );
+            })()}
+            <button className="co-epv-send-btn" onClick={openAddEpvModal}>
+              + Add
+            </button>
+          </div>
+        </div>
+
+        {epvLoading ? (
+          <p className="co-loading">Loading verifications...</p>
+        ) : epvList.length === 0 ? (
+          <p className="co-loading">No verifications sent yet.{isAdmin ? ' Click "Send EPV" to send the first one.' : ' Your administrator will send the first one.'}</p>
+        ) : (
+          <table className="co-table co-epv-table">
+            <thead>
+              <tr>
+                <th>Ref #</th>
+                <th>Period</th>
+                <th>Status</th>
+                <th>Completed</th>
+                <th>Payment</th>
+                <th>Facility EPV Document</th>
+                <th>Inspector EPV Document</th>
+                <th>Verified</th>
+                <th>Manual Inspection</th>
+                <th>Inspector Comments</th>
+                <th>Amount Outstanding</th>
+                <th>Proof Of Payment</th>
+                <th>POP Comments</th>
+                <th>Amount Reconciled</th>
+                <th>Reconciled</th>
+              </tr>
+              <tr className="co-filter-row">
+                <th><input className="co-filter-input" placeholder="Search..." value={epvFilters.ref || ''} onChange={e => setEpvFilters(p => ({...p, ref: e.target.value}))} /></th>
+                <th><input className="co-filter-input" placeholder="Search..." value={epvFilters.period || ''} onChange={e => setEpvFilters(p => ({...p, period: e.target.value}))} /></th>
+                <th><input className="co-filter-input" placeholder="Search..." value={epvFilters.status || ''} onChange={e => setEpvFilters(p => ({...p, status: e.target.value}))} /></th>
+                <th><input className="co-filter-input" placeholder="Search..." value={epvFilters.completed || ''} onChange={e => setEpvFilters(p => ({...p, completed: e.target.value}))} /></th>
+                <th><input className="co-filter-input" placeholder="Search..." value={epvFilters.payment || ''} onChange={e => setEpvFilters(p => ({...p, payment: e.target.value}))} /></th>
+                <th></th>
+                <th></th>
+                <th></th>
+                <th></th>
+                <th></th>
+                <th><input className="co-filter-input" placeholder="Search..." value={epvFilters.amount || ''} onChange={e => setEpvFilters(p => ({...p, amount: e.target.value}))} /></th>
+                <th></th>
+                <th></th>
+                <th><input className="co-filter-input" placeholder="Search..." value={epvFilters.reconciled || ''} onChange={e => setEpvFilters(p => ({...p, reconciled: e.target.value}))} /></th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredEpvList.map(epv => {
+                epv._invoice = getInvoiceForEpv(epv.Id);
+                return (
+                <React.Fragment key={epv.Id}>
+                <tr
+                  className={`co-epv-row ${epv.IsReconciled ? 'co-epv-reconciled' : ''} ${expandedEpvId === epv.Id ? 'co-epv-expanded' : ''}`}
+                  onClick={() => setExpandedEpvId(expandedEpvId === epv.Id ? null : epv.Id)}
+                >
+                  <td className="co-epv-ref">{epv.ReferenceNumber || '—'}</td>
+                  <td className="co-epv-period">
+                    {MONTH_NAMES[(epv.PeriodMonth || 1) - 1]} {epv.PeriodYear}
+                  </td>
+                  <td>
+                    <span className={`co-epv-status co-epv-${epv.Status.toLowerCase()}`}>
+                      {epv.Status}
+                    </span>
+                  </td>
+                  <td className="co-date">{epv.CompletedAt ? formatDate(epv.CompletedAt) : '—'}</td>
+                  <td>
+                    {(() => {
+                      const ps = getPaymentStatus(epv);
+                      return ps.label === '—' ? <span className="co-pop-na">—</span> : <span className={`co-pay-badge ${ps.className}`}>{ps.label}</span>;
+                    })()}
+                  </td>
+                  <td className="co-epv-actions" onClick={e => e.stopPropagation()}>
+                    {epv.Status === 'Pending' ? (
+                      <button className="co-epv-complete-btn" onClick={() => navigate(`/epv/${epv.Token}`)}>
+                        Complete
+                      </button>
+                    ) : isAdmin ? (
+                      <button className="co-epv-edit-btn" onClick={() => navigate(`/epv/${epv.Token}`)}>
+                        View / Edit
+                      </button>
+                    ) : (
+                      <button className="co-epv-view-btn" onClick={() => navigate(`/epv/${epv.Token}`)}>
+                        View
+                      </button>
+                    )}
+                  </td>
+                  <td className="co-epv-inspection" onClick={e => e.stopPropagation()}>
+                    {epv.inspectorEPV ? (
+                      epv.inspectorEPV.Status === 'Pending' ? (
+                        (user.role === 'Super Admin' || user.role === 'Inspector') ? (
+                          <button className="co-epv-complete-btn" onClick={() => navigate(`/epv/${epv.inspectorEPV.Token}`)}>
+                            Complete
+                          </button>
+                        ) : (
+                          <span className="co-insp-awaiting">In Progress</span>
+                        )
+                      ) : user.role === 'Super Admin' ? (
+                        <button className="co-epv-edit-btn" onClick={() => navigate(`/epv/${epv.inspectorEPV.Token}`)}>
+                          View / Edit
+                        </button>
+                      ) : (
+                        <button className="co-epv-view-btn" onClick={() => navigate(`/epv/${epv.inspectorEPV.Token}`)}>
+                          View
+                        </button>
+                      )
+                    ) : (
+                      <span className="co-pop-na">—</span>
+                    )}
+                  </td>
+                  <td className="co-epv-verify" onClick={e => e.stopPropagation()}>
+                    {epv.Status !== 'Completed' ? (
+                      <span className="co-not-verified">—</span>
+                    ) : epv.IsVerified ? (
+                      user.role === 'Super Admin' ? (
+                        <label className="co-verify-checkbox">
+                          <input
+                            type="checkbox"
+                            checked
+                            onChange={() => toggleVerify(epv.Id, epv.IsVerified)}
+                          />
+                          <span>Inspector Approved</span>
+                        </label>
+                      ) : (
+                        <span className="co-verified-badge">Inspector Approved</span>
+                      )
+                    ) : epv.inspectorEPV && epv.inspectorEPV.Status === 'Completed' ? (
+                      user.role === 'Super Admin' ? (
+                        <div>
+                          <span className="co-rejected-badge">Facility EPV Rejected</span>
+                          <label className="co-verify-checkbox" style={{ marginTop: 6 }}>
+                            <input
+                              type="checkbox"
+                              checked={false}
+                              onChange={() => toggleVerify(epv.Id, false)}
+                            />
+                            <span>Override to Approved</span>
+                          </label>
+                        </div>
+                      ) : (
+                        <span className="co-rejected-badge">Facility EPV Rejected</span>
+                      )
+                    ) : epv.inspectorEPV && epv.inspectorEPV.Status !== 'Completed' ? (
+                      <span className="co-rejected-awaiting-badge">Rejected — Awaiting Inspector EPV</span>
+                    ) : (user.role === 'Super Admin' || user.role === 'Inspector') ? (
+                      <div className="co-verify-actions">
+                        <button
+                          className="co-verify-approve-btn"
+                          onClick={() => toggleVerify(epv.Id, false)}
+                          title="Approve — amounts are correct"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          className="co-verify-reject-btn"
+                          onClick={() => rejectAndInspect(epv)}
+                          disabled={inspCreating === epv.Id}
+                          title="Reject — complete Inspector EPV with correct amounts"
+                        >
+                          {inspCreating === epv.Id ? 'Creating...' : 'Reject'}
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="co-not-verified">Not Verified</span>
+                    )}
+                  </td>
+                  <td className="co-epv-manual-insp" onClick={e => e.stopPropagation()}>
+                    {epv.Status === 'Completed' ? (
+                      (isAdmin || isInspector) ? (
+                        <label className="co-manual-insp-label">
+                          <input
+                            type="checkbox"
+                            checked={!!epv.ManualInspection}
+                            onChange={() => toggleManualInspection(epv.Id, epv.ManualInspection)}
+                          />
+                          {epv.ManualInspection && (
+                            <>
+                              <span className="co-manual-insp-yes">Yes</span>
+                              {epv.ManualInspectionBy && (
+                                <span className="co-manual-insp-by">{epv.ManualInspectionBy}</span>
+                              )}
+                            </>
+                          )}
+                        </label>
+                      ) : (
+                        epv.ManualInspection ? (
+                          <span className="co-manual-insp-yes">
+                            Yes
+                            {epv.ManualInspectionBy && (
+                              <span className="co-manual-insp-by">{epv.ManualInspectionBy}</span>
+                            )}
+                          </span>
+                        ) : (
+                          <span className="co-pop-na">—</span>
+                        )
+                      )
+                    ) : (
+                      <span className="co-pop-na">—</span>
+                    )}
+                  </td>
+                  <td className="co-epv-comment" onClick={e => e.stopPropagation()}>
+                    {epv.Status === 'Completed' ? (
+                      (user.role === 'Super Admin' || user.role === 'Inspector') ? (
+                        <div className="co-comment-cell">
+                          <textarea
+                            className="co-comment-input"
+                            placeholder="Add comment..."
+                            value={epvComments[epv.Id] !== undefined ? epvComments[epv.Id] : (epv.InspectorComment || '')}
+                            onChange={(e) => setEpvComments(prev => ({ ...prev, [epv.Id]: e.target.value }))}
+                            rows={2}
+                          />
+                          {(epvComments[epv.Id] !== undefined && epvComments[epv.Id] !== (epv.InspectorComment || '')) && (
+                            <button
+                              className="co-comment-save-btn"
+                              onClick={() => saveComment(epv.Id)}
+                            >
+                              Save
+                            </button>
+                          )}
+                        </div>
+                      ) : epv.InspectorComment ? (
+                        <span className="co-comment-text">{epv.InspectorComment}</span>
+                      ) : (
+                        <span className="co-pop-na">—</span>
+                      )
+                    ) : (
+                      <span className="co-pop-na">—</span>
+                    )}
+                  </td>
+                  <td className="co-epv-amount-outstanding">
+                    {(() => {
+                      const ao = getAmountOutstanding(epv);
+                      if (ao.className === 'co-amount-value') {
+                        const owed = parseFloat(ao.label.replace('R ', ''));
+                        const reconciled = parseFloat(epv.ReconciledAmount) || 0;
+                        const net = owed - reconciled;
+                        if (net < 0) return <span className="co-amount-credit">R {Math.abs(net).toFixed(2)} credit</span>;
+                        if (net === 0) return <span className="co-amount-settled">R 0.00</span>;
+                        return <span className="co-amount-value">R {net.toFixed(2)}</span>;
+                      }
+                      return ao.className ? <span className={ao.className}>{ao.label}</span> : <span className="co-pop-na">{ao.label}</span>;
+                    })()}
+                  </td>
+                  <td className="co-epv-pop" onClick={e => e.stopPropagation()}>
+                    {epv.POPFilePath ? (
+                      <div className="co-pop-uploaded-container">
+                        <a href={`http://localhost:5000/api/epv/${epv.Id}/pop`} target="_blank" rel="noreferrer" className="co-pop-view-btn">
+                          <span className="co-pop-icon">&#128196;</span> View
+                        </a>
+                        <span className="co-pop-date">{formatDate(epv.POPUploadedAt)}</span>
+                        {isAdmin && (
+                          <button className="co-pop-delete-btn" onClick={() => deletePop(epv.Id)} title="Delete POP">
+                            &#10005;
+                          </button>
+                        )}
+                      </div>
+                    ) : epv.Status === 'Completed' && !epv.IsReconciled && user.role !== 'Inspector' ? (
+                      <label className="co-pop-upload-btn">
+                        {popUploading === epv.Id ? 'Uploading...' : '+ Upload POP'}
+                        <input
+                          type="file"
+                          accept=".pdf,.png,.jpg,.jpeg"
+                          style={{ display: 'none' }}
+                          onChange={(e) => { if (e.target.files[0]) handlePopUpload(epv.Id, e.target.files[0]); }}
+                          disabled={popUploading === epv.Id}
+                        />
+                      </label>
+                    ) : (
+                      <span className="co-pop-na">—</span>
+                    )}
+                  </td>
+                  <td className="co-epv-pop-comment" onClick={e => e.stopPropagation()}>
+                    {epv.Status === 'Completed' ? (
+                      <div className="co-comment-cell">
+                        <textarea
+                          className="co-comment-input"
+                          placeholder="Add POP comment..."
+                          value={popComments[epv.Id] !== undefined ? popComments[epv.Id] : (epv.POPComment || '')}
+                          onChange={(e) => setPopComments(prev => ({ ...prev, [epv.Id]: e.target.value }))}
+                          rows={2}
+                        />
+                        {(popComments[epv.Id] !== undefined && popComments[epv.Id] !== (epv.POPComment || '')) && (
+                          <button
+                            className="co-comment-save-btn"
+                            onClick={() => savePopComment(epv.Id)}
+                          >
+                            Save
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="co-pop-na">—</span>
+                    )}
+                  </td>
+                  <td className="co-epv-reconciled-amount" onClick={e => e.stopPropagation()}>
+                    {(() => {
+                      const ao = getAmountOutstanding(epv);
+                      if (ao.className !== 'co-amount-value') return <span className="co-pop-na">—</span>;
+                      return isAdmin ? (
+                        <div className="co-reconciled-amount-cell">
+                          <input
+                            type="number"
+                            step="0.01"
+                            className="co-reconciled-amount-input"
+                            placeholder="0.00"
+                            value={reconciledAmounts[epv.Id] !== undefined ? reconciledAmounts[epv.Id] : (epv.ReconciledAmount || '')}
+                            onChange={(e) => setReconciledAmounts(prev => ({ ...prev, [epv.Id]: e.target.value }))}
+                          />
+                          {(reconciledAmounts[epv.Id] !== undefined && reconciledAmounts[epv.Id] !== String(epv.ReconciledAmount || '')) && (
+                            <button className="co-reconciled-amount-save" onClick={() => saveReconciledAmount(epv.Id)}>
+                              Save
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="co-reconciled-amount-text">
+                          {epv.ReconciledAmount ? `R ${parseFloat(epv.ReconciledAmount).toFixed(2)}` : '—'}
+                        </span>
+                      );
+                    })()}
+                  </td>
+                  <td className="co-epv-reconcile" onClick={e => e.stopPropagation()}>
+                    {epv.IsReconciled ? (
+                      isAdmin ? (
+                        <label className="co-reconcile-checkbox">
+                          <input
+                            type="checkbox"
+                            checked
+                            onChange={() => toggleReconcile(epv.Id, epv.IsReconciled)}
+                          />
+                          <span>Reconciled</span>
+                        </label>
+                      ) : (
+                        <span className="co-reconciled-badge">Reconciled</span>
+                      )
+                    ) : isAdmin ? (
+                      <label className="co-reconcile-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={false}
+                          onChange={() => toggleReconcile(epv.Id, epv.IsReconciled)}
+                        />
+                        <span>Mark</span>
+                      </label>
+                    ) : (
+                      <span className="co-not-reconciled">Not Reconciled</span>
+                    )}
+                  </td>
+                </tr>
+                {expandedEpvId === epv.Id && (
+                  <tr className="co-progress-row">
+                    <td colSpan={14}>
+                      <div className="co-progress-tracker">
+                        {getProgressSteps(epv).map((step, idx, arr) => (
+                          <div key={idx} className={`co-progress-step co-step-${step.status}`}>
+                            <div className="co-step-indicator">
+                              <div className="co-step-circle">
+                                {step.status === 'complete' ? '✓' : idx + 1}
+                              </div>
+                              {idx < arr.length - 1 && <div className="co-step-line" />}
+                            </div>
+                            <div className="co-step-label">{step.label}</div>
+                            {step.detail && <div className="co-step-detail">{step.detail}</div>}
+                          </div>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </React.Fragment>
+              );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* ===== INVOICES MODULE ===== */}
+      <div className="page-card co-section">
+        <div className="co-section-header">
+          <h3>Invoices ({invoices.length}) <span style={{ color: '#dc2626', fontSize: 13, fontWeight: 600 }}>— Feature Under Development</span></h3>
+        </div>
+
+        {epvList.filter(e => e.Status === 'Completed').length === 0 ? (
+          <p className="co-loading">No completed verifications yet.</p>
+        ) : (
+          <table className="co-table co-invoice-table">
+            <thead>
+              <tr>
+                <th>EPV Ref #</th>
+                <th>Period</th>
+                <th>Invoice #</th>
+                <th>Amount</th>
+                <th>Invoice Status</th>
+                <th>Generated</th>
+                <th>Sent</th>
+                <th>Sent To</th>
+                <th>Actions</th>
+              </tr>
+              <tr className="co-filter-row">
+                <th><input className="co-filter-input" placeholder="Search..." value={invFilters.ref || ''} onChange={e => setInvFilters(p => ({...p, ref: e.target.value}))} /></th>
+                <th><input className="co-filter-input" placeholder="Search..." value={invFilters.period || ''} onChange={e => setInvFilters(p => ({...p, period: e.target.value}))} /></th>
+                <th><input className="co-filter-input" placeholder="Search..." value={invFilters.invoiceNum || ''} onChange={e => setInvFilters(p => ({...p, invoiceNum: e.target.value}))} /></th>
+                <th><input className="co-filter-input" placeholder="Search..." value={invFilters.amount || ''} onChange={e => setInvFilters(p => ({...p, amount: e.target.value}))} /></th>
+                <th><input className="co-filter-input" placeholder="Search..." value={invFilters.status || ''} onChange={e => setInvFilters(p => ({...p, status: e.target.value}))} /></th>
+                <th></th>
+                <th></th>
+                <th><input className="co-filter-input" placeholder="Search..." value={invFilters.sentTo || ''} onChange={e => setInvFilters(p => ({...p, sentTo: e.target.value}))} /></th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredInvEpvList.map(epv => {
+                const inv = getInvoiceForEpv(epv.Id);
+                const invStatus = getInvoiceStatus(epv);
+                const ao = getAmountOutstanding(epv);
+                return (
+                  <tr key={epv.Id} className={inv && inv.SentAt ? 'co-inv-sent-row' : ''}>
+                    <td className="co-epv-ref">{epv.ReferenceNumber || '—'}</td>
+                    <td>{MONTH_NAMES[(epv.PeriodMonth || 1) - 1]} {epv.PeriodYear}</td>
+                    <td className="co-epv-ref">
+                      {inv ? (
+                        <a href={`http://localhost:5000/api/invoices/download/${inv.FilePath}`} target="_blank" rel="noreferrer" className="co-invoice-link">
+                          {inv.InvoiceNumber}
+                        </a>
+                      ) : '—'}
+                    </td>
+                    <td>
+                      {ao.className === 'co-amount-value' ? (
+                        <strong style={{color:'#0E7C7B'}}>{ao.label}</strong>
+                      ) : '—'}
+                    </td>
+                    <td>
+                      {inv ? (
+                        inv.SentAt ? (
+                          <span className="co-invoice-sent-badge">Sent</span>
+                        ) : (
+                          <span className="co-invoice-ready-badge">Ready to Send</span>
+                        )
+                      ) : invStatus.status === 'awaiting' ? (
+                        <span className="co-rejected-awaiting-badge">{invStatus.label}</span>
+                      ) : invStatus.status === 'not-verified' ? (
+                        <span className="co-invoice-pending">{invStatus.label}</span>
+                      ) : invStatus.status === 'ready' ? (
+                        <span className="co-invoice-pending">No Invoice</span>
+                      ) : (
+                        <span className="co-pop-na">—</span>
+                      )}
+                    </td>
+                    <td className="co-date">
+                      {inv ? (
+                        <>{new Date(inv.GeneratedAt).toLocaleDateString('en-ZA')}<br/><span style={{fontSize:'10px',color:'#888'}}>{inv.GeneratedBy}</span></>
+                      ) : '—'}
+                    </td>
+                    <td className="co-date">
+                      {inv && inv.SentAt ? (
+                        <>{new Date(inv.SentAt).toLocaleDateString('en-ZA')}<br/><span style={{fontSize:'10px',color:'#888'}}>{inv.SentBy}</span></>
+                      ) : '—'}
+                    </td>
+                    <td style={{fontSize:'11px',maxWidth:'180px',wordBreak:'break-all'}}>
+                      {inv && inv.SentTo ? inv.SentTo : '—'}
+                    </td>
+                    <td>
+                      <div className="co-invoice-actions">
+                        {/* View PDF — everyone can see if invoice exists */}
+                        {inv && (
+                          <a href={`http://localhost:5000/api/invoices/download/${inv.FilePath}`} target="_blank" rel="noreferrer" className="co-invoice-download-btn">
+                            View
+                          </a>
+                        )}
+                        {/* Admin/Super Admin: Generate, Send, Delete */}
+                        {isAdmin && !inv && invStatus.status === 'ready' && (
+                          <button
+                            className="co-invoice-generate-btn"
+                            onClick={() => generateInvoice(epv.Id)}
+                            disabled={invoiceGenerating === epv.Id}
+                          >
+                            {invoiceGenerating === epv.Id ? 'Generating...' : 'Generate Invoice'}
+                          </button>
+                        )}
+                        {isAdmin && inv && !inv.SentAt && (
+                          <button
+                            className="co-invoice-send-btn"
+                            onClick={() => sendInvoice(inv.Id)}
+                            disabled={invoiceSending === inv.Id}
+                          >
+                            {invoiceSending === inv.Id ? 'Sending...' : 'Send'}
+                          </button>
+                        )}
+                        {isAdmin && inv && (
+                          <button
+                            className="co-invoice-delete-btn"
+                            onClick={() => deleteInvoice(inv.Id)}
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
       {/* ===== CHANGE LOG ===== */}
       <div className="page-card co-section">
         <div className="co-section-header">
@@ -869,6 +1836,7 @@ function CompanyOverview() {
                     <th>Old Value</th>
                     <th>New Value</th>
                     <th>Changed By</th>
+                    <th>Role</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -879,6 +1847,7 @@ function CompanyOverview() {
                       <td className="co-old-value">{entry.OldValue || '—'}</td>
                       <td className="co-new-value">{entry.NewValue || '—'}</td>
                       <td>{entry.ChangedBy}</td>
+                      <td><span className="co-role-badge">{entry.UserRole || '—'}</span></td>
                     </tr>
                   ))}
                 </tbody>
@@ -893,141 +1862,6 @@ function CompanyOverview() {
             )}
           </>
         )}
-      </div>
-
-      {/* ===== EGG PRODUCTION VERIFICATIONS ===== */}
-      <div className="page-card co-section">
-        <div className="co-section-header">
-          <h3>Egg Production Verifications ({epvList.length})</h3>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            {(user.role === 'Company Admin' || user.role === 'User') && (
-              <button className="co-epv-send-btn" onClick={openAddEpvModal}>
-                + Add
-              </button>
-            )}
-            {isAdmin && (
-              <button className="co-epv-send-btn" onClick={sendEPV} disabled={epvSending}>
-                {epvSending ? 'Sending...' : 'Send EPV'}
-              </button>
-            )}
-          </div>
-        </div>
-
-        {epvLoading ? (
-          <p className="co-loading">Loading verifications...</p>
-        ) : epvList.length === 0 ? (
-          <p className="co-loading">No verifications sent yet.{isAdmin ? ' Click "Send EPV" to send the first one.' : ' Your administrator will send the first one.'}</p>
-        ) : (
-          <table className="co-table co-epv-table">
-            <thead>
-              <tr>
-                <th>Ref #</th>
-                <th>Period</th>
-                <th>Status</th>
-                <th>Completed</th>
-                <th>POP</th>
-                <th>Reconciled</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {epvList.map(epv => (
-                <tr key={epv.Id} className={epv.IsReconciled ? 'co-epv-reconciled' : ''}>
-                  <td className="co-epv-ref">{epv.ReferenceNumber || '—'}</td>
-                  <td className="co-epv-period">
-                    {MONTH_NAMES[(epv.PeriodMonth || 1) - 1]} {epv.PeriodYear}
-                  </td>
-                  <td>
-                    <span className={`co-epv-status co-epv-${epv.Status.toLowerCase()}`}>
-                      {epv.Status}
-                    </span>
-                  </td>
-                  <td className="co-date">{epv.CompletedAt ? formatDate(epv.CompletedAt) : '—'}</td>
-                  <td className="co-epv-pop">
-                    {epv.POPFilePath ? (
-                      <div className="co-pop-uploaded-container">
-                        <a href={`http://localhost:5000/api/epv/${epv.Id}/pop`} target="_blank" rel="noreferrer" className="co-pop-view-btn">
-                          <span className="co-pop-icon">&#128196;</span> View POP
-                        </a>
-                        <span className="co-pop-date">{formatDate(epv.POPUploadedAt)}</span>
-                        {isAdmin && (
-                          <button className="co-pop-delete-btn" onClick={() => deletePop(epv.Id)} title="Delete POP">
-                            &#10005;
-                          </button>
-                        )}
-                      </div>
-                    ) : epv.Status === 'Completed' && !epv.IsReconciled ? (
-                      <label className="co-pop-upload-btn">
-                        {popUploading === epv.Id ? 'Uploading...' : '+ Upload POP'}
-                        <input
-                          type="file"
-                          accept=".pdf,.png,.jpg,.jpeg"
-                          style={{ display: 'none' }}
-                          onChange={(e) => { if (e.target.files[0]) handlePopUpload(epv.Id, e.target.files[0]); }}
-                          disabled={popUploading === epv.Id}
-                        />
-                      </label>
-                    ) : (
-                      <span className="co-pop-na">—</span>
-                    )}
-                  </td>
-                  <td className="co-epv-reconcile">
-                    {epv.IsReconciled ? (
-                      isAdmin ? (
-                        <label className="co-reconcile-checkbox">
-                          <input
-                            type="checkbox"
-                            checked
-                            onChange={() => toggleReconcile(epv.Id, epv.IsReconciled)}
-                          />
-                          <span>Reconciled</span>
-                        </label>
-                      ) : (
-                        <span className="co-reconciled-badge">Reconciled</span>
-                      )
-                    ) : epv.POPFilePath && isAdmin ? (
-                      <label className="co-reconcile-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={false}
-                          onChange={() => toggleReconcile(epv.Id, epv.IsReconciled)}
-                        />
-                        <span>Mark</span>
-                      </label>
-                    ) : (
-                      <span className="co-not-reconciled">Not Reconciled</span>
-                    )}
-                  </td>
-                  <td className="co-epv-actions">
-                    {epv.Status === 'Pending' ? (
-                      <button className="co-epv-complete-btn" onClick={() => navigate(`/epv/${epv.Token}`)}>
-                        Complete
-                      </button>
-                    ) : isAdmin ? (
-                      <button className="co-epv-edit-btn" onClick={() => navigate(`/epv/${epv.Token}`)}>
-                        View / Edit
-                      </button>
-                    ) : (
-                      <button className="co-epv-view-btn" onClick={() => navigate(`/epv/${epv.Token}`)}>
-                        View
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {/* ===== FUTURE SECTIONS ===== */}
-      <div className="co-future-cards">
-        <div className="page-card co-future-card">
-          <div className="co-future-icon">📄</div>
-          <h3>Invoices</h3>
-          <p>View and manage invoices for your business.</p>
-          <span className="co-coming-soon">Coming Soon</span>
-        </div>
       </div>
     </div>
   );

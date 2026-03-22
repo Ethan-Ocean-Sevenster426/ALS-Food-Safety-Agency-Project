@@ -584,6 +584,9 @@ function ClientAllocation() {
                             ) : (
                               <span className="ca-unverified-badge">Pending</span>
                             )}
+                            {c.EPVCycleStatus && (
+                              <span className="ca-epv-cycle-badge" title="Client is on monthly EPV cycle">{c.EPVCycleStatus}</span>
+                            )}
                           </td>
                           {TABLE_FIELDS.map(f => (
                             <td key={f.key}>

@@ -151,6 +151,109 @@ async function createEPVTables() {
 
     console.log('FacilityProvince column ensured on EggProductionVerifications.');
 
+    // Add Inspector EPV columns
+    const inspectorCols = [
+      { name: 'EPVType', type: "NVARCHAR(20) NOT NULL DEFAULT 'Client'" },
+      { name: 'InspectorId', type: 'INT NULL' },
+      { name: 'LinkedEPVId', type: 'INT NULL' },
+    ];
+
+    for (const col of inspectorCols) {
+      await pool.request().query(`
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = '${col.name}')
+        BEGIN
+          ALTER TABLE EggProductionVerifications ADD ${col.name} ${col.type}
+        END
+      `);
+    }
+
+    console.log('Inspector EPV columns ensured (EPVType, InspectorId, LinkedEPVId).');
+
+    // Add VarianceReason column if it doesn't exist
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = 'VarianceReason')
+      BEGIN
+        ALTER TABLE EggProductionVerifications ADD VarianceReason NVARCHAR(MAX) NULL
+      END
+    `);
+
+    console.log('VarianceReason column ensured.');
+
+    // Add Pulp Sales columns
+    const pulpSalesCols = [
+      { name: 'PulpSoldToTrade', type: 'INT DEFAULT 0' },
+      { name: 'PulpSoldToProducers', type: 'INT DEFAULT 0' },
+    ];
+
+    for (const col of pulpSalesCols) {
+      await pool.request().query(`
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = '${col.name}')
+        BEGIN
+          ALTER TABLE EggProductionVerifications ADD ${col.name} ${col.type}
+        END
+      `);
+    }
+
+    console.log('Pulp sales columns ensured (PulpSoldToTrade, PulpSoldToProducers).');
+
+    // Add InspectorProvince column to Users table
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Users') AND name = 'InspectorProvince')
+      BEGIN
+        ALTER TABLE Users ADD InspectorProvince NVARCHAR(100) NULL
+      END
+    `);
+
+    console.log('InspectorProvince column ensured on Users table.');
+
+    // Add EPVCycleStatus column to ConsolidatedMasterAbattoirDatabase
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ConsolidatedMasterAbattoirDatabase') AND name = 'EPVCycleStatus')
+      BEGIN
+        ALTER TABLE ConsolidatedMasterAbattoirDatabase ADD EPVCycleStatus NVARCHAR(50) NULL
+      END
+    `);
+
+    console.log('EPVCycleStatus column ensured on ConsolidatedMasterAbattoirDatabase.');
+
+    // Add Inspector Verification columns
+    const verifyCols = [
+      { name: 'IsVerified', type: 'BIT NOT NULL DEFAULT 0' },
+      { name: 'VerifiedBy', type: 'NVARCHAR(255) NULL' },
+      { name: 'VerifiedAt', type: 'DATETIME NULL' },
+    ];
+
+    for (const col of verifyCols) {
+      await pool.request().query(`
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = '${col.name}')
+        BEGIN
+          ALTER TABLE EggProductionVerifications ADD ${col.name} ${col.type}
+        END
+      `);
+    }
+
+    console.log('Inspector verification columns ensured (IsVerified, VerifiedBy, VerifiedAt).');
+
+    // Add InspectorComment column
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = 'InspectorComment')
+      BEGIN
+        ALTER TABLE EggProductionVerifications ADD InspectorComment NVARCHAR(MAX) NULL
+      END
+    `);
+
+    console.log('InspectorComment column ensured.');
+
+    // Add ReconciledAmount column
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = 'ReconciledAmount')
+      BEGIN
+        ALTER TABLE EggProductionVerifications ADD ReconciledAmount DECIMAL(18,2) NULL
+      END
+    `);
+
+    console.log('ReconciledAmount column ensured.');
+
     // Create EPVAuditLog table
     await pool.request().query(`
       IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='EPVAuditLog' AND xtype='U')

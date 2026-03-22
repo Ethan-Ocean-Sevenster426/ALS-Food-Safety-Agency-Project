@@ -33,9 +33,11 @@ function EPVForm() {
     TelephoneNumber: '', CellPhoneNumber: '', EmailAddress: '',
     OpeningStock: 0, GradedEggsPurchased: 0, UngradedEggsPurchased: 0,
     MarketReturns: 0, MachineLoss: 0, SentToPulp: 0, Destroyed: 0,
-    SoldToTrade: 0, Exported: 0, SoldToStaff: 0, SoldThroughFarmStall: 0,
+    SoldToTrade: 0, SoldToStaff: 0, SoldThroughFarmStall: 0,
     TransferredToOtherProducers: 0, ActualClosingStock: 0,
     PulpOpeningStock: 0, PulpPurchased: 0, PulpConverted: 0,
+    PulpSoldToTrade: 0, PulpSoldToProducers: 0,
+    VarianceReason: '',
   });
 
   const fetchVerification = useCallback(async () => {
@@ -62,7 +64,6 @@ function EPVForm() {
         SentToPulp: parseFloat(v.SentToPulp) || 0,
         Destroyed: parseFloat(v.Destroyed) || 0,
         SoldToTrade: parseFloat(v.SoldToTrade) || 0,
-        Exported: parseFloat(v.Exported) || 0,
         SoldToStaff: parseFloat(v.SoldToStaff) || 0,
         SoldThroughFarmStall: parseFloat(v.SoldThroughFarmStall) || 0,
         TransferredToOtherProducers: parseFloat(v.TransferredToOtherProducers) || 0,
@@ -70,6 +71,9 @@ function EPVForm() {
         PulpOpeningStock: parseInt(v.PulpOpeningStock) || 0,
         PulpPurchased: parseInt(v.PulpPurchased) || 0,
         PulpConverted: parseInt(v.PulpConverted) || 0,
+        PulpSoldToTrade: parseInt(v.PulpSoldToTrade) || 0,
+        PulpSoldToProducers: parseInt(v.PulpSoldToProducers) || 0,
+        VarianceReason: v.VarianceReason || '',
       });
     } catch (err) {
       setError('Verification form not found or has expired.');
@@ -99,10 +103,9 @@ function EPVForm() {
 
     // D = Sales
     const soldToTrade = parseFloat(form.SoldToTrade) || 0;
-    const exported = parseFloat(form.Exported) || 0;
     const soldToStaff = parseFloat(form.SoldToStaff) || 0;
     const soldThroughFarmStall = parseFloat(form.SoldThroughFarmStall) || 0;
-    const totalD = soldToTrade + exported + soldToStaff + soldThroughFarmStall;
+    const totalD = soldToTrade + soldToStaff + soldThroughFarmStall;
     const levyAmount = totalD * LEVY_RATE;
 
     // E = Transfers
@@ -125,7 +128,22 @@ function EPVForm() {
     const pulpBDozens = Math.round(pulpB * 1.7);
     const pulpCDozens = Math.round(pulpC * 1.7);
 
-    return { totalA, totalB, totalC, totalD, totalE, levyAmount, closingStock, actualClosingStock, lossGain, pulpA, pulpB, pulpC, pulpADozens, pulpBDozens, pulpCDozens };
+    // Stock on Hand = A + B + C
+    const pulpStockOnHand = pulpA + pulpB + pulpC;
+    const pulpStockOnHandDozens = Math.round(pulpStockOnHand * 1.7);
+
+    // Pulp Sales & Transfers
+    const pulpSoldToTrade = parseInt(form.PulpSoldToTrade) || 0;
+    const pulpSoldToProducers = parseInt(form.PulpSoldToProducers) || 0;
+    const pulpSoldToTradeDozens = Math.round(pulpSoldToTrade * 1.7);
+    const pulpSoldToProducersDozens = Math.round(pulpSoldToProducers * 1.7);
+    const pulpLevyAmount = pulpSoldToTradeDozens * LEVY_RATE;
+
+    // Closing Stock = Stock on Hand - Sales - Sold to Producers
+    const pulpClosingStock = pulpStockOnHand - pulpSoldToTrade - pulpSoldToProducers;
+    const pulpClosingStockDozens = Math.round(pulpClosingStock * 1.7);
+
+    return { totalA, totalB, totalC, totalD, totalE, levyAmount, closingStock, actualClosingStock, lossGain, pulpA, pulpB, pulpC, pulpADozens, pulpBDozens, pulpCDozens, pulpStockOnHand, pulpStockOnHandDozens, pulpSoldToTrade, pulpSoldToProducers, pulpSoldToTradeDozens, pulpSoldToProducersDozens, pulpLevyAmount, pulpClosingStock, pulpClosingStockDozens };
   }, [form]);
 
   const REQUIRED_FIELDS = [
@@ -209,8 +227,10 @@ function EPVForm() {
   };
 
   const isCompleted = verification?.Status === 'Completed';
-  const canEdit = isAdmin; // Only Admin/Super Admin can edit submitted forms
-  const isReadOnly = isCompleted && !canEdit; // Company Admin/User see read-only
+  const isInspectorEPV = verification?.EPVType === 'Inspector';
+  const isInspectorOwner = isInspectorEPV && user.role === 'Inspector' && verification?.InspectorId === user.id;
+  const canEdit = isAdmin || (isInspectorEPV && (user.role === 'Admin' || user.role === 'Super Admin')) || (isInspectorOwner && !isCompleted);
+  const isReadOnly = isCompleted && !canEdit;
   const periodLabel = verification
     ? `${MONTH_NAMES[(verification.PeriodMonth || 1) - 1]} ${verification.PeriodYear}`
     : '';
@@ -274,17 +294,19 @@ function EPVForm() {
           </div>
           <div className="epv-success-box">
             <div className="epv-success-icon">&#10003;</div>
-            <h2>Verification Submitted</h2>
-            <p>The Egg Production Verification for <strong>{periodLabel}</strong> has been submitted successfully.</p>
+            <h2>{isInspectorEPV ? 'Inspection Submitted' : 'Verification Submitted'}</h2>
+            <p>The {isInspectorEPV ? 'Inspector Verification' : 'Egg Production Verification'} for <strong>{periodLabel}</strong> has been submitted successfully.</p>
             <div className="epv-summary-box">
               <div className="epv-summary-row"><span>Theoretical Closing Stock:</span><strong>{totals.closingStock.toLocaleString()}</strong></div>
               <div className="epv-summary-row"><span>Actual Closing Stock:</span><strong>{totals.actualClosingStock.toLocaleString()}</strong></div>
-              <div className="epv-summary-row"><span>Levy Amount (@ R{LEVY_RATE}):</span><strong>R {totals.levyAmount.toFixed(2)}</strong></div>
+              <div className="epv-summary-row"><span>Egg Levy Amount:</span><strong>R {totals.levyAmount.toFixed(2)}</strong></div>
+              <div className="epv-summary-row"><span>Pulp Levy Amount:</span><strong>R {totals.pulpLevyAmount.toFixed(2)}</strong></div>
+              <div className="epv-summary-row" style={{ borderTop: '2px solid #065f46', paddingTop: 8, marginTop: 4 }}><span style={{ color: '#065f46', fontWeight: 700 }}>Total Owed:</span><strong style={{ color: '#065f46' }}>R {(totals.levyAmount + totals.pulpLevyAmount).toFixed(2)}</strong></div>
             </div>
           </div>
           <div style={{ textAlign: 'center', marginTop: 20 }}>
             {isLoggedIn ? (
-              <button className="epv-back-to-company" onClick={() => navigate('/company')}>
+              <button className="epv-back-to-company" onClick={() => navigate(verification?.ClientRecordId ? `/company?companyId=${verification.ClientRecordId}` : '/company')}>
                 &larr; Back to Company Overview
               </button>
             ) : (
@@ -305,13 +327,14 @@ function EPVForm() {
         </div>
 
         {isLoggedIn && (
-          <button className="epv-back-to-company" onClick={() => navigate('/company')}>
+          <button className="epv-back-to-company" onClick={() => navigate(verification?.ClientRecordId ? `/company?companyId=${verification.ClientRecordId}` : '/company')}>
             &larr; Back to Company Overview
           </button>
         )}
 
         <div className="epv-period-header">
-          <h2>Egg Production Verification</h2>
+          <h2>{isInspectorEPV ? 'Inspector Verification' : 'Egg Production Verification'}</h2>
+          {isInspectorEPV && <span className="epv-inspector-badge">Inspector EPV</span>}
           <span className="epv-period-badge">{periodLabel}</span>
           {verification?.ReferenceNumber && <span className="epv-ref-badge">{verification.ReferenceNumber}</span>}
           {isCompleted && <span className="epv-completed-badge">Completed</span>}
@@ -420,6 +443,7 @@ function EPVForm() {
         {step === 2 && (
           <div className="epv-step-content">
             <h3>Calculation of Statutory Levy (Eggs)</h3>
+            <p className="epv-step-desc" style={{ color: '#dc2626', fontWeight: 600 }}>All values are in <strong>dozens</strong>.</p>
 
             {/* Section A: Opening Stock */}
             <div className="epv-calc-section">
@@ -456,74 +480,70 @@ function EPVForm() {
             </div>
 
             {/* Section C: Deductions */}
-            <div className="epv-calc-section">
+            <div className="epv-calc-section epv-deduction-section">
               <h4>C. Deductions</h4>
               <div className="epv-calc-rows">
-                <div className="epv-calc-row">
+                <div className="epv-calc-row epv-deduction-row">
                   <label>- Market Returns:</label>
                   <input type="text" value={formatNumber(form.MarketReturns)} onChange={(e) => handleNumberChange('MarketReturns', e.target.value)} disabled={isReadOnly} placeholder="0" />
                 </div>
-                <div className="epv-calc-row">
+                <div className="epv-calc-row epv-deduction-row">
                   <label>- Machine Loss:</label>
                   <input type="text" value={formatNumber(form.MachineLoss)} onChange={(e) => handleNumberChange('MachineLoss', e.target.value)} disabled={isReadOnly} placeholder="0" />
                 </div>
-                <div className="epv-calc-row">
+                <div className="epv-calc-row epv-deduction-row">
                   <label>- Sent to Pulp:</label>
                   <input type="text" value={formatNumber(form.SentToPulp)} onChange={(e) => handleNumberChange('SentToPulp', e.target.value)} disabled={isReadOnly} placeholder="0" />
                 </div>
-                <div className="epv-calc-row">
+                <div className="epv-calc-row epv-deduction-row">
                   <label>- Destroyed (other e.g., full bloods):</label>
                   <input type="text" value={formatNumber(form.Destroyed)} onChange={(e) => handleNumberChange('Destroyed', e.target.value)} disabled={isReadOnly} placeholder="0" />
                 </div>
-                <div className="epv-calc-row epv-total-row">
+                <div className="epv-calc-row epv-total-row epv-deduction-total">
                   <label>Total C (Deductions):</label>
-                  <span className="epv-calc-total">{totals.totalC.toLocaleString()}</span>
+                  <span className="epv-calc-total">- {totals.totalC.toLocaleString()}</span>
                 </div>
               </div>
             </div>
 
             {/* Section D: Sales */}
-            <div className="epv-calc-section">
+            <div className="epv-calc-section epv-deduction-section">
               <h4>D. Sales</h4>
               <div className="epv-calc-rows">
-                <div className="epv-calc-row">
-                  <label>Sold to Trade:</label>
+                <div className="epv-calc-row epv-deduction-row">
+                  <label>- Sold to Trade:</label>
                   <input type="text" value={formatNumber(form.SoldToTrade)} onChange={(e) => handleNumberChange('SoldToTrade', e.target.value)} disabled={isReadOnly} placeholder="0" />
                 </div>
-                <div className="epv-calc-row">
-                  <label>Exported:</label>
-                  <input type="text" value={formatNumber(form.Exported)} onChange={(e) => handleNumberChange('Exported', e.target.value)} disabled={isReadOnly} placeholder="0" />
-                </div>
-                <div className="epv-calc-row">
-                  <label>Sold to Staff or Own Use:</label>
+                <div className="epv-calc-row epv-deduction-row">
+                  <label>- Sold to Staff or Own Use:</label>
                   <input type="text" value={formatNumber(form.SoldToStaff)} onChange={(e) => handleNumberChange('SoldToStaff', e.target.value)} disabled={isReadOnly} placeholder="0" />
                 </div>
-                <div className="epv-calc-row">
-                  <label>Sold through Farm Stall:</label>
+                <div className="epv-calc-row epv-deduction-row">
+                  <label>- Sold through Farm Stall:</label>
                   <input type="text" value={formatNumber(form.SoldThroughFarmStall)} onChange={(e) => handleNumberChange('SoldThroughFarmStall', e.target.value)} disabled={isReadOnly} placeholder="0" />
                 </div>
-                <div className="epv-calc-row epv-total-row">
+                <div className="epv-calc-row epv-total-row epv-deduction-total">
                   <label>Total D (Sales):</label>
-                  <span className="epv-calc-total">{totals.totalD.toLocaleString()}</span>
+                  <span className="epv-calc-total">- {totals.totalD.toLocaleString()}</span>
                 </div>
                 <div className="epv-calc-row epv-levy-row">
-                  <label>Levy Amount (D &times; R{LEVY_RATE}):</label>
+                  <label>Egg Levy Amount (D &times; R{LEVY_RATE}):</label>
                   <span className="epv-levy-amount">R {totals.levyAmount.toFixed(2)}</span>
                 </div>
               </div>
             </div>
 
             {/* Section E: Transfers */}
-            <div className="epv-calc-section">
+            <div className="epv-calc-section epv-deduction-section">
               <h4>E. Transfers</h4>
               <div className="epv-calc-rows">
-                <div className="epv-calc-row">
-                  <label>Transferred or Sold to Other Producers:</label>
+                <div className="epv-calc-row epv-deduction-row">
+                  <label>- Transferred or Sold to Other Producers:</label>
                   <input type="text" value={formatNumber(form.TransferredToOtherProducers)} onChange={(e) => handleNumberChange('TransferredToOtherProducers', e.target.value)} disabled={isReadOnly} placeholder="0" />
                 </div>
-                <div className="epv-calc-row epv-total-row">
+                <div className="epv-calc-row epv-total-row epv-deduction-total">
                   <label>Total E (Transfers):</label>
-                  <span className="epv-calc-total">{totals.totalE.toLocaleString()}</span>
+                  <span className="epv-calc-total">- {totals.totalE.toLocaleString()}</span>
                 </div>
               </div>
             </div>
@@ -551,9 +571,37 @@ function EPVForm() {
               </div>
             </div>
 
+            {/* Variance Explanation - shows when actual != theoretical */}
+            {totals.lossGain !== 0 && (
+              <div className="epv-calc-section epv-variance-section">
+                <h4>Variance Explanation</h4>
+                <p className="epv-variance-desc">
+                  There is a {totals.lossGain < 0 ? 'loss' : 'gain'} of <strong>{Math.abs(totals.lossGain).toLocaleString()}</strong> dozen(s) between the theoretical closing stock and the actual closing stock. Please provide a reason for this variance.
+                </p>
+                <div className="epv-variance-field">
+                  <label>Reason for Variance <span className="epv-required-star">*</span></label>
+                  <textarea
+                    value={form.VarianceReason}
+                    onChange={(e) => handleChange('VarianceReason', e.target.value)}
+                    disabled={isReadOnly}
+                    placeholder="Please explain the reason for the difference between theoretical and actual closing stock..."
+                    rows={4}
+                    className="epv-variance-textarea"
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="epv-nav">
               <button className="epv-back-btn" onClick={() => setStep(1)}>&larr; Back</button>
-              <button className="epv-next-btn" onClick={() => setStep(3)}>Next: Levy (Pulp) &rarr;</button>
+              <button className="epv-next-btn" onClick={() => {
+                if (totals.lossGain !== 0 && !form.VarianceReason.trim()) {
+                  setError('Please provide a reason for the variance between theoretical and actual closing stock.');
+                  return;
+                }
+                setError('');
+                setStep(3);
+              }}>Next: Levy (Pulp) &rarr;</button>
             </div>
           </div>
         )}
@@ -564,6 +612,7 @@ function EPVForm() {
             <h3>Calculation of Statutory Levy (Pulp)</h3>
             <p className="epv-step-desc">All values in Kilograms. Dozens are automatically calculated at 1.7 dozens per kilogram of pulp.</p>
 
+            {/* Stock In */}
             <div className="epv-calc-section">
               <div className="epv-pulp-header">
                 <span></span>
@@ -582,9 +631,56 @@ function EPVForm() {
                   <span className="epv-pulp-dozens">{totals.pulpBDozens.toLocaleString()}</span>
                 </div>
                 <div className="epv-calc-row epv-pulp-row">
-                  <label>C. Converted to Pulp Excl. Grading (Destroyed):</label>
+                  <label>C. Eggs Converted to Pulp:</label>
                   <input type="text" value={formatNumber(form.PulpConverted)} onChange={(e) => handleNumberChange('PulpConverted', e.target.value)} disabled={isReadOnly} placeholder="0" />
                   <span className="epv-pulp-dozens">{totals.pulpCDozens.toLocaleString()}</span>
+                </div>
+                <div className="epv-calc-row epv-total-row epv-pulp-row">
+                  <label>= Stock on Hand (A + B + C):</label>
+                  <span className="epv-calc-total">{totals.pulpStockOnHand.toLocaleString()}</span>
+                  <span className="epv-calc-total">{totals.pulpStockOnHandDozens.toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Sales & Deductions */}
+            <div className="epv-calc-section">
+              <h4>Sales &amp; Deductions</h4>
+              <div className="epv-pulp-header">
+                <span></span>
+                <span className="epv-pulp-col-label">Kilograms</span>
+                <span className="epv-pulp-col-label">Dozens</span>
+              </div>
+              <div className="epv-calc-rows">
+                <div className="epv-calc-row epv-pulp-row epv-deduction-row">
+                  <label>- Sales to Trade:</label>
+                  <input type="text" value={formatNumber(form.PulpSoldToTrade)} onChange={(e) => handleNumberChange('PulpSoldToTrade', e.target.value)} disabled={isReadOnly} placeholder="0" />
+                  <span className="epv-pulp-dozens epv-deduction-value">{totals.pulpSoldToTradeDozens.toLocaleString()}</span>
+                </div>
+                <div className="epv-calc-row epv-levy-row">
+                  <label>Pulp Levy (Dozens &times; R{LEVY_RATE}):</label>
+                  <span className="epv-levy-amount" style={{ gridColumn: 'span 2', textAlign: 'right' }}>R {totals.pulpLevyAmount.toFixed(2)}</span>
+                </div>
+                <div className="epv-calc-row epv-pulp-row epv-deduction-row">
+                  <label>- Sold to Other Producers:</label>
+                  <input type="text" value={formatNumber(form.PulpSoldToProducers)} onChange={(e) => handleNumberChange('PulpSoldToProducers', e.target.value)} disabled={isReadOnly} placeholder="0" />
+                  <span className="epv-pulp-dozens epv-deduction-value">{totals.pulpSoldToProducersDozens.toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Closing Stock */}
+            <div className="epv-calc-section epv-closing-section">
+              <div className="epv-pulp-header">
+                <span></span>
+                <span className="epv-pulp-col-label">Kilograms</span>
+                <span className="epv-pulp-col-label">Dozens</span>
+              </div>
+              <div className="epv-calc-rows">
+                <div className="epv-calc-row epv-total-row epv-pulp-row">
+                  <label>= Closing Stock Carried Forward:</label>
+                  <span className={`epv-calc-total ${totals.pulpClosingStock < 0 ? 'negative' : ''}`}>{totals.pulpClosingStock.toLocaleString()}</span>
+                  <span className={`epv-calc-total ${totals.pulpClosingStockDozens < 0 ? 'negative' : ''}`}>{totals.pulpClosingStockDozens.toLocaleString()}</span>
                 </div>
               </div>
             </div>
@@ -639,11 +735,10 @@ function EPVForm() {
 
                   <tr className="epv-review-section-header"><td colSpan="2">D. Sales</td></tr>
                   <tr><td>Sold to Trade</td><td className="epv-num">{(parseFloat(form.SoldToTrade) || 0).toLocaleString()}</td></tr>
-                  <tr><td>Exported</td><td className="epv-num">{(parseFloat(form.Exported) || 0).toLocaleString()}</td></tr>
                   <tr><td>Sold to Staff / Own Use</td><td className="epv-num">{(parseFloat(form.SoldToStaff) || 0).toLocaleString()}</td></tr>
                   <tr><td>Sold through Farm Stall</td><td className="epv-num">{(parseFloat(form.SoldThroughFarmStall) || 0).toLocaleString()}</td></tr>
                   <tr className="epv-review-total"><td>Total D (Sales)</td><td className="epv-num">{totals.totalD.toLocaleString()}</td></tr>
-                  <tr className="epv-review-levy"><td>Levy (D &times; R{LEVY_RATE})</td><td className="epv-num">R {totals.levyAmount.toFixed(2)}</td></tr>
+                  <tr className="epv-review-levy"><td>Egg Levy Amount (D &times; R{LEVY_RATE})</td><td className="epv-num">R {totals.levyAmount.toFixed(2)}</td></tr>
 
                   <tr className="epv-review-section-header"><td colSpan="2">E. Transfers</td></tr>
                   <tr><td>Transferred to Other Producers</td><td className="epv-num">{(parseFloat(form.TransferredToOtherProducers) || 0).toLocaleString()}</td></tr>
@@ -656,6 +751,13 @@ function EPVForm() {
                     <td>(Loss) / Gain</td>
                     <td className="epv-num">{totals.lossGain < 0 ? `(${Math.abs(totals.lossGain).toLocaleString()})` : totals.lossGain.toLocaleString()}</td>
                   </tr>
+                  {totals.lossGain !== 0 && form.VarianceReason && (
+                    <tr className="epv-review-variance">
+                      <td colSpan="2">
+                        <strong>Variance Reason:</strong> {form.VarianceReason}
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -682,9 +784,54 @@ function EPVForm() {
                     <td className="epv-num">{totals.pulpBDozens.toLocaleString()}</td>
                   </tr>
                   <tr>
-                    <td>C. Converted to Pulp Excl. Grading (Destroyed)</td>
+                    <td>C. Eggs Converted to Pulp</td>
                     <td className="epv-num">{totals.pulpC.toLocaleString()}</td>
                     <td className="epv-num">{totals.pulpCDozens.toLocaleString()}</td>
+                  </tr>
+                  <tr className="epv-review-total">
+                    <td>= Stock on Hand</td>
+                    <td className="epv-num">{totals.pulpStockOnHand.toLocaleString()}</td>
+                    <td className="epv-num">{totals.pulpStockOnHandDozens.toLocaleString()}</td>
+                  </tr>
+                  <tr className="epv-review-deduction">
+                    <td>- Sales to Trade</td>
+                    <td className="epv-num">{totals.pulpSoldToTrade.toLocaleString()}</td>
+                    <td className="epv-num">{totals.pulpSoldToTradeDozens.toLocaleString()}</td>
+                  </tr>
+                  <tr className="epv-review-levy">
+                    <td>Pulp Levy (Dozens &times; R{LEVY_RATE})</td>
+                    <td colSpan="2" className="epv-num">R {totals.pulpLevyAmount.toFixed(2)}</td>
+                  </tr>
+                  <tr className="epv-review-deduction">
+                    <td>- Sold to Other Producers</td>
+                    <td className="epv-num">{totals.pulpSoldToProducers.toLocaleString()}</td>
+                    <td className="epv-num">{totals.pulpSoldToProducersDozens.toLocaleString()}</td>
+                  </tr>
+                  <tr className="epv-review-total">
+                    <td>= Closing Stock Carried Forward</td>
+                    <td className="epv-num">{totals.pulpClosingStock.toLocaleString()}</td>
+                    <td className="epv-num">{totals.pulpClosingStockDozens.toLocaleString()}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Total Owed */}
+            <div className="epv-review-section epv-total-owed-section">
+              <h4>Total Owed</h4>
+              <table className="epv-review-table">
+                <tbody>
+                  <tr>
+                    <td>Egg Levy Amount</td>
+                    <td className="epv-num">R {totals.levyAmount.toFixed(2)}</td>
+                  </tr>
+                  <tr>
+                    <td>Pulp Levy Amount</td>
+                    <td className="epv-num">R {totals.pulpLevyAmount.toFixed(2)}</td>
+                  </tr>
+                  <tr className="epv-review-grand-total">
+                    <td>Total Owed</td>
+                    <td className="epv-num">R {(totals.levyAmount + totals.pulpLevyAmount).toFixed(2)}</td>
                   </tr>
                 </tbody>
               </table>

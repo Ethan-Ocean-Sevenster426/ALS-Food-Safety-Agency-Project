@@ -6,11 +6,11 @@ const { sendEmail } = require('../services/emailService');
 
 const router = express.Router();
 
-const VALID_ROLES = ['Super Admin', 'Admin', 'Company Admin', 'User'];
+const VALID_ROLES = ['Super Admin', 'Admin', 'Inspector', 'Company Admin', 'User'];
 
 // POST /api/auth/signup
 router.post('/signup', async (req, res) => {
-  const { firstName, lastName, email, password, role } = req.body;
+  const { firstName, lastName, email, password, role, inspectorProvince, clientRecordId } = req.body;
 
   if (!firstName || !lastName || !email || !password) {
     return res.status(400).json({ message: 'All fields are required.' });
@@ -40,9 +40,26 @@ router.post('/signup', async (req, res) => {
       .input('email', sql.NVarChar, email)
       .input('passwordHash', sql.NVarChar, passwordHash)
       .input('role', sql.NVarChar, assignedRole)
+      .input('inspectorProvince', sql.NVarChar, assignedRole === 'Inspector' ? (inspectorProvince || null) : null)
       .query(
-        'INSERT INTO Users (FirstName, LastName, Email, PasswordHash, Role) VALUES (@firstName, @lastName, @email, @passwordHash, @role)'
+        'INSERT INTO Users (FirstName, LastName, Email, PasswordHash, Role, InspectorProvince) VALUES (@firstName, @lastName, @email, @passwordHash, @role, @inspectorProvince)'
       );
+
+    // If a clientRecordId is provided for Company Admin or User, create an accepted invitation link
+    if (clientRecordId && (assignedRole === 'Company Admin' || assignedRole === 'User')) {
+      const crypto = require('crypto');
+      const token = crypto.randomBytes(32).toString('hex');
+      await pool.request()
+        .input('clientRecordId', sql.Int, parseInt(clientRecordId))
+        .input('email', sql.NVarChar, email)
+        .input('role', sql.NVarChar, assignedRole)
+        .input('token', sql.NVarChar, token)
+        .input('invitedBy', sql.NVarChar, 'Super Admin')
+        .query(
+          `INSERT INTO Invitations (ClientRecordId, Email, Role, Token, InvitedBy, Status, AcceptedAt)
+           VALUES (@clientRecordId, @email, @role, @token, @invitedBy, 'Accepted', GETDATE())`
+        );
+    }
 
     res.status(201).json({ message: 'Account created successfully.' });
   } catch (err) {
@@ -67,7 +84,7 @@ router.post('/login', async (req, res) => {
       .input('email', sql.NVarChar, email)
       .query(
         `SELECT TOP 1 u.Id, u.FirstName, u.LastName, u.Email, u.PasswordHash, u.Role, ISNULL(u.IsActive, 1) AS IsActive,
-                i.ClientRecordId
+                u.InspectorProvince, i.ClientRecordId
          FROM Users u
          LEFT JOIN Invitations i ON LOWER(u.Email) = LOWER(i.Email) AND i.Status = 'Accepted'
          WHERE LOWER(u.Email) = LOWER(@email)
@@ -106,6 +123,7 @@ router.post('/login', async (req, res) => {
         email: user.Email,
         role: user.Role,
         clientRecordId: user.ClientRecordId || null,
+        inspectorProvince: user.InspectorProvince || null,
       },
     });
   } catch (err) {
@@ -121,13 +139,14 @@ router.get('/users', async (req, res) => {
     const result = await pool.request().query(
       `;WITH UserAllocations AS (
          SELECT u.Id, u.FirstName, u.LastName, u.Email, u.Role, u.CreatedAt, ISNULL(u.IsActive, 1) AS IsActive,
+                u.InspectorProvince,
                 c.BusinessName AS AllocatedClient, c.ClientID AS AllocatedClientID,
                 ROW_NUMBER() OVER (PARTITION BY u.Id ORDER BY i.AcceptedAt DESC) AS rn
          FROM Users u
          LEFT JOIN Invitations i ON LOWER(i.Email) = LOWER(u.Email) AND i.Status = 'Accepted'
          LEFT JOIN ConsolidatedMasterAbattoirDatabase c ON i.ClientRecordId = c.Id
        )
-       SELECT Id, FirstName, LastName, Email, Role, CreatedAt, AllocatedClient, AllocatedClientID, IsActive
+       SELECT Id, FirstName, LastName, Email, Role, CreatedAt, AllocatedClient, AllocatedClientID, IsActive, InspectorProvince
        FROM UserAllocations
        WHERE rn = 1
        ORDER BY CreatedAt DESC`
@@ -209,7 +228,7 @@ router.put('/users/:id/reset-password', async (req, res) => {
 // PUT /api/auth/users/:id - edit user details
 router.put('/users/:id', async (req, res) => {
   const { id } = req.params;
-  const { firstName, lastName, email, role } = req.body;
+  const { firstName, lastName, email, role, inspectorProvince } = req.body;
 
   if (!firstName || !lastName || !email) {
     return res.status(400).json({ message: 'First name, last name, and email are required.' });
@@ -240,13 +259,15 @@ router.put('/users/:id', async (req, res) => {
       return res.status(409).json({ message: 'Another account with this email already exists.' });
     }
 
+    const assignedRole = role || 'User';
     await pool.request()
       .input('id', sql.Int, parseInt(id))
       .input('firstName', sql.NVarChar, firstName)
       .input('lastName', sql.NVarChar, lastName)
       .input('email', sql.NVarChar, email)
-      .input('role', sql.NVarChar, role || 'User')
-      .query('UPDATE Users SET FirstName = @firstName, LastName = @lastName, Email = @email, Role = @role WHERE Id = @id');
+      .input('role', sql.NVarChar, assignedRole)
+      .input('inspectorProvince', sql.NVarChar, assignedRole === 'Inspector' ? (inspectorProvince || null) : null)
+      .query('UPDATE Users SET FirstName = @firstName, LastName = @lastName, Email = @email, Role = @role, InspectorProvince = @inspectorProvince WHERE Id = @id');
 
     res.json({ message: 'User updated successfully.' });
   } catch (err) {

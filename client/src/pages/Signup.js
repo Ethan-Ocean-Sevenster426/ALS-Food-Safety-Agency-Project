@@ -118,6 +118,7 @@ function Signup() {
             >
               <option value="User">User</option>
               <option value="Company Admin">Company Admin</option>
+              <option value="Inspector">Inspector</option>
               <option value="Admin">Admin</option>
               <option value="Super Admin">Super Admin</option>
             </select>

@@ -6,6 +6,8 @@ function Navbar() {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const isCompanyUser = user.role === 'Company Admin' || user.role === 'User';
+  const isInspector = user.role === 'Inspector';
+  const showInspectorsTab = user.role === 'Super Admin' || user.role === 'Admin' || user.role === 'Inspector';
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -24,10 +26,19 @@ function Navbar() {
               <NavLink to="/support">Support</NavLink>
               <NavLink to="/settings">User Management</NavLink>
             </>
+          ) : isInspector ? (
+            <>
+              <NavLink to="/inspectors">Inspectors</NavLink>
+              <NavLink to="/company">Company Overview</NavLink>
+              <NavLink to="/support">Support</NavLink>
+              <NavLink to="/settings">User Management</NavLink>
+            </>
           ) : (
             <>
               <NavLink to="/dashboard" end>Dashboard</NavLink>
               <NavLink to="/clients">Clients</NavLink>
+              <NavLink to="/inspectors">Inspectors</NavLink>
+              <NavLink to="/administrators">Administrators</NavLink>
               <NavLink to="/company">Company Overview</NavLink>
               <NavLink to="/support">Support</NavLink>
               <NavLink to="/settings">User Management</NavLink>

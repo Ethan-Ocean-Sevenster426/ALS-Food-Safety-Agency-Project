@@ -8,7 +8,7 @@ A full-stack web application for managing egg production facilities, client allo
 
 | Layer    | Technology                                                    |
 | -------- | ------------------------------------------------------------- |
-| Frontend | React 19, React Router 7, Axios                              |
+| Frontend | React 19, React Router 7, Axios, Recharts                    |
 | Backend  | Express 5 (Node.js)                                          |
 | Database | Microsoft SQL Server (via `mssql` + `msnodesqlv8` ODBC)      |
 | Auth     | JWT (`jsonwebtoken`) + bcrypt (`bcryptjs`)                    |
@@ -37,10 +37,12 @@ A full-stack web application for managing egg production facilities, client allo
 │           ├── Signup.js           # Self-registration form
 │           ├── ResetPassword.js    # Token-based password reset
 │           ├── AcceptInvite.js     # Invitation acceptance + wizard for Company Admins
-│           ├── Dashboard.js        # Analytics dashboard (stats, charts, recent activity)
+│           ├── Dashboard.js        # Super Admin holistic dashboard (KPIs, charts, action items)
 │           ├── Settings.js         # User Management — user table, edit, deactivate, reset
 │           ├── ClientAllocation.js # Master abattoir database CRUD + audit log
 │           ├── CompanyOverview.js  # Per-company detail view, users, invites, EPVs, POP & reconciliation
+│           ├── Inspectors.js       # Inspector dashboard — KPIs, approvals, visits, reconciliation
+│           ├── Administrators.js   # Admin dashboard — reconciliation management, financial KPIs
 │           ├── EPVForm.js          # 5-step egg production verification wizard
 │           ├── Support.js          # Support ticket list, detail view, comments, admin controls
 │           ├── Auth.css            # Shared login/signup/reset styles
@@ -50,6 +52,8 @@ A full-stack web application for managing egg production facilities, client allo
 ├── server/                         # Express backend
 │   ├── index.js                    # App entry — middleware + route mounting
 │   ├── initDb.js                   # One-time DB + table creation script
+│   ├── seed-demo.js                # Demo seed script — populates EPVs for Jan–Mar 2026
+│   ├── seed-admins.js              # Seed script — creates 3 Admin users
 │   ├── config/
 │   │   └── db.js                   # MSSQL connection pool (singleton)
 │   ├── routes/
@@ -57,13 +61,16 @@ A full-stack web application for managing egg production facilities, client allo
 │   │   ├── clients.js              # Client allocation CRUD + audit log
 │   │   ├── invites.js              # Invitation send/accept flow (with FacilityProvince)
 │   │   ├── company.js              # Company overview + per-company user/invite mgmt
-│   │   ├── epv.js                  # EPV send/submit/edit/list + POP upload + reconciliation
+│   │   ├── epv.js                  # EPV send/submit/edit/list + POP upload + reconciliation + inspector endpoints
+│   │   ├── admin.js                # Admin reconciliation endpoints — stats, list, batch reconcile
 │   │   ├── support.js              # Support tickets CRUD, comments, email notifications
-│   │   └── dashboard.js            # Dashboard analytics endpoint
+│   │   ├── dashboard.js            # Dashboard analytics + EPV overview endpoint
+│   │   └── invoices.js             # Invoice generation (feature under development)
 │   ├── services/
 │   │   └── emailService.js         # Nodemailer transport (Gmail OAuth2)
 │   ├── uploads/
-│   │   └── pop/                    # Uploaded Proof of Payment files
+│   │   ├── pop/                    # Uploaded Proof of Payment files
+│   │   └── invoices/               # Generated invoice PDFs
 │   └── scripts/
 │       ├── createAuditLog.js       # Creates ClientAllocationAuditLog table
 │       ├── createEPVTables.js      # Creates EggProductionVerifications table + migration columns
@@ -132,7 +139,24 @@ node scripts/createAuditLog.js
 node scripts/createEPVTables.js
 ```
 
-### 4. Run the App
+### 4. Seed Demo Data (Optional)
+
+```bash
+# Seed EPVs for Jan–Mar 2026 for all facilities
+npx dotenv-cli -- node seed-demo.js
+
+# Seed 3 Admin users
+npx dotenv-cli -- node seed-admins.js
+```
+
+Admin users created by seed script:
+| Name | Email | Password |
+|------|-------|----------|
+| Sarah van der Merwe | sarah.admin@fsa.co.za | Admin@123 |
+| James Nkosi | james.admin@fsa.co.za | Admin@123 |
+| Lindiwe Dlamini | lindiwe.admin@fsa.co.za | Admin@123 |
+
+### 5. Run the App
 
 ```bash
 # Terminal 1 — Backend (port 5000)
@@ -161,12 +185,15 @@ All routing is defined in `App.js` using React Router v7. There are three types 
    - `/epv/:token` — EPV form (accessible via email link)
 
 2. **Protected routes** — wrapped in `<PrivateRoute>` which checks `localStorage` for a JWT token. These render inside `<AppLayout>` (Navbar + SupportButton + content area):
-   - `/dashboard` — additionally wrapped in `<AdminRoute>` (Super Admin/Admin only)
-   - `/clients` — additionally wrapped in `<AdminRoute>` (Super Admin/Admin only)
+   - `/dashboard` — wrapped in `<AdminRoute>` (Super Admin/Admin only)
+   - `/clients` — wrapped in `<AdminRoute>` (Super Admin/Admin only)
+   - `/inspectors` — wrapped in `<InspectorRoute>` (Inspector/Admin/Super Admin)
+   - `/administrators` — wrapped in `<AdminRoute>` (Super Admin/Admin only)
    - `/company`, `/settings`, `/support`
 
 3. **Default redirect** — `/*` redirects based on role:
    - Company Admin / User → `/company`
+   - Inspector → `/inspectors`
    - Super Admin / Admin → `/dashboard`
 
 ### Layout System
@@ -185,51 +212,33 @@ All routing is defined in `App.js` using React Router v7. There are three types 
 
 ### Role-Based UI
 
-There are 4 roles: `Super Admin`, `Admin`, `Company Admin`, `User`
+There are 5 roles: `Super Admin`, `Admin`, `Inspector`, `Company Admin`, `User`
 
-| Feature                              | Super Admin | Admin | Company Admin | User |
-| ------------------------------------ | :---------: | :---: | :-----------: | :--: |
-| Dashboard (analytics)                |      Y      |   Y   |       -       |  -   |
-| Client Allocation (CRUD)             |      Y      |   Y   |       -       |  -   |
-| Company Overview                     |      Y      |   Y   |       Y       |  Y   |
-| User Management                      |      Y      |   Y   |       -       |  -   |
-| Support (all tickets)                |      Y      |   -   |       -       |  -   |
-| Support (Administration tickets)     |      Y      |   Y   |       -       |  -   |
-| Support (own company tickets)        |      -      |   -   |       Y       |  Y   |
-| Edit company details                 |      Y      |   Y   |       Y       |  -   |
-| Edit/Deactivate users                |      Y      |   Y   |       -       |  -   |
-| Reset passwords                      |      Y      |   -   |       Y       |  -   |
-| Invite users to company              |      Y      |   Y   |       Y       |  -   |
-| Send EPV                             |      Y      |   Y   |       -       |  -   |
-| Complete/view EPV                    |      Y      |   Y   |       Y       |  Y   |
-| Edit submitted EPV                   |      Y      |   Y   |       -       |  -   |
-| Add manual EPV (old months)          |      -      |   -   |       Y       |  Y   |
-| Upload POP                           |      Y      |   Y   |       Y       |  Y   |
-| Delete POP                           |      Y      |   Y   |       -       |  -   |
-| Reconcile EPV (confirm payment)      |      Y      |   Y   |       -       |  -   |
-
-### Authentication Pattern
-
-- On login, the server returns a JWT and a user object
-- Both are stored in `localStorage` as `token` and `user`
-- Deactivated users are blocked at login with a 403 response
-- Every API call uses `axios` with the base URL `http://localhost:5000`
-- **Note:** There is no axios interceptor or auth header middleware yet — most routes are currently unprotected on the backend. This is something to add.
-
-### Styling Approach
-
-- Each page has its own CSS file (e.g., `ClientAllocation.css`, `Support.css`)
-- Shared styles live in `Auth.css` (login/signup pages) and `PageStyles.css` (generic page container/card)
-- Full-width layout — all modules stretch to fill the screen width
-- No CSS framework — all custom CSS with CSS variables for colors
-- FSA brand colors: Teal `#0E7C7B`, Red `#DC3545`, Dark navbar `rgb(30, 41, 59)`
-- Common patterns: `.page-container` > `.page-card` for content sections
-
-### State Management
-
-- No global state library (no Redux/Context) — each page manages its own state with `useState`/`useEffect`
-- User info is read from `localStorage` where needed
-- Data fetching uses `useCallback` + `useEffect` pattern with `axios`
+| Feature                              | Super Admin | Admin | Inspector | Company Admin | User |
+| ------------------------------------ | :---------: | :---: | :-------: | :-----------: | :--: |
+| Dashboard (holistic analytics)       |      Y      |   Y   |     -     |       -       |  -   |
+| Client Allocation (CRUD)             |      Y      |   Y   |     -     |       -       |  -   |
+| Inspectors Dashboard                 |      Y      |   Y   |     Y     |       -       |  -   |
+| Administrators Dashboard             |      Y      |   Y   |     -     |       -       |  -   |
+| Company Overview                     |      Y      |   Y   |     Y     |       Y       |  Y   |
+| User Management                      |      Y      |   Y   |     -     |       -       |  -   |
+| Support (all tickets)                |      Y      |   -   |     -     |       -       |  -   |
+| Support (Administration tickets)     |      Y      |   Y   |     -     |       -       |  -   |
+| Support (own company tickets)        |      -      |   -   |     -     |       Y       |  Y   |
+| Edit company details                 |      Y      |   Y   |     -     |       Y       |  -   |
+| Edit/Deactivate users                |      Y      |   Y   |     -     |       -       |  -   |
+| Reset passwords                      |      Y      |   -   |     -     |       Y       |  -   |
+| Invite users to company              |      Y      |   Y   |     -     |       Y       |  -   |
+| Send EPV                             |      Y      |   Y   |     -     |       -       |  -   |
+| Complete/view EPV                    |      Y      |   Y   |     -     |       Y       |  Y   |
+| Edit submitted EPV                   |      Y      |   Y   |     -     |       -       |  -   |
+| Add manual EPV (old months)          |      -      |   -   |     -     |       Y       |  Y   |
+| Upload POP                           |      Y      |   Y   |     -     |       Y       |  Y   |
+| Delete POP                           |      Y      |   Y   |     -     |       -       |  -   |
+| Reconcile EPV (confirm payment)      |      Y      |   Y   |     -     |       -       |  -   |
+| Approve/Reject EPV (verification)    |      Y      |   Y   |     Y     |       -       |  -   |
+| Complete Inspector EPV               |      -      |   -   |     Y     |       -       |  -   |
+| Batch Reconciliation                 |      Y      |   Y   |     -     |       -       |  -   |
 
 ---
 
@@ -238,7 +247,7 @@ There are 4 roles: `Super Admin`, `Admin`, `Company Admin`, `User`
 ### Login (`/login`)
 - Email/password form with "Forgot password?" toggle
 - Blocks deactivated users with a clear error message
-- On success: stores JWT + user object in localStorage, redirects to dashboard (or company for Company Admin/User)
+- On success: stores JWT + user object in localStorage, redirects based on role
 - API: `POST /api/auth/login`, `POST /api/auth/forgot-password`
 
 ### Signup (`/signup`)
@@ -256,25 +265,63 @@ There are 4 roles: `Super Admin`, `Admin`, `Company Admin`, `User`
 - Token-based password reset form (accessed via email link)
 - API: `POST /api/auth/reset-password/:token`
 
-### Dashboard (`/dashboard`) — Admin only
-- Analytics overview with 4 stat cards: Total Users, Total Clients, EPVs This Month, Open Tickets
-- Users by Role breakdown with visual bar chart
-- Client Verification stats (verified vs unverified)
-- Ticket Overview (open/in-progress/closed counts)
+### Dashboard (`/dashboard`) — Admin/Super Admin only
+- **Holistic overview** of the entire EPVS system
+- Top-level stat cards: Total Users, Total Clients, EPV Forms, Support Tickets
+- **4 KPI Gauges** with progress bars and target indicators:
+  - Collection Rate — Prior Months (target ≥80%)
+  - Collection Rate — Current Month (target ≥80%)
+  - Approvals Actioned (target ≥90%)
+  - Facilities Visited (target 100%)
+- **Action Items** (2x2 grid): Pending Approvals, Inspector EPVs to Complete, Facilities Need Visit, Not Completed EPVs — all clickable to navigate to Inspectors page
+- **Financial Summary**: Total Billed, Total Paid, Outstanding, Egg/Pulp Levy breakdown, Collection Rate percentage
+- **EPV Stats Row**: Facilities, Completed EPVs, Verified, Rejections, Inspections Done, Outstanding
+- **Charts**: Billed vs Paid bar chart, Egg vs Pulp Levy line chart (dual Y-axes), Facilities by Province pie chart, Rejections by Province bar chart
+- **System Overview**: Users by Role, Client Verification, Ticket Overview
 - Recent Users and Recent Tickets tables
-- All cards are clickable, navigating to relevant pages
-- Change log count displays correctly on initial load
-- API: `GET /api/dashboard/stats`
+- API: `GET /api/dashboard/stats`, `GET /api/dashboard/epv-overview`
 
-### User Management (`/settings`)
-- Shows current user's profile (name, email, role)
-- **Admin-only section:** user management table with:
-  - Status column (Active/Inactive badges)
-  - Company association column (business name + client ID)
-  - Edit user modal (name, email, role)
-  - Deactivate/Activate toggle with confirmation
-  - Reset password, Delete user
-- API: `GET /api/auth/users`, `PUT /api/auth/users/:id`, `PUT /api/auth/users/:id/role`, `PUT /api/auth/users/:id/deactivate`, `PUT /api/auth/users/:id/reset-password`, `DELETE /api/auth/users/:id`
+### Inspectors Dashboard (`/inspectors`) — Inspector/Admin/Super Admin
+- **Inspector-focused dashboard** for managing EPV verification workflow
+- **4 KPI Gauges**:
+  - Collection Rate — Prior Months (target ≥80%)
+  - Collection Rate — Current Month (target ≥80%)
+  - Approvals Actioned (target ≥90%)
+  - Facilities Visited (target 100%)
+- **Action Items**: Pending Approvals, Inspector EPVs to Complete, Facilities Need Visit, Outstanding Payments
+- **Financial Summary**: Total Billed, Total Paid, Outstanding, Egg/Pulp Levy breakdown
+- **Charts**: Billed vs Paid bar chart, Egg Levy vs Pulp Levy line chart (dual Y-axes)
+- **Province Filter** (Admin/Super Admin only): filter all data by province
+- **Tabbed Content** with red badge counts:
+  - **Pending Approvals** — Completed facility EPVs awaiting inspector verification (approve/reject)
+  - **EPVs to Complete** — Rejected EPVs where inspector needs to complete their own form
+  - **Not Completed** — Facilities that haven't completed EPVs per month (with month filter badges)
+  - **Need Visit** — Facilities not yet visited this quarter
+  - **Outstanding** — Facilities with outstanding payment amounts
+  - **Monthly Breakdown** — EPV summary by month
+  - **By Province** — EPV breakdown per province (Admin only)
+- Inspectors can only complete their own inspector EPVs, not facility EPVs
+- API: `GET /api/epv/inspector/stats`, `GET /api/epv/inspector/pending-approvals`, `GET /api/epv/inspector/not-completed`, `PUT /api/epv/:id/verify`, `POST /api/epv/inspector/create`
+
+### Administrators Dashboard (`/administrators`) — Admin/Super Admin only
+- **Reconciliation & financial management** dashboard
+- **4 KPI Gauges**:
+  - Collection Rate (target ≥80%)
+  - Reconciliation Rate (target ≥90%)
+  - Outstanding Rate (target ≤5%)
+  - Verification Rate (target ≥90%)
+- **Action Items**: Needs Reconciliation, Partially Reconciled, Fully Reconciled, Total Completed EPVs
+- **Financial Summary**: Total Billed, Total Reconciled, Outstanding, Egg/Pulp Levy totals
+- **Charts**: Billed vs Reconciled vs Outstanding bar chart, Outstanding by Province horizontal bar chart
+- **Tabbed Reconciliation Table**:
+  - Needs Reconciliation / Partially Reconciled / Reconciled / All EPVs
+  - Red badge counts on tabs
+  - Filterable by province, month, year, and search
+  - **Reconciliation Actions**: Enter amount + Reconcile button, "Full" button for full payment, batch select + reconcile selected
+  - Clickable facility names navigate to Company Overview
+  - Sortable columns, pagination (50/page)
+- Admin/Super Admin can reconcile even without POP uploaded
+- API: `GET /api/admin/stats`, `GET /api/admin/reconciliation`, `PUT /api/admin/reconcile-batch`
 
 ### Client Allocation (`/clients`) — Admin only
 - Full CRUD table for the "Consolidated Master Abattoir Database"
@@ -298,9 +345,10 @@ There are 4 roles: `Super Admin`, `Admin`, `Company Admin`, `User`
     - Status (Pending/Completed)
     - Completion date
     - POP (Proof of Payment) column — upload button, view link with styled modal
-    - Reconciled column (Admin/Super Admin only) — checkbox to confirm payment received
+    - Reconciled column (Admin/Super Admin only) — checkbox to confirm payment received (no POP required for Admin)
     - Actions column — View/Edit links
   - **"+ Add" button** for Company Admin/User to create manual EPVs for past months (one per month enforced)
+  - **Invoices section** (Feature Under Development)
 - API: `GET /api/company/:id`, `PUT /api/company/:id`, `GET /api/company/:id/users`, `POST /api/company/:id/invite`, `DELETE /api/company/:id/users/:userId`, `GET /api/company/:id/audit-log`
 
 ### EPV Form (`/epv/:token`)
@@ -340,19 +388,15 @@ There are 4 roles: `Super Admin`, `Admin`, `Company Admin`, `User`
 - **Floating SupportButton** on every authenticated page for quick ticket creation
 - API: `GET /api/support/categories`, `POST /api/support/tickets`, `GET /api/support/tickets`, `GET /api/support/tickets/:id`, `PUT /api/support/tickets/:id`, `POST /api/support/tickets/:id/comments`
 
-### Support Ticket Categories
-
-| Category                        | Access              |
-| ------------------------------- | ------------------- |
-| Access/Permission Issue         | Admin + Super Admin |
-| Administration                  | Admin + Super Admin |
-| Question/Help                   | Admin + Super Admin |
-| Report Generation/Export Issue  | Super Admin only    |
-| Data Import/Export Issue        | Admin + Super Admin |
-| Feature Request                 | Super Admin only    |
-| Performance/Speed Issue         | Super Admin only    |
-| System Error/Bug                | Super Admin only    |
-| Other                           | Admin + Super Admin |
+### User Management (`/settings`)
+- Shows current user's profile (name, email, role)
+- **Admin-only section:** user management table with:
+  - Status column (Active/Inactive badges)
+  - Company association column (business name + client ID)
+  - Edit user modal (name, email, role)
+  - Deactivate/Activate toggle with confirmation
+  - Reset password, Delete user
+- API: `GET /api/auth/users`, `PUT /api/auth/users/:id`, `PUT /api/auth/users/:id/role`, `PUT /api/auth/users/:id/deactivate`, `PUT /api/auth/users/:id/reset-password`, `DELETE /api/auth/users/:id`
 
 ---
 
@@ -399,35 +443,50 @@ There are 4 roles: `Super Admin`, `Admin`, `Company Admin`, `User`
 | GET    | `/:id/audit-log`      | Company-specific audit log     |
 
 ### EPV (`/api/epv`)
-| Method | Endpoint                | Description                                    |
-| ------ | ----------------------- | ---------------------------------------------- |
-| POST   | `/send`                 | Send EPV email to client (generates ref number)|
-| POST   | `/create-manual`        | Create manual EPV for past month               |
-| GET    | `/token/:token`         | Get verification by token                      |
-| PUT    | `/token/:token/submit`  | Submit completed verification                  |
-| PUT    | `/:id/edit`             | Edit submitted EPV (Admin/Super Admin only)    |
-| GET    | `/company/:id`          | List verifications for a company               |
-| GET    | `/:id`                  | Get single EPV by ID                           |
-| GET    | `/:id/audit-log`        | EPV change audit log                           |
-| POST   | `/:id/upload-pop`       | Upload Proof of Payment (PDF/PNG/JPG, max 10MB)|
-| GET    | `/:id/pop`              | Download/view POP file                         |
-| DELETE | `/:id/pop`              | Delete POP file (Admin/Super Admin only)       |
-| PUT    | `/:id/reconcile`        | Toggle reconciliation status (Admin only)      |
+| Method | Endpoint                       | Description                                       |
+| ------ | ------------------------------ | ------------------------------------------------- |
+| POST   | `/send`                        | Send EPV email to client (generates ref number)   |
+| POST   | `/create-manual`               | Create manual EPV for past month                  |
+| GET    | `/token/:token`                | Get verification by token                         |
+| PUT    | `/token/:token/submit`         | Submit completed verification                     |
+| PUT    | `/:id/edit`                    | Edit submitted EPV (Admin/Super Admin only)       |
+| GET    | `/company/:id`                 | List verifications for a company                  |
+| GET    | `/:id`                         | Get single EPV by ID                              |
+| GET    | `/:id/audit-log`               | EPV change audit log                              |
+| POST   | `/:id/upload-pop`              | Upload Proof of Payment (PDF/PNG/JPG, max 10MB)   |
+| GET    | `/:id/pop`                     | Download/view POP file                            |
+| DELETE | `/:id/pop`                     | Delete POP file (Admin/Super Admin only)          |
+| PUT    | `/:id/reconcile`               | Toggle reconciliation status                      |
+| PUT    | `/:id/reconciled-amount`       | Save reconciled amount                            |
+| PUT    | `/:id/verify`                  | Toggle verification status (Inspector/Admin)      |
+| PUT    | `/:id/comment`                 | Save inspector comment                            |
+| GET    | `/inspector/stats`             | Inspector dashboard aggregate stats               |
+| GET    | `/inspector/pending-approvals` | EPVs pending inspector approval                   |
+| GET    | `/inspector/not-completed`     | Facilities missing EPVs per month                 |
+| POST   | `/inspector/create`            | Create inspector EPV (on rejection)               |
+
+### Admin (`/api/admin`)
+| Method | Endpoint            | Description                                             |
+| ------ | ------------------- | ------------------------------------------------------- |
+| GET    | `/stats`            | Admin financial stats, monthly breakdown, by province   |
+| GET    | `/reconciliation`   | Paginated EPVs with filters (status, province, search)  |
+| PUT    | `/reconcile-batch`  | Batch reconcile EPVs with amounts + audit logging       |
 
 ### Support (`/api/support`)
-| Method | Endpoint              | Description                                    |
-| ------ | --------------------- | ---------------------------------------------- |
-| GET    | `/categories`         | List active support ticket categories           |
-| POST   | `/tickets`            | Create a ticket (sends confirmation email)      |
-| GET    | `/tickets`            | List tickets (role-filtered)                    |
-| GET    | `/tickets/:id`        | Get ticket detail with comments                 |
-| PUT    | `/tickets/:id`        | Update ticket (status, priority, assignee)      |
-| POST   | `/tickets/:id/comments` | Add comment (sends notification email)        |
+| Method | Endpoint                | Description                                    |
+| ------ | ----------------------- | ---------------------------------------------- |
+| GET    | `/categories`           | List active support ticket categories           |
+| POST   | `/tickets`              | Create a ticket (sends confirmation email)      |
+| GET    | `/tickets`              | List tickets (role-filtered)                    |
+| GET    | `/tickets/:id`          | Get ticket detail with comments                 |
+| PUT    | `/tickets/:id`          | Update ticket (status, priority, assignee)      |
+| POST   | `/tickets/:id/comments` | Add comment (sends notification email)          |
 
 ### Dashboard (`/api/dashboard`)
-| Method | Endpoint  | Description                                              |
-| ------ | --------- | -------------------------------------------------------- |
-| GET    | `/stats`  | Aggregated stats: users, clients, EPVs, tickets, recent activity |
+| Method | Endpoint         | Description                                                     |
+| ------ | ---------------- | --------------------------------------------------------------- |
+| GET    | `/stats`         | Aggregated stats: users, clients, EPVs, tickets, recent activity|
+| GET    | `/epv-overview`  | Holistic EPV data: KPIs, monthly, province, action item counts  |
 
 ---
 
@@ -435,17 +494,20 @@ There are 4 roles: `Super Admin`, `Admin`, `Company Admin`, `User`
 
 Created by `initDb.js` and the scripts in `server/scripts/`:
 
-- **Users** — user accounts (Id, FirstName, LastName, Email, PasswordHash, Role, IsActive, CreatedAt)
-- **ConsolidatedMasterAbattoirDatabase** — client/facility records with extensive contact fields, FacilityProvince
-- **ClientAuditLog** — change history for client records
+- **Users** — user accounts (Id, FirstName, LastName, Email, PasswordHash, Role, IsActive, InspectorProvince, CreatedAt)
+- **ConsolidatedMasterAbattoirDatabase** — client/facility records with extensive contact fields, FacilityProvince, FacilityType
+- **ClientAuditLog** — change history for client records (with UserRole tracking)
 - **Invitations** — invitation tokens linking users to client records
 - **EggProductionVerifications** — monthly EPV submissions with:
+  - EPV types: `Client` (facility EPV) and `Inspector` (inspector EPV linked via LinkedEPVId)
   - Calculation fields: OpeningStock, GradedEggsPurchased, UngradedEggsPurchased, MarketReturns, MachineLoss, SentToPulp, Destroyed, SoldToTrade, Exported, SoldToStaff, SoldThroughFarmStall, TransferredToOtherProducers
   - Computed totals: TotalB, TotalC, TotalD, TotalE, LevyAmount, ClosingStock, ActualClosingStock, LossGain
-  - Pulp fields: PulpOpeningStock, PulpPurchased, PulpConverted
+  - Pulp fields: PulpOpeningStock, PulpPurchased, PulpConverted, PulpSoldToTrade
   - Reference: ReferenceNumber (EPV-YYYY-MM-XXXX)
-  - POP tracking: POPFilePath, POPUploadedAt, POPUploadedBy
-  - Reconciliation: IsReconciled, ReconciledBy, ReconciledAt
+  - POP tracking: POPFilePath, POPUploadedAt, POPUploadedBy, POPComment
+  - Reconciliation: IsReconciled, ReconciledBy, ReconciledAt, ReconciledAmount
+  - Verification: IsVerified, VerifiedBy, VerifiedAt, InspectorComment
+  - Inspection: ManualInspection (flag for physical visit)
   - Province: FacilityProvince
 - **SupportTicketCategories** — ticket issue types with CategoryType (IT/Administration) and SortOrder
 - **SupportTickets** — support tickets with category, priority, status, assignment
@@ -460,6 +522,12 @@ Created by `initDb.js` and the scripts in `server/scripts/`:
 - Sequential numbering per month to avoid collisions
 - Used on quotations and for payment reconciliation
 
+### EPV Approval Workflow
+- Facility completes EPV → status becomes "Completed"
+- Inspector can **Approve** (sets IsVerified=1) or **Reject** (creates an Inspector EPV)
+- Rejected EPVs appear in inspector's "EPVs to Complete" tab
+- Inspector completes their own EPV form with their findings
+
 ### Proof of Payment (POP) Upload
 - Clients can upload POP documents (PDF, PNG, JPG — max 10MB) against completed EPVs
 - Uploaded files are stored in `server/uploads/pop/`
@@ -467,16 +535,26 @@ Created by `initDb.js` and the scripts in `server/scripts/`:
 - POP cannot be uploaded once an EPV is reconciled
 
 ### Payment Reconciliation
-- Admin/Super Admin can toggle reconciliation status on EPVs that have a POP uploaded
-- Reconciled EPVs are visually highlighted in the company overview
-- Reconciliation is only visible to Admin/Super Admin users
-- Prevents further POP uploads once reconciled
+- Admin/Super Admin can reconcile EPVs from Company Overview or Administrators dashboard
+- **Admin/Super Admin can reconcile without POP uploaded**
+- Batch reconciliation available on Administrators page
+- Auto-marks as fully reconciled when amount equals total billed
+- All reconciliation actions are audit logged
+- Reconciled EPVs are visually highlighted
+
+### KPI Tracking
+- **Collection Rate**: Split into prior months vs current month (so current month doesn't drag down overall rate)
+- **Approvals Actioned**: Percentage of EPVs verified by inspectors (target ≥90%)
+- **Facilities Visited**: Percentage visited per quarter (target 100%)
+- **Outstanding Rate**: Percentage of outstanding payments (target ≤5%)
+- **Reconciliation Rate**: Percentage of EPVs fully reconciled (target ≥90%)
 
 ### Facility Province Tracking
 - Province is captured during invitation acceptance (Company Admin wizard)
 - Province is included in EPV form (Step 1: Business Details)
 - Province is editable in Company Overview and Client Allocation
 - Uses dropdown with all 9 South African provinces
+- Inspector dashboards can filter by province
 
 ### Manual EPV Creation
 - Company Admin/User can create EPVs for past months via "+ Add" button
@@ -500,7 +578,7 @@ Created by `initDb.js` and the scripts in `server/scripts/`:
 3. **Frontend reads user from localStorage:**
    ```js
    const user = JSON.parse(localStorage.getItem('user') || '{}');
-   // user = { id, firstName, lastName, email, role, clientRecordId }
+   // user = { id, firstName, lastName, email, role, clientRecordId, inspectorProvince }
    ```
 
 4. **All API calls go to `http://localhost:5000`** — hardcoded in each page. Consider centralizing this.
@@ -510,3 +588,7 @@ Created by `initDb.js` and the scripts in `server/scripts/`:
 6. **Email notifications** are sent via Gmail OAuth2 for: invitations, password resets, EPV requests, support ticket events (created, commented, closed).
 
 7. **Database migrations** use `IF NOT EXISTS` column checks in `createEPVTables.js` — safe to re-run without data loss.
+
+8. **Levy calculation:** Egg Levy = LevyAmount (SoldToTrade × R0.018), Pulp Levy = (PulpSoldToTrade × 1.7) × R0.018.
+
+9. **Invoices feature** is under development — the section exists in Company Overview but is not yet functional.

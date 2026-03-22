@@ -47,7 +47,7 @@ router.get('/', async (req, res) => {
               AbattoirOwnerName, AbattoirOwnerCell, AbattoirOwnerEmail,
               AccountsContactName, AccountsTelephone, AccountsEmail,
               AbattoirManagerName, AbattoirManagerCell, AbattoirManagerEmail,
-              VerifiedAt, VerifiedBy
+              VerifiedAt, VerifiedBy, EPVCycleStatus
        FROM ConsolidatedMasterAbattoirDatabase
        ${whereClause}
        ORDER BY Id
