@@ -251,4 +251,51 @@ router.get('/epv-overview', async (req, res) => {
   }
 });
 
+// GET /api/dashboard/kpi-targets
+router.get('/kpi-targets', async (req, res) => {
+  try {
+    const pool = await getPool();
+    const result = await pool.request().query('SELECT KPIKey, TargetValue, Label FROM KPITargets ORDER BY Id');
+    const targets = {};
+    result.recordset.forEach(r => { targets[r.KPIKey] = { value: +r.TargetValue, label: r.Label }; });
+    res.json({ targets });
+  } catch (err) {
+    console.error('Fetch KPI targets error:', err);
+    res.status(500).json({ message: 'Server error.' });
+  }
+});
+
+// PUT /api/dashboard/kpi-targets — Super Admin only
+router.put('/kpi-targets', async (req, res) => {
+  const { targets, updatedBy, userRole } = req.body;
+
+  if (userRole !== 'Super Admin') {
+    return res.status(403).json({ message: 'Only Super Admin can update KPI targets.' });
+  }
+
+  if (!targets || typeof targets !== 'object') {
+    return res.status(400).json({ message: 'Invalid targets.' });
+  }
+
+  try {
+    const pool = await getPool();
+
+    for (const [key, value] of Object.entries(targets)) {
+      await pool.request()
+        .input('key', sql.NVarChar, key)
+        .input('val', sql.Decimal(10, 2), +value)
+        .input('updatedBy', sql.NVarChar, updatedBy || 'Unknown')
+        .query(`
+          UPDATE KPITargets SET TargetValue = @val, UpdatedAt = GETDATE(), UpdatedBy = @updatedBy
+          WHERE KPIKey = @key
+        `);
+    }
+
+    res.json({ message: 'KPI targets updated successfully.' });
+  } catch (err) {
+    console.error('Update KPI targets error:', err);
+    res.status(500).json({ message: 'Server error.' });
+  }
+});
+
 module.exports = router;

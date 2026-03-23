@@ -677,6 +677,22 @@ function CompanyOverview() {
     }
   };
 
+  // ===== UPDATE PAYMENT STATUS =====
+  const updatePaymentStatus = async (epvId, status) => {
+    setError('');
+    try {
+      await axios.put(`http://localhost:5000/api/epv/${epvId}/payment-status`, {
+        status,
+        changedBy: userLabel,
+        userRole: user.role,
+      });
+      setSuccessMsg('Payment status updated.');
+      refreshAll();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update payment status.');
+    }
+  };
+
   // ===== GENERATE INVOICE =====
   const generateInvoice = async (epvId) => {
     setInvoiceGenerating(epvId);
@@ -919,13 +935,12 @@ function CompanyOverview() {
     const f = epvFilters;
     if (!Object.values(f).some(v => v)) return true;
     const period = `${MONTH_NAMES[(epv.PeriodMonth || 1) - 1]} ${epv.PeriodYear}`;
-    const ps = getPaymentStatus(epv);
     const ao = getAmountOutstanding(epv);
     return matchesFilter(epv.ReferenceNumber, f.ref)
       && matchesFilter(period, f.period)
       && matchesFilter(epv.Status, f.status)
       && matchesFilter(epv.CompletedAt ? formatDate(epv.CompletedAt) : '', f.completed)
-      && matchesFilter(ps.label, f.payment)
+      && matchesFilter(epv.ClientPaymentStatus || 'Not Paid', f.payment)
       && matchesFilter(ao.label, f.amount)
       && matchesFilter(epv.ReconciledAmount, f.reconciled);
   });
@@ -1322,13 +1337,13 @@ function CompanyOverview() {
                 <th>Period</th>
                 <th>Status</th>
                 <th>Completed</th>
-                <th>Payment</th>
                 <th>Facility EPV Document</th>
                 <th>Inspector EPV Document</th>
                 <th>Verified</th>
                 <th>Manual Inspection</th>
                 <th>Inspector Comments</th>
                 <th>Amount Outstanding</th>
+                <th>Payment Status</th>
                 <th>Proof Of Payment</th>
                 <th>POP Comments</th>
                 <th>Amount Reconciled</th>
@@ -1339,13 +1354,13 @@ function CompanyOverview() {
                 <th><input className="co-filter-input" placeholder="Search..." value={epvFilters.period || ''} onChange={e => setEpvFilters(p => ({...p, period: e.target.value}))} /></th>
                 <th><input className="co-filter-input" placeholder="Search..." value={epvFilters.status || ''} onChange={e => setEpvFilters(p => ({...p, status: e.target.value}))} /></th>
                 <th><input className="co-filter-input" placeholder="Search..." value={epvFilters.completed || ''} onChange={e => setEpvFilters(p => ({...p, completed: e.target.value}))} /></th>
-                <th><input className="co-filter-input" placeholder="Search..." value={epvFilters.payment || ''} onChange={e => setEpvFilters(p => ({...p, payment: e.target.value}))} /></th>
                 <th></th>
                 <th></th>
                 <th></th>
                 <th></th>
                 <th></th>
                 <th><input className="co-filter-input" placeholder="Search..." value={epvFilters.amount || ''} onChange={e => setEpvFilters(p => ({...p, amount: e.target.value}))} /></th>
+                <th><input className="co-filter-input" placeholder="Search..." value={epvFilters.payment || ''} onChange={e => setEpvFilters(p => ({...p, payment: e.target.value}))} /></th>
                 <th></th>
                 <th></th>
                 <th><input className="co-filter-input" placeholder="Search..." value={epvFilters.reconciled || ''} onChange={e => setEpvFilters(p => ({...p, reconciled: e.target.value}))} /></th>
@@ -1371,12 +1386,6 @@ function CompanyOverview() {
                     </span>
                   </td>
                   <td className="co-date">{epv.CompletedAt ? formatDate(epv.CompletedAt) : '—'}</td>
-                  <td>
-                    {(() => {
-                      const ps = getPaymentStatus(epv);
-                      return ps.label === '—' ? <span className="co-pop-na">—</span> : <span className={`co-pay-badge ${ps.className}`}>{ps.label}</span>;
-                    })()}
-                  </td>
                   <td className="co-epv-actions" onClick={e => e.stopPropagation()}>
                     {epv.Status === 'Pending' ? (
                       <button className="co-epv-complete-btn" onClick={() => navigate(`/epv/${epv.Token}`)}>
@@ -1547,6 +1556,26 @@ function CompanyOverview() {
                       }
                       return ao.className ? <span className={ao.className}>{ao.label}</span> : <span className="co-pop-na">{ao.label}</span>;
                     })()}
+                  </td>
+                  <td className="co-epv-payment-status" onClick={e => e.stopPropagation()}>
+                    {epv.Status === 'Completed' ? (
+                      epv.POPFilePath ? (
+                        <span className="co-payment-badge co-payment-paid">Paid</span>
+                      ) : (
+                        <label className="co-payment-toggle">
+                          <input
+                            type="checkbox"
+                            checked={(epv.ClientPaymentStatus || 'Not Paid') === 'Paid'}
+                            onChange={e => updatePaymentStatus(epv.Id, e.target.checked ? 'Paid' : 'Not Paid')}
+                          />
+                          <span className={`co-payment-badge ${(epv.ClientPaymentStatus || 'Not Paid') === 'Paid' ? 'co-payment-paid' : 'co-payment-not-paid'}`}>
+                            {(epv.ClientPaymentStatus || 'Not Paid') === 'Paid' ? 'Paid' : 'Not Paid'}
+                          </span>
+                        </label>
+                      )
+                    ) : (
+                      <span className="co-pop-na">—</span>
+                    )}
                   </td>
                   <td className="co-epv-pop" onClick={e => e.stopPropagation()}>
                     {epv.POPFilePath ? (

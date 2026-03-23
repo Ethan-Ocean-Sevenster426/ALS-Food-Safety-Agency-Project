@@ -62,6 +62,7 @@ function Administrators() {
   const [editAmounts, setEditAmounts] = useState({});
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [batchProcessing, setBatchProcessing] = useState(false);
+  const [kpiTargets, setKpiTargets] = useState({ collection_rate: 80, reconciliation_rate: 90, outstanding_rate: 5, verification_rate: 90 });
 
   const formatR = (v) => `R ${(+v || 0).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const formatNum = (v) => (+v || 0).toLocaleString('en-ZA');
@@ -107,7 +108,20 @@ function Administrators() {
     setLoading(false);
   }, [fetchStats, fetchReconData]);
 
-  useEffect(() => { refreshAll(); }, [refreshAll]);
+  useEffect(() => {
+    refreshAll();
+    axios.get('http://localhost:5000/api/dashboard/kpi-targets')
+      .then(res => {
+        const t = res.data.targets || {};
+        setKpiTargets({
+          collection_rate: t.collection_rate?.value ?? 80,
+          reconciliation_rate: t.reconciliation_rate?.value ?? 90,
+          outstanding_rate: t.outstanding_rate?.value ?? 5,
+          verification_rate: t.verification_rate?.value ?? 90,
+        });
+      })
+      .catch(() => {});
+  }, [refreshAll]);
 
   // Reset page on filter change
   useEffect(() => { setPage(1); }, [activeTab, filterProvince, filterMonth, filterYear, search]);
@@ -250,11 +264,16 @@ function Administrators() {
     );
   }
 
+  const crT = kpiTargets.collection_rate;
+  const rrT = kpiTargets.reconciliation_rate;
+  const orT = kpiTargets.outstanding_rate;
+  const vrT = kpiTargets.verification_rate;
+  const verificationVal = s.TotalEPVs > 0 ? +((s.VerifiedCount / s.TotalEPVs) * 100).toFixed(1) : 0;
   const kpis = [
-    { label: 'Collection Rate', value: collectionPct, target: 80, suffix: '%', detail: `${formatR(s.TotalPaid)} of ${formatR(s.TotalBilled)}`, color: collectionPct >= 80 ? '#16a34a' : collectionPct >= 60 ? '#d97706' : '#dc2626' },
-    { label: 'Reconciliation Rate', value: reconPct, target: 90, suffix: '%', detail: `${formatNum(s.ReconciledCount)} of ${formatNum(s.TotalEPVs)} EPVs reconciled`, color: reconPct >= 90 ? '#16a34a' : reconPct >= 70 ? '#d97706' : '#dc2626' },
-    { label: 'Outstanding Rate', value: outstandingPct, target: 5, suffix: '%', detail: `${formatR(s.TotalOutstanding)} outstanding`, invert: true, color: outstandingPct <= 5 ? '#16a34a' : outstandingPct <= 15 ? '#d97706' : '#dc2626' },
-    { label: 'Verification Rate', value: s.TotalEPVs > 0 ? +((s.VerifiedCount / s.TotalEPVs) * 100).toFixed(1) : 0, target: 90, suffix: '%', detail: `${formatNum(s.VerifiedCount)} of ${formatNum(s.TotalEPVs)} verified`, color: (s.TotalEPVs > 0 ? (s.VerifiedCount / s.TotalEPVs) * 100 : 0) >= 90 ? '#16a34a' : '#d97706' },
+    { label: 'Collection Rate', value: collectionPct, target: crT, suffix: '%', detail: `${formatR(s.TotalPaid)} of ${formatR(s.TotalBilled)}`, color: collectionPct >= crT ? '#16a34a' : collectionPct >= crT * 0.75 ? '#d97706' : '#dc2626' },
+    { label: 'Reconciliation Rate', value: reconPct, target: rrT, suffix: '%', detail: `${formatNum(s.ReconciledCount)} of ${formatNum(s.TotalEPVs)} EPVs reconciled`, color: reconPct >= rrT ? '#16a34a' : reconPct >= rrT * 0.78 ? '#d97706' : '#dc2626' },
+    { label: 'Outstanding Rate', value: outstandingPct, target: orT, suffix: '%', detail: `${formatR(s.TotalOutstanding)} outstanding`, invert: true, color: outstandingPct <= orT ? '#16a34a' : outstandingPct <= orT * 3 ? '#d97706' : '#dc2626' },
+    { label: 'Verification Rate', value: verificationVal, target: vrT, suffix: '%', detail: `${formatNum(s.VerifiedCount)} of ${formatNum(s.TotalEPVs)} verified`, color: verificationVal >= vrT ? '#16a34a' : verificationVal >= vrT * 0.78 ? '#d97706' : '#dc2626' },
   ];
 
   return (
@@ -270,34 +289,39 @@ function Administrators() {
       </div>
 
       {/* KPI Gauges */}
-      <div className="admin-kpi-grid">
-        {kpis.map(kpi => {
-          const barPct = kpi.invert ? Math.min(100, (kpi.value / Math.max(kpi.target * 4, 1)) * 100) : Math.min(100, kpi.value);
-          const meetsTarget = kpi.invert ? kpi.value <= kpi.target : kpi.value >= kpi.target;
-          return (
-            <div key={kpi.label} className="admin-kpi-card">
-              <div className="admin-kpi-header">
-                <span className="admin-kpi-label">{kpi.label}</span>
-                <span className={`admin-kpi-status ${meetsTarget ? 'admin-kpi-met' : 'admin-kpi-not-met'}`}>
-                  {meetsTarget ? 'ON TARGET' : 'BELOW TARGET'}
-                </span>
+      <div className="admin-module">
+        <div className="admin-module-title">Performance KPIs</div>
+        <div className="admin-kpi-grid">
+          {kpis.map(kpi => {
+            const barPct = kpi.invert ? Math.min(100, (kpi.value / Math.max(kpi.target * 4, 1)) * 100) : Math.min(100, kpi.value);
+            const meetsTarget = kpi.invert ? kpi.value <= kpi.target : kpi.value >= kpi.target;
+            return (
+              <div key={kpi.label} className="admin-kpi-card">
+                <div className="admin-kpi-header">
+                  <span className="admin-kpi-label">{kpi.label}</span>
+                  <span className={`admin-kpi-status ${meetsTarget ? 'admin-kpi-met' : 'admin-kpi-not-met'}`}>
+                    {meetsTarget ? 'ON TARGET' : 'BELOW TARGET'}
+                  </span>
+                </div>
+                <div className="admin-kpi-value-row">
+                  <span className="admin-kpi-value" style={{ color: kpi.color }}>{kpi.value}{kpi.suffix}</span>
+                  <span className="admin-kpi-target">Target: {kpi.invert ? '≤' : '≥'}{kpi.target}{kpi.suffix}</span>
+                </div>
+                <div className="admin-kpi-bar">
+                  <div className="admin-kpi-bar-fill" style={{ width: `${barPct}%`, background: kpi.color }}></div>
+                  {!kpi.invert && <div className="admin-kpi-bar-target" style={{ left: `${Math.min(100, kpi.target)}%` }}></div>}
+                </div>
+                <div className="admin-kpi-detail">{kpi.detail}</div>
               </div>
-              <div className="admin-kpi-value-row">
-                <span className="admin-kpi-value" style={{ color: kpi.color }}>{kpi.value}{kpi.suffix}</span>
-                <span className="admin-kpi-target">Target: {kpi.invert ? '≤' : '≥'}{kpi.target}{kpi.suffix}</span>
-              </div>
-              <div className="admin-kpi-bar">
-                <div className="admin-kpi-bar-fill" style={{ width: `${barPct}%`, background: kpi.color }}></div>
-                {!kpi.invert && <div className="admin-kpi-bar-target" style={{ left: `${Math.min(100, kpi.target)}%` }}></div>}
-              </div>
-              <div className="admin-kpi-detail">{kpi.detail}</div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
       {/* Action Items + Financial Summary */}
-      <div className="admin-top-grid">
+      <div className="admin-module">
+        <div className="admin-module-title">Action Items & Financial Summary</div>
+        <div className="admin-top-grid">
         <div className="admin-action-summary">
           <div className="admin-action-card admin-action-card-urgent" onClick={() => setActiveTab('outstanding')}>
             <span className="admin-action-count admin-action-count-urgent">{formatNum(outstandingCount)}</span>
@@ -353,11 +377,14 @@ function Administrators() {
           </div>
         </div>
       </div>
+      </div>
 
       {/* Charts */}
-      <div className="admin-charts-grid">
-        <div className="page-card admin-chart-card">
-          <h3>Billed vs Reconciled vs Outstanding — Month Over Month</h3>
+      <div className="admin-module">
+        <div className="admin-module-title">Financial Charts</div>
+        <div className="admin-charts-grid">
+          <div className="admin-chart-card">
+            <h3>Billed vs Reconciled vs Outstanding — Month Over Month</h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={chartData} margin={{ top: 10, right: 30, left: 10, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -370,20 +397,21 @@ function Administrators() {
               <Bar dataKey="Outstanding" fill="#dc2626" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
-        </div>
-        <div className="page-card admin-chart-card">
-          <h3>Outstanding by Province</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={outstandingByProvChart} margin={{ top: 10, right: 30, left: 10, bottom: 5 }} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis type="number" tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={formatRShort} />
-              <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} width={110} />
-              <Tooltip formatter={(v) => formatR(v)} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="Outstanding" fill="#dc2626" radius={[0, 4, 4, 0]} />
-              <Bar dataKey="Paid" fill="#16a34a" radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          </div>
+          <div className="admin-chart-card">
+            <h3>Outstanding by Province</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={outstandingByProvChart} margin={{ top: 10, right: 30, left: 10, bottom: 5 }} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis type="number" tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={formatRShort} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} width={110} />
+                <Tooltip formatter={(v) => formatR(v)} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Bar dataKey="Outstanding" fill="#dc2626" radius={[0, 4, 4, 0]} />
+                <Bar dataKey="Paid" fill="#16a34a" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
 
@@ -391,24 +419,28 @@ function Administrators() {
       {successMsg && <div className="admin-success">{successMsg}</div>}
       {error && <div className="admin-error">{error}</div>}
 
-      {/* Tabs */}
-      <div className="admin-tabs">
-        <button className={`admin-tab ${activeTab === 'outstanding' ? 'admin-tab-active' : ''}`} onClick={() => setActiveTab('outstanding')}>
-          Needs Reconciliation {outstandingCount > 0 && <span className="admin-tab-badge">{outstandingCount > 999 ? `${(outstandingCount/1000).toFixed(1)}K` : outstandingCount}</span>}
-        </button>
-        <button className={`admin-tab ${activeTab === 'partial' ? 'admin-tab-active' : ''}`} onClick={() => setActiveTab('partial')}>
-          Partially Reconciled {partialCount > 0 && <span className="admin-tab-badge">{partialCount}</span>}
-        </button>
-        <button className={`admin-tab ${activeTab === 'reconciled' ? 'admin-tab-active' : ''}`} onClick={() => setActiveTab('reconciled')}>
-          Reconciled {reconciledCount > 0 && <span className="admin-tab-badge admin-tab-badge-green">{reconciledCount > 999 ? `${(reconciledCount/1000).toFixed(1)}K` : reconciledCount}</span>}
-        </button>
-        <button className={`admin-tab ${activeTab === 'all' ? 'admin-tab-active' : ''}`} onClick={() => setActiveTab('all')}>
-          All EPVs
-        </button>
-      </div>
+      {/* Reconciliation Management */}
+      <div className="admin-module">
+        <div className="admin-module-title">Reconciliation Management</div>
 
-      {/* Filters */}
-      <div className="page-card admin-tab-content">
+        {/* Tabs */}
+        <div className="admin-tabs">
+          <button className={`admin-tab ${activeTab === 'outstanding' ? 'admin-tab-active' : ''}`} onClick={() => setActiveTab('outstanding')}>
+            Needs Reconciliation {outstandingCount > 0 && <span className="admin-tab-badge">{outstandingCount > 999 ? `${(outstandingCount/1000).toFixed(1)}K` : outstandingCount}</span>}
+          </button>
+          <button className={`admin-tab ${activeTab === 'partial' ? 'admin-tab-active' : ''}`} onClick={() => setActiveTab('partial')}>
+            Partially Reconciled {partialCount > 0 && <span className="admin-tab-badge">{partialCount}</span>}
+          </button>
+          <button className={`admin-tab ${activeTab === 'reconciled' ? 'admin-tab-active' : ''}`} onClick={() => setActiveTab('reconciled')}>
+            Reconciled {reconciledCount > 0 && <span className="admin-tab-badge admin-tab-badge-green">{reconciledCount > 999 ? `${(reconciledCount/1000).toFixed(1)}K` : reconciledCount}</span>}
+          </button>
+          <button className={`admin-tab ${activeTab === 'all' ? 'admin-tab-active' : ''}`} onClick={() => setActiveTab('all')}>
+            All EPVs
+          </button>
+        </div>
+
+        {/* Filters */}
+        <div className="admin-tab-content">
         <div className="admin-filters-row">
           <input className="admin-filter-input" placeholder="Search by name, client ID, or ref..." value={search} onChange={e => setSearch(e.target.value)} />
           <select className="admin-filter-select" value={filterProvince} onChange={e => setFilterProvince(e.target.value)}>
@@ -541,6 +573,7 @@ function Administrators() {
             <button disabled={page >= reconData.totalPages} onClick={() => setPage(p => p + 1)}>Next</button>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

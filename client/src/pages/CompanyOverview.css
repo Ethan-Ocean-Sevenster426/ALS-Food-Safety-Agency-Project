@@ -1646,6 +1646,39 @@
   color: #065f46;
 }
 
+/* Payment Status Toggle */
+.co-payment-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.co-payment-toggle input[type="checkbox"] {
+  accent-color: #0E7C7B;
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+
+.co-payment-badge {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.co-payment-not-paid {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.co-payment-paid {
+  background: #d1fae5;
+  color: #065f46;
+}
+
 .co-stat-outstanding .co-stat-number {
   color: #dc2626;
 }

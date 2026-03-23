@@ -64,7 +64,7 @@ A full-stack web application for managing egg production facilities, client allo
 │   │   ├── epv.js                  # EPV send/submit/edit/list + POP upload + reconciliation + inspector endpoints
 │   │   ├── admin.js                # Admin reconciliation endpoints — stats, list, batch reconcile
 │   │   ├── support.js              # Support tickets CRUD, comments, email notifications
-│   │   ├── dashboard.js            # Dashboard analytics + EPV overview endpoint
+│   │   ├── dashboard.js            # Dashboard analytics + EPV overview + KPI targets
 │   │   └── invoices.js             # Invoice generation (feature under development)
 │   ├── services/
 │   │   └── emailService.js         # Nodemailer transport (Gmail OAuth2)
@@ -239,6 +239,7 @@ There are 5 roles: `Super Admin`, `Admin`, `Inspector`, `Company Admin`, `User`
 | Approve/Reject EPV (verification)    |      Y      |   Y   |     Y     |       -       |  -   |
 | Complete Inspector EPV               |      -      |   -   |     Y     |       -       |  -   |
 | Batch Reconciliation                 |      Y      |   Y   |     -     |       -       |  -   |
+| Edit KPI Targets                     |      Y      |   -   |     -     |       -       |  -   |
 
 ---
 
@@ -279,7 +280,8 @@ There are 5 roles: `Super Admin`, `Admin`, `Inspector`, `Company Admin`, `User`
 - **Charts**: Billed vs Paid bar chart, Egg vs Pulp Levy line chart (dual Y-axes), Facilities by Province pie chart, Rejections by Province bar chart
 - **System Overview**: Users by Role, Client Verification, Ticket Overview
 - Recent Users and Recent Tickets tables
-- API: `GET /api/dashboard/stats`, `GET /api/dashboard/epv-overview`
+- **KPI Target Editing** (Super Admin only): "Edit Targets" button opens a modal to adjust Collection Rate, Approvals Actioned, and Facilities Visited target percentages. Changes persist to the database and are reflected across all dashboards.
+- API: `GET /api/dashboard/stats`, `GET /api/dashboard/epv-overview`, `GET /api/dashboard/kpi-targets`, `PUT /api/dashboard/kpi-targets`
 
 ### Inspectors Dashboard (`/inspectors`) — Inspector/Admin/Super Admin
 - **Inspector-focused dashboard** for managing EPV verification workflow
@@ -487,6 +489,8 @@ There are 5 roles: `Super Admin`, `Admin`, `Inspector`, `Company Admin`, `User`
 | ------ | ---------------- | --------------------------------------------------------------- |
 | GET    | `/stats`         | Aggregated stats: users, clients, EPVs, tickets, recent activity|
 | GET    | `/epv-overview`  | Holistic EPV data: KPIs, monthly, province, action item counts  |
+| GET    | `/kpi-targets`   | Fetch KPI target values (dynamic, stored in DB)                 |
+| PUT    | `/kpi-targets`   | Update KPI targets (Super Admin only)                           |
 
 ---
 
@@ -509,6 +513,7 @@ Created by `initDb.js` and the scripts in `server/scripts/`:
   - Verification: IsVerified, VerifiedBy, VerifiedAt, InspectorComment
   - Inspection: ManualInspection (flag for physical visit)
   - Province: FacilityProvince
+- **KPITargets** — configurable KPI target values (KPIKey, TargetValue, Label, UpdatedBy, UpdatedAt). Default targets: collection_rate (80%), approvals_actioned (90%), facilities_visited (100%), reconciliation_rate (90%), outstanding_rate (5%), verification_rate (90%)
 - **SupportTicketCategories** — ticket issue types with CategoryType (IT/Administration) and SortOrder
 - **SupportTickets** — support tickets with category, priority, status, assignment
 - **SupportTicketComments** — threaded comments on tickets
@@ -549,6 +554,13 @@ Created by `initDb.js` and the scripts in `server/scripts/`:
 - **Outstanding Rate**: Percentage of outstanding payments (target ≤5%)
 - **Reconciliation Rate**: Percentage of EPVs fully reconciled (target ≥90%)
 
+### KPI Target Management
+- **Dynamic targets** stored in the `KPITargets` database table — not hardcoded
+- **Super Admin** can edit KPI target percentages via an "Edit Targets" modal on the Dashboard page
+- All three dashboard pages (Dashboard, Inspectors, Administrators) fetch targets from `GET /api/dashboard/kpi-targets` on load
+- Default targets are seeded during database initialization and can be updated at any time
+- API: `GET /api/dashboard/kpi-targets`, `PUT /api/dashboard/kpi-targets` (Super Admin only)
+
 ### Facility Province Tracking
 - Province is captured during invitation acceptance (Company Admin wizard)
 - Province is included in EPV form (Step 1: Business Details)
@@ -560,6 +572,21 @@ Created by `initDb.js` and the scripts in `server/scripts/`:
 - Company Admin/User can create EPVs for past months via "+ Add" button
 - One EPV per month enforced (duplicate check)
 - Cannot create EPVs for future months
+
+---
+
+## Documentation
+
+The following user manuals and process documentation are included in the project root:
+
+| File | Description |
+|------|-------------|
+| `EPVS Process Flow Documentation.docx` | EPV process flow, user roles, and conditions for Admin/Inspector dashboards |
+| `EPVS Super Admin User Manual.docx` | Complete guide for Super Admin users |
+| `EPVS Admin User Manual.docx` | Complete guide for Admin users |
+| `EPVS Inspector User Manual.docx` | Complete guide for Inspector users |
+| `EPVS Company Admin User Manual.docx` | Complete guide for Company Admin users |
+| `EPVS User Manual.docx` | Complete guide for basic User role |
 
 ---
 

@@ -63,6 +63,7 @@ function Inspectors() {
   const [notCompletedSearch, setNotCompletedSearch] = useState('');
   const [notCompletedMonth, setNotCompletedMonth] = useState(0);
   const [inspCreating, setInspCreating] = useState(null);
+  const [kpiTargets, setKpiTargets] = useState({ collection_rate: 80, approvals_actioned: 90, facilities_visited: 100 });
 
   const formatR = (v) => `R ${(+v || 0).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const formatNum = (v) => (+v || 0).toLocaleString('en-ZA');
@@ -128,7 +129,19 @@ function Inspectors() {
     fetchNotCompleted();
   }, [fetchStats, fetchPendingApprovals, fetchNotCompleted]);
 
-  useEffect(() => { refreshAll(); }, [refreshAll]);
+  useEffect(() => {
+    refreshAll();
+    axios.get('http://localhost:5000/api/dashboard/kpi-targets')
+      .then(res => {
+        const t = res.data.targets || {};
+        setKpiTargets({
+          collection_rate: t.collection_rate?.value ?? 80,
+          approvals_actioned: t.approvals_actioned?.value ?? 90,
+          facilities_visited: t.facilities_visited?.value ?? 100,
+        });
+      })
+      .catch(() => {});
+  }, [refreshAll]);
 
   // Approve EPV
   const approveEpv = async (epvId) => {
@@ -321,14 +334,19 @@ function Inspectors() {
         const visitedDone = totalFacilities - needVisit.length;
         const visitedPct = visitedTotal > 0 ? +((visitedDone / visitedTotal) * 100).toFixed(1) : 0;
 
+        const ct = kpiTargets.collection_rate;
+        const at = kpiTargets.approvals_actioned;
+        const ft = kpiTargets.facilities_visited;
         const kpis = [
-          { label: `Collection — ${prevMonthNames || 'Prior Months'}`, value: prevPct, target: 80, suffix: '%', detail: `${formatR(prevPaid)} of ${formatR(prevBilled)}`, color: prevPct >= 80 ? '#16a34a' : prevPct >= 60 ? '#d97706' : '#dc2626' },
-          { label: `Collection — ${curMonthName} (Current)`, value: curPct, target: 80, suffix: '%', detail: `${formatR(curPaid)} of ${formatR(curBilled)}`, color: curPct >= 80 ? '#16a34a' : curPct >= 60 ? '#d97706' : '#dc2626' },
-          { label: 'Approvals Actioned', value: approvalPct, target: 90, suffix: '%', detail: `${formatNum(s.VerifiedCount)} of ${formatNum(s.TotalEPVs)} EPVs`, color: approvalPct >= 90 ? '#16a34a' : approvalPct >= 70 ? '#d97706' : '#dc2626' },
-          { label: 'Facilities Visited', value: visitedPct, target: 100, suffix: '%', detail: `${formatNum(visitedDone)} of ${formatNum(visitedTotal)} (Q${q.quarter})`, color: visitedPct >= 100 ? '#16a34a' : visitedPct >= 75 ? '#d97706' : '#dc2626' },
+          { label: `Collection — ${prevMonthNames || 'Prior Months'}`, value: prevPct, target: ct, suffix: '%', detail: `${formatR(prevPaid)} of ${formatR(prevBilled)}`, color: prevPct >= ct ? '#16a34a' : prevPct >= ct * 0.75 ? '#d97706' : '#dc2626' },
+          { label: `Collection — ${curMonthName} (Current)`, value: curPct, target: ct, suffix: '%', detail: `${formatR(curPaid)} of ${formatR(curBilled)}`, color: curPct >= ct ? '#16a34a' : curPct >= ct * 0.75 ? '#d97706' : '#dc2626' },
+          { label: 'Approvals Actioned', value: approvalPct, target: at, suffix: '%', detail: `${formatNum(s.VerifiedCount)} of ${formatNum(s.TotalEPVs)} EPVs`, color: approvalPct >= at ? '#16a34a' : approvalPct >= at * 0.78 ? '#d97706' : '#dc2626' },
+          { label: 'Facilities Visited', value: visitedPct, target: ft, suffix: '%', detail: `${formatNum(visitedDone)} of ${formatNum(visitedTotal)} (Q${q.quarter})`, color: visitedPct >= ft ? '#16a34a' : visitedPct >= ft * 0.75 ? '#d97706' : '#dc2626' },
         ];
 
         return (
+          <div className="insp-module">
+            <div className="insp-module-title">Performance KPIs</div>
           <div className="insp-kpi-grid">
             {kpis.map(kpi => {
               const barPct = kpi.invert ? Math.min(100, (kpi.value / Math.max(kpi.target * 4, 1)) * 100) : Math.min(100, kpi.value);
@@ -354,10 +372,13 @@ function Inspectors() {
               );
             })}
           </div>
+          </div>
         );
       })()}
 
       {/* Action Items + Financial Summary */}
+      <div className="insp-module">
+        <div className="insp-module-title">Action Items & Statistics</div>
       <div className="insp-top-grid">
         {/* Action Items */}
         <div className="insp-action-summary">
@@ -411,8 +432,11 @@ function Inspectors() {
           </div>
         </div>
       </div>
+      </div>
 
       {/* Financial Row */}
+      <div className="insp-module">
+        <div className="insp-module-title">Financial Summary</div>
       <div className="insp-finance-grid">
         <div className="insp-finance-card">
           <div className="insp-finance-row">
@@ -439,10 +463,13 @@ function Inspectors() {
           </div>
         </div>
       </div>
+      </div>
 
       {/* Charts */}
+      <div className="insp-module">
+        <div className="insp-module-title">Financial Charts</div>
       <div className="insp-charts-grid">
-        <div className="page-card insp-chart-card">
+        <div className="insp-chart-card">
           <h3>Total Billed vs Paid — Month Over Month</h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={chartData} margin={{ top: 10, right: 30, left: 10, bottom: 5 }}>
@@ -456,7 +483,7 @@ function Inspectors() {
             </BarChart>
           </ResponsiveContainer>
         </div>
-        <div className="page-card insp-chart-card">
+        <div className="insp-chart-card">
           <h3>Egg Levy vs Pulp Levy — Month Over Month</h3>
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
@@ -472,13 +499,16 @@ function Inspectors() {
           </ResponsiveContainer>
         </div>
       </div>
+      </div>
 
 
       {/* Messages */}
       {successMsg && <div className="insp-success">{successMsg}</div>}
       {error && <div className="insp-error">{error}</div>}
 
-      {/* Tabs */}
+      {/* Tabs + Tab Content */}
+      <div className="insp-module">
+        <div className="insp-module-title">EPV Management</div>
       <div className="insp-tabs">
         <button className={`insp-tab ${activeTab === 'approvals' ? 'insp-tab-active' : ''}`} onClick={() => setActiveTab('approvals')}>
           Pending Approvals {pendingCount > 0 && <span className="insp-tab-badge">{pendingCount}</span>}
@@ -884,6 +914,7 @@ function Inspectors() {
             </div>
           </>
         )}
+      </div>
       </div>
     </div>
   );

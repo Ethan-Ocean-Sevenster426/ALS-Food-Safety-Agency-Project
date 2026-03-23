@@ -1,7 +1,10 @@
 .page-container {
   padding: 30px;
   max-width: 100%;
-  margin: 0 auto;
+  margin: 15px;
+  background: #FAFAF8;
+  border-radius: 12px;
+  min-height: calc(100vh - 90px);
 }
 
 .page-card {

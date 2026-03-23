@@ -2,6 +2,24 @@
 .inspectors-page .page-card { max-width: 100%; }
 .inspectors-page > * { margin-bottom: 12px; }
 
+/* Module wrapper */
+.insp-module {
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  margin-bottom: 20px;
+}
+
+.insp-module-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #0E7C7B;
+}
+
 /* Header */
 .insp-header-card { margin-bottom: 0 !important; }
 .insp-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
@@ -19,11 +37,11 @@
 
 /* KPI Gauges */
 .insp-kpi-grid {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 0;
 }
 .insp-kpi-card {
-  background: #fff; border-radius: 12px; padding: 16px 18px;
-  border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  background: #f8fafc; border-radius: 12px; padding: 16px 18px;
+  border: 1px solid #e2e8f0;
 }
 .insp-kpi-header {
   display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
@@ -57,7 +75,7 @@
 
 /* Top Grid: Action Items + Stats side by side */
 .insp-top-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 0;
 }
 
 /* Stats Grid */
@@ -67,9 +85,8 @@
 }
 
 .insp-stat-card {
-  background: #fff; border-radius: 12px; padding: 18px 16px;
+  background: #f8fafc; border-radius: 12px; padding: 18px 16px;
   border: 1px solid #e2e8f0; text-align: center;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
 
 .insp-stat-number { display: block; font-size: 26px; font-weight: 800; line-height: 1.1; }
@@ -85,12 +102,11 @@
 
 /* Finance Grid */
 .insp-finance-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 0;
 }
 
 .insp-finance-card {
-  background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px;
 }
 
 .insp-finance-row {
@@ -123,10 +139,9 @@
   display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
 }
 .insp-action-card {
-  background: #fff; border-radius: 12px; padding: 16px 18px;
+  background: #f8fafc; border-radius: 12px; padding: 16px 18px;
   border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 14px;
   cursor: pointer; transition: all 0.15s;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
 .insp-action-card:hover { border-color: #0E7C7B; box-shadow: 0 2px 8px rgba(14,124,123,0.12); }
 .insp-action-card-urgent { border-left: 4px solid #dc2626; }
@@ -240,10 +255,10 @@
 
 /* Charts Grid */
 .insp-charts-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 0;
 }
 .insp-chart-card {
-  padding: 20px;
+  background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0; padding: 16px;
 }
 .insp-chart-card h3 {
   margin: 0 0 16px; font-size: 15px; color: #1e293b; font-weight: 700;

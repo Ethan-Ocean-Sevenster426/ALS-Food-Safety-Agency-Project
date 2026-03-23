@@ -32,19 +32,35 @@
   padding: 30px;
 }
 
+/* ===== Module Wrapper ===== */
+.admin-module {
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  margin-bottom: 20px;
+}
+
+.admin-module-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #0E7C7B;
+}
+
 /* ===== KPI Gauges ===== */
 .admin-kpi-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 16px;
-  margin-bottom: 20px;
 }
 
 .admin-kpi-card {
-  background: #fff;
-  border-radius: 12px;
+  background: #f8fafc;
+  border-radius: 10px;
   padding: 18px 20px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
   border: 1px solid #e2e8f0;
 }
 
@@ -135,7 +151,6 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
-  margin-bottom: 20px;
 }
 
 .admin-action-summary {
@@ -148,10 +163,10 @@
   display: flex;
   align-items: center;
   gap: 14px;
-  background: #fff;
-  border-radius: 12px;
+  background: #f8fafc;
+  border-radius: 10px;
   padding: 16px 18px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  border: 1px solid #e2e8f0;
   cursor: pointer;
   transition: all 0.2s;
   border-left: 4px solid transparent;
@@ -196,10 +211,9 @@
 
 /* ===== Financial Summary ===== */
 .admin-finance-summary {
-  background: #fff;
-  border-radius: 12px;
+  background: #f8fafc;
+  border-radius: 10px;
   padding: 20px 24px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
   border: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
@@ -238,11 +252,13 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
-  margin-bottom: 20px;
 }
 
 .admin-chart-card {
-  padding: 20px;
+  background: #f8fafc;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  padding: 16px;
 }
 
 .admin-chart-card h3 {

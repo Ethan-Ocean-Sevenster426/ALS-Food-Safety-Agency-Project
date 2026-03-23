@@ -616,6 +616,7 @@ router.get('/company/:clientRecordId', async (req, res) => {
       { name: 'InspectorComment', type: 'NVARCHAR(MAX) NULL' },
       { name: 'ReconciledAmount', type: 'DECIMAL(18,2) NULL' },
       { name: 'POPComment', type: 'NVARCHAR(MAX) NULL' },
+      { name: 'ClientPaymentStatus', type: 'NVARCHAR(50) NULL' },
     ]) {
       await pool.request().query(
         `IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = '${col.name}')
@@ -632,7 +633,7 @@ router.get('/company/:clientRecordId', async (req, res) => {
                 IsVerified, VerifiedBy, VerifiedAt, InspectorComment, ReconciledAmount, POPComment,
                 ManualInspection, ManualInspectionBy, ManualInspectionAt,
                 EPVType, InspectorId, LinkedEPVId,
-                LevyAmount, PulpSoldToTrade
+                LevyAmount, PulpSoldToTrade, ClientPaymentStatus
          FROM EggProductionVerifications
          WHERE ClientRecordId = @clientRecordId AND (EPVType = 'Client' OR EPVType IS NULL)
          ORDER BY PeriodYear DESC, PeriodMonth DESC`
@@ -743,7 +744,8 @@ router.post('/:id/upload-pop', upload.single('pop'), async (req, res) => {
       .input('uploadedBy', sql.NVarChar, uploadedBy || 'Unknown')
       .query(
         `UPDATE EggProductionVerifications
-         SET POPFilePath = @filePath, POPUploadedAt = GETDATE(), POPUploadedBy = @uploadedBy
+         SET POPFilePath = @filePath, POPUploadedAt = GETDATE(), POPUploadedBy = @uploadedBy,
+             ClientPaymentStatus = 'Paid'
          WHERE Id = @id`
       );
 
@@ -1039,6 +1041,44 @@ router.put('/:id/pop-comment', async (req, res) => {
   }
 });
 
+// PUT /api/epv/:id/payment-status - Update client payment status
+router.put('/:id/payment-status', async (req, res) => {
+  const { id } = req.params;
+  const { status, changedBy, userRole } = req.body;
+
+  try {
+    const pool = await getPool();
+
+    // Ensure column exists
+    await pool.request().query(
+      `IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = 'ClientPaymentStatus')
+       BEGIN ALTER TABLE EggProductionVerifications ADD ClientPaymentStatus NVARCHAR(50) NULL END`
+    );
+
+    // Get old value and ClientRecordId for audit
+    const prev = await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .query('SELECT ClientPaymentStatus, ClientRecordId FROM EggProductionVerifications WHERE Id = @id');
+    const oldStatus = prev.recordset[0]?.ClientPaymentStatus;
+    const clientRecordId = prev.recordset[0]?.ClientRecordId;
+
+    await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .input('status', sql.NVarChar, status || null)
+      .query('UPDATE EggProductionVerifications SET ClientPaymentStatus = @status WHERE Id = @id');
+
+    // Audit log
+    if (clientRecordId) {
+      await logCompanyAudit(pool, clientRecordId, 'Client Payment Status', oldStatus || null, status || null, changedBy || 'Unknown', userRole);
+    }
+
+    res.json({ message: 'Payment status updated.' });
+  } catch (err) {
+    console.error('Payment status error:', err);
+    res.status(500).json({ message: 'Failed to update payment status.' });
+  }
+});
+
 // DELETE /api/epv/:id/pop - Delete POP file (Admin/Super Admin only)
 router.delete('/:id/pop', async (req, res) => {
   const { id } = req.params;
@@ -1077,7 +1117,8 @@ router.delete('/:id/pop', async (req, res) => {
       .query(
         `UPDATE EggProductionVerifications
          SET POPFilePath = NULL, POPUploadedAt = NULL, POPUploadedBy = NULL,
-             IsReconciled = 0, ReconciledBy = NULL, ReconciledAt = NULL
+             IsReconciled = 0, ReconciledBy = NULL, ReconciledAt = NULL,
+             ClientPaymentStatus = 'Not Paid'
          WHERE Id = @id`
       );
 

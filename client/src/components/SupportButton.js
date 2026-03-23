@@ -93,9 +93,25 @@ function SupportButton() {
                   <label>Issue Type <span className="support-required">*</span></label>
                   <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required>
                     <option value="">Select issue type...</option>
-                    {categories.map(c => (
-                      <option key={c.Id} value={c.Id}>{c.Name}</option>
-                    ))}
+                    {(() => {
+                      const groups = [
+                        { label: 'Account & Access', names: ['Access/Permission Issue', 'User Registration/Invitation Issue', 'Role or Permission Change Request'] },
+                        { label: 'EPV & Verification', names: ['EPV Submission Issue', 'EPV Data Incorrect/Amendment', 'EPV Status Not Updating', 'Inspector Verification Issue'] },
+                        { label: 'Payment & Reconciliation', names: ['Payment Status Issue', 'Proof of Payment Upload Issue', 'Reconciliation Issue', 'Levy Calculation Query'] },
+                        { label: 'Dashboard & Reports', names: ['Dashboard Data Incorrect', 'Report Generation/Export Issue'] },
+                        { label: 'Company & Facility', names: ['Company Overview Issue', 'Facility Information Update', 'Province Assignment Issue'] },
+                        { label: 'General', names: ['Question/Help', 'Feature Request', 'Performance/Speed Issue', 'System Error/Bug', 'Other'] },
+                      ];
+                      return groups.map(g => {
+                        const items = g.names.map(n => categories.find(c => c.Name === n)).filter(Boolean);
+                        if (items.length === 0) return null;
+                        return (
+                          <optgroup key={g.label} label={g.label}>
+                            {items.map(c => <option key={c.Id} value={c.Id}>{c.Name}</option>)}
+                          </optgroup>
+                        );
+                      });
+                    })()}
                   </select>
                 </div>
 
