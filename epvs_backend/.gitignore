@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+db.sqlite3
+django_env/
+uploads/pop/*
+uploads/invoices/*
+!uploads/pop/.gitkeep
+!uploads/invoices/.gitkeep
