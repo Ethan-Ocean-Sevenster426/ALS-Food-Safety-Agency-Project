@@ -3,9 +3,13 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
-import EggsBg from './assets/Eggs.png';
+import EggsBg from './assets/Eggs Reduced.jpg';
 
-document.body.style.backgroundImage = `url(${EggsBg})`;
+const img = new Image();
+img.src = EggsBg;
+img.onload = () => {
+  document.body.style.backgroundImage = `url(${EggsBg})`;
+};
 document.body.style.backgroundRepeat = 'no-repeat';
 document.body.style.backgroundPosition = 'center center';
 document.body.style.backgroundAttachment = 'fixed';
