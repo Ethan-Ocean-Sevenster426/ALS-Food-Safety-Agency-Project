@@ -1,4 +1,5 @@
 import React from 'react';
+import './axiosConfig'; // JWT auth interceptor - must be first
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
