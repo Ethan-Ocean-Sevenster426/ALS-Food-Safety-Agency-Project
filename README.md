@@ -58,6 +58,7 @@ A full-stack web application for managing egg production facilities, client allo
 │   ├── seed-users.js               # Seed script — creates inspectors, company admins, users
 │   ├── seed-tickets.js             # Seed script — creates resolved/closed support tickets
 │   ├── seed-admins.js              # Seed script — creates 3 Admin users
+│   ├── export-tables.js            # Export all DB tables to Excel files (server/exports/)
 │   ├── config/
 │   │   └── db.js                   # MSSQL connection pool (singleton, 60s request timeout)
 │   ├── routes/
@@ -153,6 +154,9 @@ node seed-admins.js       # Creates 3 Admin users
 node seed-users.js        # Creates inspectors, company admins, users
 node seed-demo.js         # Populates EPVs for Jan 2025 – Mar 2026
 node seed-tickets.js      # Creates resolved/closed support tickets
+
+# Export all tables to Excel files (saved to server/exports/)
+node export-tables.js
 ```
 
 Admin users created by seed script:
@@ -613,6 +617,7 @@ Created by `initDb.js` and the scripts in `server/scripts/`:
   - TBC/None provinces → assigned random SA province
   - ~R25M total outstanding target
 - **`seed-tickets.js`** — Creates 46 realistic resolved/closed support tickets with comment threads
+- **`export-tables.js`** — Exports all 12 database tables to individual Excel files in `server/exports/`, with auto-sized columns
 
 ---
 
