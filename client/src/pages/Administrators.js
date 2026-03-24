@@ -58,6 +58,11 @@ function Administrators() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
 
+  // Stats-level date filters
+  const [statsYear, setStatsYear] = useState('');
+  const [statsQuarter, setStatsQuarter] = useState('');
+  const [statsMonth, setStatsMonth] = useState('');
+
   // Reconciliation edits
   const [editAmounts, setEditAmounts] = useState({});
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -77,12 +82,16 @@ function Administrators() {
 
   const fetchStats = useCallback(async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/admin/stats');
+      const params = {};
+      if (statsYear) params.year = statsYear;
+      if (statsQuarter) params.quarter = statsQuarter;
+      if (statsMonth) params.month = statsMonth;
+      const res = await axios.get('http://localhost:5000/api/admin/stats', { params });
       setStats(res.data);
     } catch (err) {
       setError('Failed to load admin stats.');
     }
-  }, []);
+  }, [statsYear, statsQuarter, statsMonth]);
 
   const fetchReconData = useCallback(async () => {
     try {
@@ -256,6 +265,18 @@ function Administrators() {
   // Available years for filter
   const years = [...new Set(monthly.map(m => m.PeriodYear))].sort((a, b) => b - a);
 
+  // Period badges for reconciliation
+  const reconPeriods = [...monthly]
+    .sort((a, b) => a.PeriodYear - b.PeriodYear || a.PeriodMonth - b.PeriodMonth)
+    .map(m => ({
+      year: m.PeriodYear,
+      month: m.PeriodMonth,
+      key: m.PeriodYear * 100 + m.PeriodMonth,
+      total: m.EPVCount || 0,
+      reconciled: m.ReconciledCount || 0,
+      needRecon: m.NeedReconCount || 0,
+    }));
+
   if (loading && !stats) {
     return (
       <div className="page-container admin-page">
@@ -286,6 +307,30 @@ function Administrators() {
             <p className="admin-subtitle">Reconciliation & Financial Management — {user.firstName} {user.lastName} ({user.role})</p>
           </div>
         </div>
+      </div>
+
+      {/* Date Filters */}
+      <div className="admin-date-filters">
+        <label className="admin-filter-label">Filter:</label>
+        <select className="admin-date-filter-select" value={statsYear} onChange={e => { setStatsYear(e.target.value); if (!e.target.value) { setStatsQuarter(''); setStatsMonth(''); } }}>
+          <option value="">All Years</option>
+          <option value="2025">2025</option>
+          <option value="2026">2026</option>
+        </select>
+        <select className="admin-date-filter-select" value={statsQuarter} onChange={e => { setStatsQuarter(e.target.value); if (e.target.value) setStatsMonth(''); }}>
+          <option value="">All Quarters</option>
+          <option value="1">Q1 (Jan–Mar)</option>
+          <option value="2">Q2 (Apr–Jun)</option>
+          <option value="3">Q3 (Jul–Sep)</option>
+          <option value="4">Q4 (Oct–Dec)</option>
+        </select>
+        <select className="admin-date-filter-select" value={statsMonth} onChange={e => { setStatsMonth(e.target.value); if (e.target.value) setStatsQuarter(''); }}>
+          <option value="">All Months</option>
+          {MONTH_NAMES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+        </select>
+        {(statsYear || statsQuarter || statsMonth) && (
+          <button className="admin-filter-clear" onClick={() => { setStatsYear(''); setStatsQuarter(''); setStatsMonth(''); }}>Clear Filters</button>
+        )}
       </div>
 
       {/* KPI Gauges */}
@@ -439,6 +484,29 @@ function Administrators() {
           </button>
         </div>
 
+        {/* Period Badges */}
+        {reconPeriods.length > 1 && (
+          <div className="admin-period-badges">
+            {reconPeriods.map(p => {
+              const isActive = filterYear === String(p.year) && filterMonth === String(p.month);
+              const count = activeTab === 'outstanding' ? p.needRecon : activeTab === 'reconciled' ? p.reconciled : p.total;
+              return (
+                <button
+                  key={p.key}
+                  className={`admin-period-badge ${isActive ? 'admin-period-active' : ''} ${count === 0 ? 'admin-period-done' : ''}`}
+                  onClick={() => {
+                    if (isActive) { setFilterMonth(''); setFilterYear(''); }
+                    else { setFilterMonth(String(p.month)); setFilterYear(String(p.year)); }
+                  }}
+                >
+                  <span className="admin-period-name">{MONTH_NAMES[p.month - 1].slice(0, 3)} {p.year !== new Date().getFullYear() ? `'${String(p.year).slice(2)}` : ''}</span>
+                  <span className={`admin-period-count ${count > 0 ? 'admin-period-count-pending' : 'admin-period-count-done'}`}>{count}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* Filters */}
         <div className="admin-tab-content">
         <div className="admin-filters-row">
@@ -474,9 +542,6 @@ function Administrators() {
                 )}
                 <th className="admin-sortable-th" onClick={() => reconSort.toggleSort('BusinessName')}>
                   Facility <reconSort.SortIcon col="BusinessName" />
-                </th>
-                <th className="admin-sortable-th" onClick={() => reconSort.toggleSort('ClientID')}>
-                  Client ID <reconSort.SortIcon col="ClientID" />
                 </th>
                 <th className="admin-sortable-th" onClick={() => reconSort.toggleSort('FacilityProvince')}>
                   Province <reconSort.SortIcon col="FacilityProvince" />
@@ -515,7 +580,6 @@ function Administrators() {
                           {epv.BusinessName}
                         </span>
                       </td>
-                      <td className="admin-client-id">{epv.ClientID}</td>
                       <td>{epv.FacilityProvince}</td>
                       <td>{MONTH_NAMES[(epv.PeriodMonth || 1) - 1]?.slice(0, 3)} {epv.PeriodYear}</td>
                       <td className="admin-ref">{epv.ReferenceNumber || '-'}</td>

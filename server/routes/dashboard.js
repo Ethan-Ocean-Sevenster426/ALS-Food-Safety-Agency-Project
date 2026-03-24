@@ -103,6 +103,24 @@ router.get('/epv-overview', async (req, res) => {
     const curQuarter = Math.ceil(curMonth / 3);
     const qStartMonth = (curQuarter - 1) * 3 + 1;
 
+    // Date filters from query params
+    const filterYear = req.query.year ? parseInt(req.query.year) : null;
+    const filterMonth = req.query.month ? parseInt(req.query.month) : null;
+    const filterQuarter = req.query.quarter ? parseInt(req.query.quarter) : null;
+
+    // Build WHERE clause for date filtering
+    // Default year to current year if month or quarter specified without year
+    const effectiveYear = filterYear || ((filterMonth || filterQuarter) ? curYear : null);
+    let dateWhere = '';
+    if (effectiveYear && filterMonth) {
+      dateWhere = ` AND e.PeriodYear = ${effectiveYear} AND e.PeriodMonth = ${filterMonth}`;
+    } else if (effectiveYear && filterQuarter) {
+      const qsm = (filterQuarter - 1) * 3 + 1;
+      dateWhere = ` AND e.PeriodYear = ${effectiveYear} AND e.PeriodMonth BETWEEN ${qsm} AND ${qsm + 2}`;
+    } else if (effectiveYear) {
+      dateWhere = ` AND e.PeriodYear = ${effectiveYear}`;
+    }
+
     // 1. Aggregate stats
     const statsResult = await pool.request().query(`
       SELECT
@@ -122,7 +140,7 @@ router.get('/epv-overview', async (req, res) => {
       FROM EggProductionVerifications e
       JOIN ConsolidatedMasterAbattoirDatabase c ON e.ClientRecordId = c.Id
       LEFT JOIN EggProductionVerifications ie ON ie.LinkedEPVId = e.Id AND ie.EPVType = 'Inspector'
-      WHERE e.EPVType = 'Client' AND e.Status = 'Completed'
+      WHERE e.EPVType = 'Client' AND e.Status = 'Completed'${dateWhere}
     `);
 
     // 2. Monthly breakdown
@@ -141,7 +159,7 @@ router.get('/epv-overview', async (req, res) => {
       FROM EggProductionVerifications e
       JOIN ConsolidatedMasterAbattoirDatabase c ON e.ClientRecordId = c.Id
       LEFT JOIN EggProductionVerifications ie ON ie.LinkedEPVId = e.Id AND ie.EPVType = 'Inspector'
-      WHERE e.EPVType = 'Client' AND e.Status = 'Completed'
+      WHERE e.EPVType = 'Client' AND e.Status = 'Completed'${dateWhere}
       GROUP BY e.PeriodMonth, e.PeriodYear
       ORDER BY e.PeriodYear DESC, e.PeriodMonth DESC
     `);
@@ -155,11 +173,16 @@ router.get('/epv-overview', async (req, res) => {
       ORDER BY c.FacilityProvince
     `);
 
-    // 4. Need visit this quarter
+    const totalFacilities = facByProvResult.recordset.reduce((a, b) => a + b.FacilityCount, 0);
+
+    // 4. Need visit this quarter (or filtered quarter/year)
+    const visitQYear = filterYear || curYear;
+    const visitQStart = filterQuarter ? (filterQuarter - 1) * 3 + 1 : (filterMonth ? filterMonth : qStartMonth);
+    const visitQEnd = filterQuarter ? (filterQuarter - 1) * 3 + 3 : (filterMonth ? filterMonth : qStartMonth + 2);
     const needVisitResult = await pool.request()
-      .input('qStart', sql.Int, qStartMonth)
-      .input('qEnd', sql.Int, qStartMonth + 2)
-      .input('year', sql.Int, curYear)
+      .input('qStart', sql.Int, visitQStart)
+      .input('qEnd', sql.Int, visitQEnd)
+      .input('year', sql.Int, visitQYear)
       .query(`
         SELECT COUNT(*) AS NeedVisitCount
         FROM ConsolidatedMasterAbattoirDatabase c
@@ -179,7 +202,7 @@ router.get('/epv-overview', async (req, res) => {
       SELECT COUNT(DISTINCT c.Id) AS OutstandingCount
       FROM EggProductionVerifications e
       JOIN ConsolidatedMasterAbattoirDatabase c ON e.ClientRecordId = c.Id
-      WHERE e.EPVType = 'Client' AND e.Status = 'Completed'
+      WHERE e.EPVType = 'Client' AND e.Status = 'Completed'${dateWhere}
         AND (e.IsReconciled = 0 OR e.IsReconciled IS NULL)
         AND (ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.018, 0) - ISNULL(e.ReconciledAmount, 0)) > 0
     `);
@@ -189,7 +212,7 @@ router.get('/epv-overview', async (req, res) => {
       SELECT COUNT(*) AS PendingCount
       FROM EggProductionVerifications e
       LEFT JOIN EggProductionVerifications ie ON ie.LinkedEPVId = e.Id AND ie.EPVType = 'Inspector'
-      WHERE e.EPVType = 'Client' AND e.Status = 'Completed' AND ie.Id IS NULL AND (e.IsVerified = 0 OR e.IsVerified IS NULL)
+      WHERE e.EPVType = 'Client' AND e.Status = 'Completed'${dateWhere} AND ie.Id IS NULL AND (e.IsVerified = 0 OR e.IsVerified IS NULL)
     `);
 
     // 7. Inspector EPVs to complete count
@@ -197,27 +220,38 @@ router.get('/epv-overview', async (req, res) => {
       SELECT COUNT(*) AS ToCompleteCount
       FROM EggProductionVerifications e
       JOIN EggProductionVerifications ie ON ie.LinkedEPVId = e.Id AND ie.EPVType = 'Inspector'
-      WHERE e.EPVType = 'Client' AND e.Status = 'Completed' AND ie.Status = 'Pending'
+      WHERE e.EPVType = 'Client' AND e.Status = 'Completed'${dateWhere} AND ie.Status = 'Pending'
     `);
 
-    // 8. Not completed EPVs count (current year)
-    let notCompletedCount = 0;
-    for (let m = 1; m <= curMonth; m++) {
-      const r = await pool.request()
-        .input('month', sql.Int, m)
-        .input('yr', sql.Int, curYear)
-        .query(`
-          SELECT COUNT(*) AS cnt
-          FROM ConsolidatedMasterAbattoirDatabase c
-          WHERE c.FacilityProvince IS NOT NULL
-            AND NOT EXISTS (
-              SELECT 1 FROM EggProductionVerifications e
-              WHERE e.ClientRecordId = c.Id AND e.EPVType = 'Client'
-                AND e.PeriodYear = @yr AND e.PeriodMonth = @month AND e.Status = 'Completed'
-            )
-        `);
-      notCompletedCount += r.recordset[0].cnt;
-    }
+    // 8. Not completed EPVs count — lightweight: totalFacilities × months - completedPerMonth
+    //    Use the monthly breakdown we already fetched (query #2) to avoid expensive cross joins
+    const ncMonthCount = (() => {
+      if (filterYear && filterMonth) return 1;
+      if (filterYear && filterQuarter) {
+        const qsm = (filterQuarter - 1) * 3 + 1;
+        let cnt = 0;
+        for (let m = qsm; m <= qsm + 2; m++) {
+          if (filterYear < curYear || m <= curMonth) cnt++;
+        }
+        return cnt;
+      }
+      if (filterYear) return filterYear < curYear ? 12 : curMonth;
+      let cnt = 0;
+      for (let y = 2025; y <= curYear; y++) {
+        cnt += y < curYear ? 12 : curMonth;
+      }
+      return cnt;
+    })();
+
+    // Count completed facilities per month from the monthly breakdown already fetched
+    const completedPerMonthResult = await pool.request().query(`
+      SELECT e.PeriodYear, e.PeriodMonth, COUNT(DISTINCT e.ClientRecordId) AS CompletedFacs
+      FROM EggProductionVerifications e
+      WHERE e.EPVType = 'Client' AND e.Status = 'Completed'${dateWhere}
+      GROUP BY e.PeriodYear, e.PeriodMonth
+    `);
+    const totalCompletedSlots = completedPerMonthResult.recordset.reduce((sum, r) => sum + r.CompletedFacs, 0);
+    const notCompletedCount = (totalFacilities * ncMonthCount) - totalCompletedSlots;
 
     // 9. Rejections by province
     const rejByProvResult = await pool.request().query(`
@@ -225,12 +259,10 @@ router.get('/epv-overview', async (req, res) => {
       FROM EggProductionVerifications e
       JOIN ConsolidatedMasterAbattoirDatabase c ON e.ClientRecordId = c.Id
       JOIN EggProductionVerifications ie ON ie.LinkedEPVId = e.Id AND ie.EPVType = 'Inspector'
-      WHERE e.EPVType = 'Client' AND e.Status = 'Completed'
+      WHERE e.EPVType = 'Client' AND e.Status = 'Completed'${dateWhere}
       GROUP BY c.FacilityProvince
       ORDER BY Rejections DESC
     `);
-
-    const totalFacilities = facByProvResult.recordset.reduce((a, b) => a + b.FacilityCount, 0);
 
     res.json({
       stats: statsResult.recordset[0],

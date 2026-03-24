@@ -6,7 +6,7 @@ import './PageStyles.css';
 import './Dashboard.css';
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-const PIE_COLORS = ['#0E7C7B', '#4f46e5', '#d97706', '#dc2626', '#16a34a', '#7c3aed', '#059669', '#e11d48', '#0284c7'];
+const PIE_COLORS = ['#0E7C7B', '#4f46e5', '#d97706', '#dc2626', '#16a34a', '#7c3aed', '#059669', '#e11d48', '#0284c7', '#9ca3af'];
 
 function Dashboard() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -18,12 +18,21 @@ function Dashboard() {
   const [showKpiModal, setShowKpiModal] = useState(false);
   const [editTargets, setEditTargets] = useState({});
   const [kpiSaving, setKpiSaving] = useState(false);
+  const [filterYear, setFilterYear] = useState('');
+  const [filterQuarter, setFilterQuarter] = useState('');
+  const [filterMonth, setFilterMonth] = useState('');
   const isSuperAdmin = user.role === 'Super Admin';
 
   useEffect(() => {
+    setLoading(true);
+    const params = {};
+    if (filterYear) params.year = filterYear;
+    if (filterQuarter) params.quarter = filterQuarter;
+    if (filterMonth) params.month = filterMonth;
+
     Promise.all([
       axios.get('http://localhost:5000/api/dashboard/stats'),
-      axios.get('http://localhost:5000/api/dashboard/epv-overview'),
+      axios.get('http://localhost:5000/api/dashboard/epv-overview', { params }),
       axios.get('http://localhost:5000/api/dashboard/kpi-targets'),
     ])
       .then(([statsRes, epvRes, kpiRes]) => {
@@ -38,7 +47,7 @@ function Dashboard() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [filterYear, filterQuarter, filterMonth]);
 
   const openKpiModal = () => {
     setEditTargets({ ...kpiTargets });
@@ -144,10 +153,10 @@ function Dashboard() {
   const prevBilled = prevMonths.reduce((a, m) => a + (m.TotalBilled || 0), 0);
   const prevPaid = prevMonths.reduce((a, m) => a + (m.TotalPaid || 0), 0);
   const prevPct = prevBilled > 0 ? +((prevPaid / prevBilled) * 100).toFixed(1) : 0;
-  const prevMonthNames = [...prevMonths]
-    .sort((a, b) => a.PeriodYear - b.PeriodYear || a.PeriodMonth - b.PeriodMonth)
-    .map(m => MONTH_NAMES[m.PeriodMonth - 1].slice(0, 3))
-    .join(', ');
+  const sortedPrev = [...prevMonths].sort((a, b) => a.PeriodYear - b.PeriodYear || a.PeriodMonth - b.PeriodMonth);
+  const prevMonthNames = sortedPrev.length > 0
+    ? `${MONTH_NAMES[sortedPrev[0].PeriodMonth - 1].slice(0, 3)} ${sortedPrev[0].PeriodYear} – ${MONTH_NAMES[sortedPrev[sortedPrev.length - 1].PeriodMonth - 1].slice(0, 3)} ${sortedPrev[sortedPrev.length - 1].PeriodYear}`
+    : 'Prior Months';
 
   const curBilled = curMonthData ? (curMonthData.TotalBilled || 0) : 0;
   const curPaid = curMonthData ? (curMonthData.TotalPaid || 0) : 0;
@@ -180,6 +189,30 @@ function Dashboard() {
           <p>Here's a holistic overview of your EPVS system.</p>
         </div>
         <span className="dash-role-badge">{user.role}</span>
+      </div>
+
+      {/* Date Filters */}
+      <div className="dash-date-filters">
+        <label className="dash-filter-label">Filter:</label>
+        <select className="dash-filter-select" value={filterYear} onChange={e => { setFilterYear(e.target.value); if (!e.target.value) { setFilterQuarter(''); setFilterMonth(''); } }}>
+          <option value="">All Years</option>
+          <option value="2025">2025</option>
+          <option value="2026">2026</option>
+        </select>
+        <select className="dash-filter-select" value={filterQuarter} onChange={e => { setFilterQuarter(e.target.value); if (e.target.value) setFilterMonth(''); }}>
+          <option value="">All Quarters</option>
+          <option value="1">Q1 (Jan–Mar)</option>
+          <option value="2">Q2 (Apr–Jun)</option>
+          <option value="3">Q3 (Jul–Sep)</option>
+          <option value="4">Q4 (Oct–Dec)</option>
+        </select>
+        <select className="dash-filter-select" value={filterMonth} onChange={e => { setFilterMonth(e.target.value); if (e.target.value) setFilterQuarter(''); }}>
+          <option value="">All Months</option>
+          {MONTH_NAMES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+        </select>
+        {(filterYear || filterQuarter || filterMonth) && (
+          <button className="dash-filter-clear" onClick={() => { setFilterYear(''); setFilterQuarter(''); setFilterMonth(''); }}>Clear Filters</button>
+        )}
       </div>
 
       {/* Top-level Stats */}
@@ -301,7 +334,7 @@ function Dashboard() {
                   <span className="dash-action-count dash-action-count-danger">{epvData.notCompletedCount}</span>
                   <div className="dash-action-detail">
                     <div className="dash-action-title">Not Completed EPVs</div>
-                    <div className="dash-action-desc">{curYear} — facilities missing EPVs</div>
+                    <div className="dash-action-desc">{filterYear || '2025'}{!filterYear && `–${curYear}`} — facilities missing EPVs</div>
                   </div>
                 </div>
               </div>

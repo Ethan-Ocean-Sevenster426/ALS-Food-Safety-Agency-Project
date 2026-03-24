@@ -97,7 +97,7 @@ router.get('/:token', async (req, res) => {
     const result = await pool.request()
       .input('token', sql.NVarChar, token)
       .query(
-        `SELECT i.*, c.BusinessName, c.ClientID, c.AccountCode, c.Email as ClientEmail,
+        `SELECT i.*, c.BusinessName, c.AccountCode, c.Email as ClientEmail,
                 c.ManualEmail, c.Town, c.FacilityType, c.FacilityProvince,
                 c.CompanyRegNumber, c.PhysicalAddress, c.VATNumber,
                 c.AbattoirOwnerName, c.AbattoirOwnerCell, c.AbattoirOwnerEmail,

@@ -1,37 +1,56 @@
-const { google } = require('googleapis');
+const axios = require('axios');
 require('dotenv').config();
 
-const oAuth2Client = new google.auth.OAuth2(
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
-  'http://localhost:5000/api/auth/google/callback'
-);
-oAuth2Client.setCredentials({ refresh_token: process.env.GOOGLE_REFRESH_TOKEN });
+const TENANT_ID = process.env.MS_TENANT_ID;
+const CLIENT_ID = process.env.MS_CLIENT_ID;
+const CLIENT_SECRET = process.env.MS_CLIENT_SECRET;
+const FROM_EMAIL = process.env.MS_FROM_EMAIL || 'automaticmails@afsq.co.za';
 
-const gmail = google.gmail({ version: 'v1', auth: oAuth2Client });
+let cachedToken = null;
+let tokenExpiry = 0;
 
-async function sendEmail({ to, cc, subject, html }) {
-  const headers = [
-    'To: ' + to,
-  ];
-  if (cc) {
-    headers.push('Cc: ' + cc);
-  }
-  headers.push(
-    'Subject: ' + subject,
-    'Content-Type: text/html; charset=utf-8',
-    '',
-    html
-  );
-  const raw = Buffer.from(headers.join('\r\n'))
-    .toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+async function getAccessToken() {
+  if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
 
-  const result = await gmail.users.messages.send({
-    userId: 'me',
-    requestBody: { raw },
+  const url = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`;
+  const params = new URLSearchParams({
+    client_id: CLIENT_ID,
+    client_secret: CLIENT_SECRET,
+    scope: 'https://graph.microsoft.com/.default',
+    grant_type: 'client_credentials',
   });
 
-  return result.data;
+  const res = await axios.post(url, params.toString(), {
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  });
+
+  cachedToken = res.data.access_token;
+  tokenExpiry = Date.now() + (res.data.expires_in - 60) * 1000;
+  return cachedToken;
+}
+
+async function sendEmail({ to, cc, subject, html }) {
+  const token = await getAccessToken();
+
+  const message = {
+    subject,
+    body: { contentType: 'HTML', content: html },
+    from: { emailAddress: { address: FROM_EMAIL } },
+    toRecipients: [{ emailAddress: { address: to } }],
+  };
+
+  if (cc) {
+    const ccAddresses = cc.split(',').map(e => e.trim()).filter(Boolean);
+    message.ccRecipients = ccAddresses.map(addr => ({ emailAddress: { address: addr } }));
+  }
+
+  await axios.post(
+    `https://graph.microsoft.com/v1.0/users/${FROM_EMAIL}/sendMail`,
+    { message, saveToSentItems: true },
+    { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+  );
+
+  return { status: 'sent', to, from: FROM_EMAIL };
 }
 
 function buildInviteEmail({ businessName, role, inviteUrl }) {
@@ -92,7 +111,7 @@ async function sendEmailToEach({ recipients, subject, html }) {
       await sendEmail({ to: email, subject, html });
       succeeded.push(email);
     } catch (err) {
-      console.error(`Email failed for ${email}:`, err.message);
+      console.error(`Email failed for ${email}:`, err.response?.data?.error?.message || err.message);
       failed.push(email);
     }
   }

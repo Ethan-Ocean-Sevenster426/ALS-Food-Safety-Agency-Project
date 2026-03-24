@@ -373,7 +373,7 @@ router.post('/send/:id', async (req, res) => {
 
     const inv = invResult.recordset[0];
 
-    // Collect all facility emails (validate format to avoid Gmail API errors)
+    // Collect all facility emails (validate format to avoid API errors)
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const emails = [inv.Email, inv.AbattoirOwnerEmail, inv.AccountsEmail, inv.AbattoirManagerEmail, inv.ManualEmail]
       .filter(e => e && e.trim() && emailRegex.test(e.trim()));

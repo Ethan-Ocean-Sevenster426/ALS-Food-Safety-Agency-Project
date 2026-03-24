@@ -4,7 +4,7 @@ const { sql, getPool } = require('../config/db');
 const router = express.Router();
 
 const EDITABLE_FIELDS = [
-  'ClientID', 'BusinessName', 'AccountCode', 'Email',
+  'BusinessName', 'AccountCode', 'Email',
   'Town', 'FacilityType', 'FacilityProvince',
   'CompanyRegNumber', 'PhysicalAddress', 'VATNumber',
   'AbattoirOwnerName', 'AbattoirOwnerCell', 'AbattoirOwnerEmail',
@@ -25,7 +25,7 @@ router.get('/', async (req, res) => {
     const request = pool.request();
 
     if (search) {
-      whereClause = `WHERE BusinessName LIKE @search OR ClientID LIKE @search OR AccountCode LIKE @search OR Email LIKE @search OR Town LIKE @search OR FacilityProvince LIKE @search`;
+      whereClause = `WHERE BusinessName LIKE @search OR AccountCode LIKE @search OR Email LIKE @search OR Town LIKE @search OR FacilityProvince LIKE @search`;
       request.input('search', sql.NVarChar, `%${search}%`);
     }
 
@@ -42,7 +42,7 @@ router.get('/', async (req, res) => {
     dataRequest.input('limit', sql.Int, limit);
 
     const result = await dataRequest.query(
-      `SELECT Id, ClientID, BusinessName, AccountCode, Email, Town, FacilityType, FacilityProvince,
+      `SELECT Id, BusinessName, AccountCode, Email, Town, FacilityType, FacilityProvince,
               CompanyRegNumber, PhysicalAddress, VATNumber,
               AbattoirOwnerName, AbattoirOwnerCell, AbattoirOwnerEmail,
               AccountsContactName, AccountsTelephone, AccountsEmail,
@@ -97,7 +97,7 @@ router.post('/', async (req, res) => {
       .input('recordId', sql.Int, newId)
       .input('fieldName', sql.NVarChar, '_CREATED')
       .input('oldValue', sql.NVarChar, '')
-      .input('newValue', sql.NVarChar, `New record: ${client.BusinessName || client.ClientID || 'Unknown'}`)
+      .input('newValue', sql.NVarChar, `New record: ${client.BusinessName || 'Unknown'}`)
       .input('changedBy', sql.NVarChar, createdBy)
       .query(
         `INSERT INTO ClientAuditLog (RecordId, FieldName, OldValue, NewValue, ChangedBy)
@@ -235,7 +235,7 @@ router.delete('/:id', async (req, res) => {
     await pool.request()
       .input('recordId', sql.Int, 0)
       .input('fieldName', sql.NVarChar, '_DELETED')
-      .input('oldValue', sql.NVarChar, `${record.ClientID} - ${record.BusinessName}`)
+      .input('oldValue', sql.NVarChar, `${record.BusinessName}`)
       .input('newValue', sql.NVarChar, '')
       .input('changedBy', sql.NVarChar, deletedBy)
       .query(
@@ -278,7 +278,7 @@ router.get('/audit-log', async (req, res) => {
     dataReq.input('limit', sql.Int, limit);
 
     const result = await dataReq.query(
-      `SELECT a.Id, a.RecordId, c.ClientID, c.BusinessName, a.FieldName, a.OldValue, a.NewValue, a.ChangedBy, a.ChangedAt
+      `SELECT a.Id, a.RecordId, c.BusinessName, a.FieldName, a.OldValue, a.NewValue, a.ChangedBy, a.ChangedAt
        FROM ClientAuditLog a
        LEFT JOIN ConsolidatedMasterAbattoirDatabase c ON a.RecordId = c.Id
        ${whereClause}

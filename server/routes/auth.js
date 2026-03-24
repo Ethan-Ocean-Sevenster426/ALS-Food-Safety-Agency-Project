@@ -140,13 +140,13 @@ router.get('/users', async (req, res) => {
       `;WITH UserAllocations AS (
          SELECT u.Id, u.FirstName, u.LastName, u.Email, u.Role, u.CreatedAt, ISNULL(u.IsActive, 1) AS IsActive,
                 u.InspectorProvince,
-                c.BusinessName AS AllocatedClient, c.ClientID AS AllocatedClientID,
+                c.BusinessName AS AllocatedClient,
                 ROW_NUMBER() OVER (PARTITION BY u.Id ORDER BY i.AcceptedAt DESC) AS rn
          FROM Users u
          LEFT JOIN Invitations i ON LOWER(i.Email) = LOWER(u.Email) AND i.Status = 'Accepted'
          LEFT JOIN ConsolidatedMasterAbattoirDatabase c ON i.ClientRecordId = c.Id
        )
-       SELECT Id, FirstName, LastName, Email, Role, CreatedAt, AllocatedClient, AllocatedClientID, IsActive, InspectorProvince
+       SELECT Id, FirstName, LastName, Email, Role, CreatedAt, AllocatedClient, IsActive, InspectorProvince
        FROM UserAllocations
        WHERE rn = 1
        ORDER BY CreatedAt DESC`

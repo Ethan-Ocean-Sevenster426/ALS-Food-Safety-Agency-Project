@@ -20,11 +20,11 @@ const WIZARD_STEPS = [
     ],
   },
   {
-    title: 'Abattoir Owner Details',
+    title: 'Facility Owner Details',
     fields: [
-      { key: 'AbattoirOwnerName', label: 'Name of Abattoir Owner' },
-      { key: 'AbattoirOwnerCell', label: 'Abattoir Owner Cellphone Number' },
-      { key: 'AbattoirOwnerEmail', label: 'Abattoir Owner Email Address' },
+      { key: 'AbattoirOwnerName', label: 'Name of Facility Owner' },
+      { key: 'AbattoirOwnerCell', label: 'Facility Owner Cellphone Number' },
+      { key: 'AbattoirOwnerEmail', label: 'Facility Owner Email Address' },
     ],
   },
   {
@@ -36,11 +36,11 @@ const WIZARD_STEPS = [
     ],
   },
   {
-    title: 'Abattoir Manager Details',
+    title: 'Facility Manager Details',
     fields: [
-      { key: 'AbattoirManagerName', label: 'Manager of Abattoir Name' },
-      { key: 'AbattoirManagerCell', label: 'Manager of Abattoir Cellphone Number' },
-      { key: 'AbattoirManagerEmail', label: 'Manager of Abattoir Email Address' },
+      { key: 'AbattoirManagerName', label: 'Facility Manager Name' },
+      { key: 'AbattoirManagerCell', label: 'Facility Manager Cellphone Number' },
+      { key: 'AbattoirManagerEmail', label: 'Facility Manager Email Address' },
     ],
   },
 ];

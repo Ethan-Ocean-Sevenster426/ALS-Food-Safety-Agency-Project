@@ -32,6 +32,8 @@ function Settings() {
   const [companies, setCompanies] = useState([]);
   const [companySearch, setCompanySearch] = useState('');
   const [companiesLoading, setCompaniesLoading] = useState(false);
+  const [userSearch, setUserSearch] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState('');
 
   const fetchUsers = useCallback(async () => {
     if (!isAdmin) return;
@@ -516,7 +518,7 @@ function Settings() {
                               onClick={() => setAddUserData({ ...addUserData, clientRecordId: c.Id })}
                             >
                               <strong>{c.BusinessName}</strong>
-                              <span className="settings-company-meta">{c.ClientID} {c.Town ? `— ${c.Town}` : ''} {c.FacilityProvince ? `(${c.FacilityProvince})` : ''}</span>
+                              <span className="settings-company-meta">{c.Town ? c.Town : ''} {c.FacilityProvince ? `(${c.FacilityProvince})` : ''}</span>
                             </div>
                           ))
                         )}
@@ -534,6 +536,29 @@ function Settings() {
             </div>
           )}
 
+          {/* Search & Filter */}
+          <div className="settings-search-row">
+            <input
+              className="settings-search-input"
+              placeholder="Search by name, email, or company..."
+              value={userSearch}
+              onChange={e => setUserSearch(e.target.value)}
+            />
+            <select className="settings-role-filter" value={userRoleFilter} onChange={e => setUserRoleFilter(e.target.value)}>
+              <option value="">All Roles</option>
+              {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+            {(userSearch || userRoleFilter) && (
+              <button className="settings-search-clear" onClick={() => { setUserSearch(''); setUserRoleFilter(''); }}>Clear</button>
+            )}
+            <span className="settings-user-count">{users.filter(u => {
+              const s = userSearch.toLowerCase();
+              const matchesSearch = !s || `${u.FirstName} ${u.LastName}`.toLowerCase().includes(s) || (u.Email || '').toLowerCase().includes(s) || (u.AllocatedClient || '').toLowerCase().includes(s);
+              const matchesRole = !userRoleFilter || u.Role === userRoleFilter;
+              return matchesSearch && matchesRole;
+            }).length} of {users.length} users</span>
+          </div>
+
           <div className="settings-table-wrapper">
             <table className="settings-table">
               <thead>
@@ -549,12 +574,19 @@ function Settings() {
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
+                {(() => {
+                  const s = userSearch.toLowerCase();
+                  const filtered = users.filter(u => {
+                    const matchesSearch = !s || `${u.FirstName} ${u.LastName}`.toLowerCase().includes(s) || (u.Email || '').toLowerCase().includes(s) || (u.AllocatedClient || '').toLowerCase().includes(s);
+                    const matchesRole = !userRoleFilter || u.Role === userRoleFilter;
+                    return matchesSearch && matchesRole;
+                  });
+                  return loading ? (
                   <tr><td colSpan="8" className="settings-loading">Loading...</td></tr>
-                ) : users.length === 0 ? (
+                ) : filtered.length === 0 ? (
                   <tr><td colSpan="8" className="settings-loading">No users found.</td></tr>
                 ) : (
-                  users.map((u) => (
+                  filtered.map((u) => (
                     <tr key={u.Id} className={u.IsActive === false || u.IsActive === 0 ? 'user-inactive-row' : ''}>
                       <td>{u.FirstName} {u.LastName}</td>
                       <td>{u.Email}</td>
@@ -586,50 +618,52 @@ function Settings() {
                         {u.AllocatedClient ? (
                           <span className="settings-allocation">
                             {u.AllocatedClient}
-                            <span className="settings-client-id">{u.AllocatedClientID}</span>
                           </span>
                         ) : (
                           <span className="settings-no-allocation">—</span>
                         )}
                       </td>
                       <td className="settings-date">{formatDate(u.CreatedAt)}</td>
-                      <td className="settings-actions-cell">
-                        <button
-                          className="settings-edit-btn"
-                          onClick={() => openEditModal(u)}
-                          title="Edit user"
-                        >
-                          Edit
-                        </button>
-                        {user.role === 'Super Admin' && (
+                      <td>
+                        <div className="settings-actions-cell">
                           <button
-                            className="settings-reset-btn"
-                            onClick={() => { setResetModal(u); setResetPassword(''); }}
-                            title="Reset password"
+                            className="settings-edit-btn"
+                            onClick={() => openEditModal(u)}
+                            title="Edit user"
                           >
-                            Reset PW
+                            Edit
                           </button>
-                        )}
-                        <button
-                          className={u.IsActive === false || u.IsActive === 0 ? 'settings-activate-btn' : 'settings-deactivate-btn'}
-                          onClick={() => setDeactivateConfirm(u)}
-                          disabled={u.Id === user.id}
-                          title={u.Id === user.id ? "Can't deactivate yourself" : (u.IsActive ? 'Deactivate user' : 'Activate user')}
-                        >
-                          {u.IsActive === false || u.IsActive === 0 ? 'Activate' : 'Deactivate'}
-                        </button>
-                        <button
-                          className="settings-delete-btn"
-                          onClick={() => setDeleteConfirm(u)}
-                          disabled={u.Id === user.id}
-                          title={u.Id === user.id ? "Can't delete yourself" : 'Delete user'}
-                        >
-                          Delete
-                        </button>
+                          {user.role === 'Super Admin' && (
+                            <button
+                              className="settings-reset-btn"
+                              onClick={() => { setResetModal(u); setResetPassword(''); }}
+                              title="Reset password"
+                            >
+                              Reset PW
+                            </button>
+                          )}
+                          <button
+                            className={u.IsActive === false || u.IsActive === 0 ? 'settings-activate-btn' : 'settings-deactivate-btn'}
+                            onClick={() => setDeactivateConfirm(u)}
+                            disabled={u.Id === user.id}
+                            title={u.Id === user.id ? "Can't deactivate yourself" : (u.IsActive ? 'Deactivate user' : 'Activate user')}
+                          >
+                            {u.IsActive === false || u.IsActive === 0 ? 'Activate' : 'Deactivate'}
+                          </button>
+                          <button
+                            className="settings-delete-btn"
+                            onClick={() => setDeleteConfirm(u)}
+                            disabled={u.Id === user.id}
+                            title={u.Id === user.id ? "Can't delete yourself" : 'Delete user'}
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
-                )}
+                );
+                })()}
               </tbody>
             </table>
           </div>

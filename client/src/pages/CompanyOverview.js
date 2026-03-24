@@ -6,7 +6,6 @@ import './CompanyOverview.css';
 
 const DETAIL_FIELDS = [
   { key: 'BusinessName', label: 'Business Name' },
-  { key: 'ClientID', label: 'Client ID', readOnly: true },
   { key: 'AccountCode', label: 'Account Code', readOnly: true },
   { key: 'Email', label: 'Email' },
   { key: 'Town', label: 'Town' },
@@ -19,7 +18,7 @@ const DETAIL_FIELDS = [
 
 const CONTACT_GROUPS = [
   {
-    title: 'Abattoir Owner',
+    title: 'Facility Owner',
     fields: [
       { key: 'AbattoirOwnerName', label: 'Name' },
       { key: 'AbattoirOwnerCell', label: 'Cellphone' },
@@ -35,7 +34,7 @@ const CONTACT_GROUPS = [
     ],
   },
   {
-    title: 'Abattoir Manager',
+    title: 'Facility Manager',
     fields: [
       { key: 'AbattoirManagerName', label: 'Name' },
       { key: 'AbattoirManagerCell', label: 'Cellphone' },
@@ -68,20 +67,12 @@ const calcTotalOwed = (record) => {
 // Get the amount outstanding based on verification status
 const getAmountOutstanding = (epv) => {
   if (epv.Status !== 'Completed') return { label: '—', className: '' };
-  // Rejected but inspector EPV not yet completed
-  if (epv.inspectorEPV && epv.inspectorEPV.Status !== 'Completed') {
-    return { label: 'Awaiting Inspector EPV Result', className: 'co-amount-awaiting' };
-  }
-  // Facility EPV Rejected — use inspector EPV amount
+  // Rejected and inspector EPV completed — use inspector EPV amount
   if (!epv.IsVerified && epv.inspectorEPV && epv.inspectorEPV.Status === 'Completed') {
     return { label: `R ${calcTotalOwed(epv.inspectorEPV).toFixed(2)}`, className: 'co-amount-value' };
   }
-  // Inspector Approved — use facility EPV amount
-  if (epv.IsVerified) {
-    return { label: `R ${calcTotalOwed(epv).toFixed(2)}`, className: 'co-amount-value' };
-  }
-  // Not yet verified
-  return { label: '—', className: '' };
+  // Completed facility EPV — always show the facility amount (approved, awaiting approval, or rejected awaiting inspector EPV)
+  return { label: `R ${calcTotalOwed(epv).toFixed(2)}`, className: 'co-amount-value' };
 };
 
 // Payment status based on POP and Reconciled — requires inspector EPV to be completed for amount
@@ -395,7 +386,6 @@ function CompanyOverview() {
     if (!companySearch) return true;
     const s = companySearch.toLowerCase();
     return (c.BusinessName || '').toLowerCase().includes(s)
-      || (c.ClientID || '').toLowerCase().includes(s)
       || (c.AccountCode || '').toLowerCase().includes(s)
       || (c.Town || '').toLowerCase().includes(s);
   });
@@ -861,7 +851,7 @@ function CompanyOverview() {
           <div className="co-selector-search">
             <input
               type="text"
-              placeholder="Search by name, Client ID, Account Code, or Town..."
+              placeholder="Search by name, Account Code, or Town..."
               value={companySearch}
               onChange={(e) => setCompanySearch(e.target.value)}
               className="co-selector-input"
@@ -879,7 +869,6 @@ function CompanyOverview() {
                     <div className="co-selector-item-main">
                       <strong>{c.BusinessName || 'Unknown'}</strong>
                       <span className="co-selector-badges">
-                        {c.ClientID && <span className="co-selector-badge">{c.ClientID}</span>}
                         {c.AccountCode && <span className="co-selector-badge co-selector-badge-acc">{c.AccountCode}</span>}
                       </span>
                     </div>
@@ -1067,7 +1056,6 @@ function CompanyOverview() {
           <div>
             <h2>{company?.BusinessName || 'Company Overview'}</h2>
             <p className="co-subtitle">
-              {company?.ClientID && <span className="co-client-id">{company.ClientID}</span>}
               {company?.AccountCode && <span className="co-account-code">{company.AccountCode}</span>}
               {company?.Town && <span className="co-town">{company.Town}</span>}
             </p>

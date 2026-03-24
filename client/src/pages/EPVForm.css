@@ -508,7 +508,7 @@
 /* Pulp Section */
 .epv-pulp-header {
   display: grid;
-  grid-template-columns: 1fr 160px 120px;
+  grid-template-columns: 1fr 160px 160px;
   gap: 12px;
   padding: 10px 16px;
   border-bottom: 2px solid #e5e7eb;
@@ -525,7 +525,7 @@
 
 .epv-pulp-row {
   display: grid !important;
-  grid-template-columns: 1fr 160px 120px;
+  grid-template-columns: 1fr 160px 160px;
   gap: 12px;
   align-items: center;
 }
@@ -642,6 +642,10 @@
 
 .epv-review-grid div strong {
   color: #333;
+}
+
+.epv-review-full {
+  grid-column: 1 / -1;
 }
 
 .epv-review-table {

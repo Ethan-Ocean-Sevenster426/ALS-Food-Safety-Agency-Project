@@ -15,6 +15,23 @@ router.get('/stats', async (req, res) => {
     const curQuarter = Math.ceil(curMonth / 3);
     const qStartMonth = (curQuarter - 1) * 3 + 1;
 
+    // Date filters
+    const filterYear = req.query.year ? parseInt(req.query.year) : null;
+    const filterMonth = req.query.month ? parseInt(req.query.month) : null;
+    const filterQuarter = req.query.quarter ? parseInt(req.query.quarter) : null;
+
+    // Default year to current year if month or quarter specified without year
+    const effectiveYear = filterYear || ((filterMonth || filterQuarter) ? curYear : null);
+    let dateWhere = '';
+    if (effectiveYear && filterMonth) {
+      dateWhere = ` AND e.PeriodYear = ${effectiveYear} AND e.PeriodMonth = ${filterMonth}`;
+    } else if (effectiveYear && filterQuarter) {
+      const qsm = (filterQuarter - 1) * 3 + 1;
+      dateWhere = ` AND e.PeriodYear = ${effectiveYear} AND e.PeriodMonth BETWEEN ${qsm} AND ${qsm + 2}`;
+    } else if (effectiveYear) {
+      dateWhere = ` AND e.PeriodYear = ${effectiveYear}`;
+    }
+
     // 1. Aggregate financial stats
     const statsResult = await pool.request().query(`
       SELECT
@@ -29,7 +46,7 @@ router.get('/stats', async (req, res) => {
         SUM(ISNULL(e.LevyAmount, 0)) AS TotalEggLevy,
         SUM(ISNULL(e.PulpSoldToTrade, 0) * 1.7 * ${LEVY_RATE}) AS TotalPulpLevy
       FROM EggProductionVerifications e
-      WHERE e.EPVType = 'Client' AND e.Status = 'Completed'
+      WHERE e.EPVType = 'Client' AND e.Status = 'Completed'${dateWhere}
     `);
 
     // 2. Monthly breakdown for charts
@@ -43,7 +60,7 @@ router.get('/stats', async (req, res) => {
         SUM(CASE WHEN e.IsReconciled = 1 THEN 1 ELSE 0 END) AS ReconciledCount,
         SUM(CASE WHEN (e.IsReconciled = 0 OR e.IsReconciled IS NULL) AND (ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * ${LEVY_RATE}, 0) - ISNULL(e.ReconciledAmount, 0)) > 0 THEN 1 ELSE 0 END) AS NeedReconCount
       FROM EggProductionVerifications e
-      WHERE e.EPVType = 'Client' AND e.Status = 'Completed'
+      WHERE e.EPVType = 'Client' AND e.Status = 'Completed'${dateWhere}
       GROUP BY e.PeriodMonth, e.PeriodYear
       ORDER BY e.PeriodYear DESC, e.PeriodMonth DESC
     `);
@@ -58,7 +75,7 @@ router.get('/stats', async (req, res) => {
         SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * ${LEVY_RATE}, 0) - ISNULL(e.ReconciledAmount, 0)) AS Outstanding
       FROM EggProductionVerifications e
       JOIN ConsolidatedMasterAbattoirDatabase c ON e.ClientRecordId = c.Id
-      WHERE e.EPVType = 'Client' AND e.Status = 'Completed'
+      WHERE e.EPVType = 'Client' AND e.Status = 'Completed'${dateWhere}
       GROUP BY c.FacilityProvince
       ORDER BY Outstanding DESC
     `);
@@ -117,7 +134,7 @@ router.get('/reconciliation', async (req, res) => {
 
     // Search filter
     if (search) {
-      where += " AND (c.BusinessName LIKE @search OR c.ClientID LIKE @search OR e.ReferenceNumber LIKE @search)";
+      where += " AND (c.BusinessName LIKE @search OR e.ReferenceNumber LIKE @search)";
       countReq.input('search', sql.NVarChar, `%${search}%`);
       dataReq.input('search', sql.NVarChar, `%${search}%`);
     }
@@ -143,7 +160,7 @@ router.get('/reconciliation', async (req, res) => {
         ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.018, 0) - ISNULL(e.ReconciledAmount, 0) AS Outstanding,
         e.IsReconciled, e.ReconciledBy, e.ReconciledAt,
         e.IsVerified, e.POPFilePath, e.CompletedAt,
-        c.BusinessName, c.ClientID, c.FacilityProvince, c.Town
+        c.BusinessName, c.FacilityProvince, c.Town
       FROM EggProductionVerifications e
       JOIN ConsolidatedMasterAbattoirDatabase c ON e.ClientRecordId = c.Id
       ${where}

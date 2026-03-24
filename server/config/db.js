@@ -3,6 +3,7 @@ require('dotenv').config();
 
 const config = {
   connectionString: `Driver={ODBC Driver 18 for SQL Server};Server=${process.env.DB_SERVER};Database=${process.env.DB_NAME};Trusted_Connection=Yes;TrustServerCertificate=Yes;`,
+  requestTimeout: 60000,
 };
 
 let pool;

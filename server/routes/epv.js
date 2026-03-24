@@ -390,7 +390,7 @@ router.get('/token/:token', async (req, res) => {
     const result = await pool.request()
       .input('token', sql.NVarChar, token)
       .query(
-        `SELECT e.*, c.ClientID, c.AccountCode, c.Town,
+        `SELECT e.*, c.AccountCode, c.Town, c.PhysicalAddress,
                 c.AbattoirOwnerName, c.AbattoirOwnerCell, c.AbattoirOwnerEmail,
                 c.AccountsContactName, c.AccountsTelephone, c.AccountsEmail,
                 c.AbattoirManagerName, c.AbattoirManagerCell, c.AbattoirManagerEmail
@@ -1261,7 +1261,7 @@ router.post('/inspector/create', async (req, res) => {
     const token = crypto.randomBytes(32).toString('hex');
     const refNumber = await generateReferenceNumber(pool, epv.PeriodMonth, epv.PeriodYear);
 
-    // Create the Inspector EPV with same client/period info, pre-filled business details
+    // Create the Inspector EPV with same client/period info, pre-filled with facility's figures
     await pool.request()
       .input('clientRecordId', sql.Int, epv.ClientRecordId)
       .input('month', sql.Int, epv.PeriodMonth)
@@ -1273,6 +1273,29 @@ router.post('/inspector/create', async (req, res) => {
       .input('facilityProvince', sql.NVarChar, epv.FacilityProvince || '')
       .input('email', sql.NVarChar, epv.EmailAddress || '')
       .input('ownerName', sql.NVarChar, epv.AuthorizedPersonName || '')
+      .input('tradingName', sql.NVarChar, epv.TradingName || '')
+      .input('positionInCompany', sql.NVarChar, epv.PositionInCompany || '')
+      .input('telephoneNumber', sql.NVarChar, epv.TelephoneNumber || '')
+      .input('cellPhoneNumber', sql.NVarChar, epv.CellPhoneNumber || '')
+      .input('openingStock', sql.Decimal(18, 2), parseFloat(epv.OpeningStock) || 0)
+      .input('gradedEggsPurchased', sql.Decimal(18, 2), parseFloat(epv.GradedEggsPurchased) || 0)
+      .input('ungradedEggsPurchased', sql.Decimal(18, 2), parseFloat(epv.UngradedEggsPurchased) || 0)
+      .input('marketReturns', sql.Decimal(18, 2), parseFloat(epv.MarketReturns) || 0)
+      .input('machineLoss', sql.Decimal(18, 2), parseFloat(epv.MachineLoss) || 0)
+      .input('sentToPulp', sql.Decimal(18, 2), parseFloat(epv.SentToPulp) || 0)
+      .input('destroyed', sql.Decimal(18, 2), parseFloat(epv.Destroyed) || 0)
+      .input('soldToTrade', sql.Decimal(18, 2), parseFloat(epv.SoldToTrade) || 0)
+      .input('soldToStaff', sql.Decimal(18, 2), parseFloat(epv.SoldToStaff) || 0)
+      .input('soldThroughFarmStall', sql.Decimal(18, 2), parseFloat(epv.SoldThroughFarmStall) || 0)
+      .input('transferredToOtherProducers', sql.Decimal(18, 2), parseFloat(epv.TransferredToOtherProducers) || 0)
+      .input('actualClosingStock', sql.Decimal(18, 2), parseFloat(epv.ActualClosingStock) || 0)
+      .input('pulpOpeningStock', sql.Decimal(18, 2), parseFloat(epv.PulpOpeningStock) || 0)
+      .input('pulpPurchased', sql.Decimal(18, 2), parseFloat(epv.PulpPurchased) || 0)
+      .input('pulpConverted', sql.Decimal(18, 2), parseFloat(epv.PulpConverted) || 0)
+      .input('pulpSoldToTrade', sql.Decimal(18, 2), parseFloat(epv.PulpSoldToTrade) || 0)
+      .input('pulpSoldToProducers', sql.Decimal(18, 2), parseFloat(epv.PulpSoldToProducers) || 0)
+      .input('varianceReason', sql.NVarChar, epv.VarianceReason || '')
+      .input('levyAmount', sql.Decimal(18, 2), parseFloat(epv.LevyAmount) || 0)
       .input('inspectorId', sql.Int, parseInt(inspectorId))
       .input('linkedEPVId', sql.Int, parseInt(clientEpvId))
       .input('completedBy', sql.NVarChar, inspectorName || '')
@@ -1280,9 +1303,23 @@ router.post('/inspector/create', async (req, res) => {
         `INSERT INTO EggProductionVerifications
          (ClientRecordId, PeriodMonth, PeriodYear, Token, ReferenceNumber, Status,
           BusinessName, FacilityType, FacilityProvince, EmailAddress, AuthorizedPersonName,
+          TradingName, PositionInCompany, TelephoneNumber, CellPhoneNumber,
+          OpeningStock, GradedEggsPurchased, UngradedEggsPurchased,
+          MarketReturns, MachineLoss, SentToPulp, Destroyed,
+          SoldToTrade, SoldToStaff, SoldThroughFarmStall, TransferredToOtherProducers,
+          ActualClosingStock,
+          PulpOpeningStock, PulpPurchased, PulpConverted, PulpSoldToTrade, PulpSoldToProducers,
+          VarianceReason, LevyAmount,
           EPVType, InspectorId, LinkedEPVId)
          VALUES (@clientRecordId, @month, @year, @token, @refNumber, 'Pending',
                  @businessName, @facilityType, @facilityProvince, @email, @ownerName,
+                 @tradingName, @positionInCompany, @telephoneNumber, @cellPhoneNumber,
+                 @openingStock, @gradedEggsPurchased, @ungradedEggsPurchased,
+                 @marketReturns, @machineLoss, @sentToPulp, @destroyed,
+                 @soldToTrade, @soldToStaff, @soldThroughFarmStall, @transferredToOtherProducers,
+                 @actualClosingStock,
+                 @pulpOpeningStock, @pulpPurchased, @pulpConverted, @pulpSoldToTrade, @pulpSoldToProducers,
+                 @varianceReason, @levyAmount,
                  'Inspector', @inspectorId, @linkedEPVId)`
       );
 
@@ -1366,34 +1403,64 @@ router.get('/inspector/not-completed', async (req, res) => {
     const curMonth = new Date().getMonth() + 1;
     const provFilter = province ? "AND c.FacilityProvince = @province" : "";
 
-    // For each month Jan..currentMonth in current year, find facilities that either:
-    // - Have no EPV at all for that month, OR
-    // - Have an EPV with Status = 'Pending' (sent but not completed)
-    const months = [];
-    for (let m = 1; m <= curMonth; m++) months.push(m);
+    // Date filters
+    const filterYear = req.query.year ? parseInt(req.query.year) : null;
+    const filterMonth = req.query.month ? parseInt(req.query.month) : null;
+    const filterQuarter = req.query.quarter ? parseInt(req.query.quarter) : null;
 
-    const results = [];
-    for (const month of months) {
+    // Build list of year+month pairs to check
+    // Default: all months from Jan 2025 to current month
+    const yearMonths = [];
+    if (filterYear && filterMonth) {
+      yearMonths.push({ year: filterYear, month: filterMonth });
+    } else if (filterYear && filterQuarter) {
+      const qsm = (filterQuarter - 1) * 3 + 1;
+      for (let m = qsm; m <= qsm + 2; m++) {
+        if (filterYear < curYear || m <= curMonth) yearMonths.push({ year: filterYear, month: m });
+      }
+    } else if (filterYear) {
+      const endM = filterYear < curYear ? 12 : curMonth;
+      for (let m = 1; m <= endM; m++) yearMonths.push({ year: filterYear, month: m });
+    } else if (filterQuarter) {
+      // Quarter only — default to current year
+      const qsm = (filterQuarter - 1) * 3 + 1;
+      for (let m = qsm; m <= qsm + 2; m++) {
+        if (m <= curMonth) yearMonths.push({ year: curYear, month: m });
+      }
+    } else if (filterMonth) {
+      // Month only — default to current year
+      yearMonths.push({ year: curYear, month: filterMonth });
+    } else {
+      // No filter — all months from Jan 2025 to current month
+      const startYear = 2025;
+      for (let y = startYear; y <= curYear; y++) {
+        const endM = y < curYear ? 12 : curMonth;
+        for (let m = 1; m <= endM; m++) yearMonths.push({ year: y, month: m });
+      }
+    }
+
+    let results = [];
+    if (yearMonths.length > 0) {
+      const monthValues = yearMonths.map(ym => `(${ym.year}, ${ym.month})`).join(',');
       const r = pool.request();
-      r.input('year', sql.Int, curYear);
-      r.input('month', sql.Int, month);
       if (province) r.input('province', sql.NVarChar, province);
 
       const result = await r.query(`
-        SELECT c.Id, c.BusinessName, c.ClientID, c.FacilityProvince, c.FacilityType, c.Town,
+        SELECT c.Id, c.BusinessName, c.FacilityProvince, c.FacilityType, c.Town,
                e.Id AS EPVId, e.Status AS EPVStatus, e.ReferenceNumber, e.Token AS EPVToken,
-               ${month} AS PeriodMonth, ${curYear} AS PeriodYear
-        FROM ConsolidatedMasterAbattoirDatabase c
+               m.mo AS PeriodMonth, m.yr AS PeriodYear
+        FROM (VALUES ${monthValues}) AS m(yr, mo)
+        CROSS JOIN ConsolidatedMasterAbattoirDatabase c
         LEFT JOIN EggProductionVerifications e
           ON e.ClientRecordId = c.Id
           AND (e.EPVType = 'Client' OR e.EPVType IS NULL)
-          AND e.PeriodMonth = @month
-          AND e.PeriodYear = @year
+          AND e.PeriodMonth = m.mo
+          AND e.PeriodYear = m.yr
         WHERE c.FacilityProvince IS NOT NULL ${provFilter}
           AND (e.Id IS NULL OR e.Status = 'Pending')
         ORDER BY c.FacilityProvince, c.BusinessName
       `);
-      results.push(...result.recordset);
+      results = result.recordset;
     }
 
     res.json({ notCompleted: results });
@@ -1411,6 +1478,22 @@ router.get('/inspector/pending-approvals', async (req, res) => {
     const pool = await getPool();
     const provFilter = province ? "AND c.FacilityProvince = @province" : "";
 
+    // Date filters
+    const curYear = new Date().getFullYear();
+    const filterYear = req.query.year ? parseInt(req.query.year) : null;
+    const filterMonth = req.query.month ? parseInt(req.query.month) : null;
+    const filterQuarter = req.query.quarter ? parseInt(req.query.quarter) : null;
+    const effectiveYear = filterYear || ((filterMonth || filterQuarter) ? curYear : null);
+    let dateWhere = '';
+    if (effectiveYear && filterMonth) {
+      dateWhere = ` AND e.PeriodYear = ${effectiveYear} AND e.PeriodMonth = ${filterMonth}`;
+    } else if (effectiveYear && filterQuarter) {
+      const qsm = (filterQuarter - 1) * 3 + 1;
+      dateWhere = ` AND e.PeriodYear = ${effectiveYear} AND e.PeriodMonth BETWEEN ${qsm} AND ${qsm + 2}`;
+    } else if (effectiveYear) {
+      dateWhere = ` AND e.PeriodYear = ${effectiveYear}`;
+    }
+
     const r = pool.request();
     if (province) r.input('province', sql.NVarChar, province);
 
@@ -1421,7 +1504,7 @@ router.get('/inspector/pending-approvals', async (req, res) => {
         e.IsVerified, e.VerifiedBy, e.VerifiedAt, e.InspectorComment,
         e.ManualInspection, e.ManualInspectionBy, e.ManualInspectionAt,
         e.POPFilePath, e.POPUploadedAt, e.IsReconciled, e.ReconciledAmount,
-        c.BusinessName, c.ClientID, c.FacilityProvince, c.FacilityType, c.Town,
+        c.BusinessName, c.FacilityProvince, c.FacilityType, c.Town,
         ie.Id AS InspEPVId, ie.Token AS InspEPVToken, ie.Status AS InspEPVStatus,
         ie.ReferenceNumber AS InspEPVRef, ie.LevyAmount AS InspLevyAmount,
         ie.PulpSoldToTrade AS InspPulpSoldToTrade
@@ -1432,7 +1515,7 @@ router.get('/inspector/pending-approvals', async (req, res) => {
         AND e.Status = 'Completed'
         AND (e.IsVerified = 0 OR e.IsVerified IS NULL)
         AND ie.Id IS NULL
-        ${provFilter}
+        ${provFilter}${dateWhere}
       ORDER BY e.CompletedAt DESC
     `);
 
@@ -1444,7 +1527,7 @@ router.get('/inspector/pending-approvals', async (req, res) => {
       SELECT
         e.Id, e.ClientRecordId, e.PeriodMonth, e.PeriodYear, e.Status, e.CompletedAt, e.CompletedBy,
         e.Token, e.ReferenceNumber, e.LevyAmount, e.PulpSoldToTrade, e.SoldToTrade,
-        c.BusinessName, c.ClientID, c.FacilityProvince, c.FacilityType, c.Town,
+        c.BusinessName, c.FacilityProvince, c.FacilityType, c.Town,
         ie.Id AS InspEPVId, ie.Token AS InspEPVToken, ie.Status AS InspEPVStatus,
         ie.ReferenceNumber AS InspEPVRef
       FROM EggProductionVerifications e
@@ -1453,7 +1536,7 @@ router.get('/inspector/pending-approvals', async (req, res) => {
       WHERE e.EPVType = 'Client'
         AND e.Status = 'Completed'
         AND (e.IsVerified = 0 OR e.IsVerified IS NULL)
-        ${provFilter}
+        ${provFilter}${dateWhere}
       ORDER BY e.CompletedAt DESC
     `);
 
@@ -1475,6 +1558,23 @@ router.get('/inspector/stats', async (req, res) => {
     const curQuarter = Math.ceil(curMonth / 3);
     const qStartMonth = (curQuarter - 1) * 3 + 1;
 
+    // Date filters
+    const filterYear = req.query.year ? parseInt(req.query.year) : null;
+    const filterMonth = req.query.month ? parseInt(req.query.month) : null;
+    const filterQuarter = req.query.quarter ? parseInt(req.query.quarter) : null;
+
+    // Default year to current year if month or quarter specified without year
+    const effectiveYear = filterYear || ((filterMonth || filterQuarter) ? curYear : null);
+    let dateWhere = '';
+    if (effectiveYear && filterMonth) {
+      dateWhere = ` AND e.PeriodYear = ${effectiveYear} AND e.PeriodMonth = ${filterMonth}`;
+    } else if (effectiveYear && filterQuarter) {
+      const qsm = (filterQuarter - 1) * 3 + 1;
+      dateWhere = ` AND e.PeriodYear = ${effectiveYear} AND e.PeriodMonth BETWEEN ${qsm} AND ${qsm + 2}`;
+    } else if (effectiveYear) {
+      dateWhere = ` AND e.PeriodYear = ${effectiveYear}`;
+    }
+
     // Build province filter
     const provFilter = province ? "AND c.FacilityProvince = @province" : "";
 
@@ -1491,15 +1591,18 @@ router.get('/inspector/stats', async (req, res) => {
       `);
     })();
 
-    // 2. Facilities needing visit this quarter (no ManualInspection=1 in current quarter)
+    // 2. Facilities needing visit this quarter (or filtered period)
+    const visitQYear = filterYear || curYear;
+    const visitQStart = filterQuarter ? (filterQuarter - 1) * 3 + 1 : (filterMonth ? filterMonth : qStartMonth);
+    const visitQEnd = filterQuarter ? (filterQuarter - 1) * 3 + 3 : (filterMonth ? filterMonth : qStartMonth + 2);
     const needVisit = await (() => {
       const r = pool.request();
-      r.input('qStart', sql.Int, qStartMonth);
-      r.input('qEnd', sql.Int, qStartMonth + 2);
-      r.input('year', sql.Int, curYear);
+      r.input('qStart', sql.Int, visitQStart);
+      r.input('qEnd', sql.Int, visitQEnd);
+      r.input('year', sql.Int, visitQYear);
       if (province) r.input('province', sql.NVarChar, province);
       return r.query(`
-        SELECT c.Id, c.BusinessName, c.ClientID, c.Town, c.FacilityProvince, c.FacilityType
+        SELECT c.Id, c.BusinessName, c.Town, c.FacilityProvince, c.FacilityType
         FROM ConsolidatedMasterAbattoirDatabase c
         WHERE c.FacilityProvince IS NOT NULL ${provFilter}
           AND NOT EXISTS (
@@ -1520,15 +1623,15 @@ router.get('/inspector/stats', async (req, res) => {
       if (province) r.input('province', sql.NVarChar, province);
       return r.query(`
         SELECT
-          c.Id AS ClientRecordId, c.BusinessName, c.ClientID, c.Town, c.FacilityProvince,
+          c.Id AS ClientRecordId, c.BusinessName, c.Town, c.FacilityProvince,
           SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.018, 0)) AS TotalBilled,
           SUM(ISNULL(e.ReconciledAmount, 0)) AS TotalPaid,
           SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.018, 0) - ISNULL(e.ReconciledAmount, 0)) AS TotalOwing
         FROM EggProductionVerifications e
         JOIN ConsolidatedMasterAbattoirDatabase c ON e.ClientRecordId = c.Id
         WHERE e.EPVType = 'Client' AND e.Status = 'Completed' AND (e.IsReconciled = 0 OR e.IsReconciled IS NULL)
-          ${provFilter}
-        GROUP BY c.Id, c.BusinessName, c.ClientID, c.Town, c.FacilityProvince
+          ${provFilter}${dateWhere}
+        GROUP BY c.Id, c.BusinessName, c.Town, c.FacilityProvince
         HAVING SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.018, 0) - ISNULL(e.ReconciledAmount, 0)) > 0
         ORDER BY TotalOwing DESC
       `);
@@ -1559,7 +1662,7 @@ router.get('/inspector/stats', async (req, res) => {
         JOIN ConsolidatedMasterAbattoirDatabase c ON e.ClientRecordId = c.Id
         LEFT JOIN EggProductionVerifications ie ON ie.LinkedEPVId = e.Id AND ie.EPVType = 'Inspector'
         WHERE e.EPVType = 'Client' AND e.Status = 'Completed'
-          ${provFilter}
+          ${provFilter}${dateWhere}
       `);
     })();
 
@@ -1583,7 +1686,7 @@ router.get('/inspector/stats', async (req, res) => {
         JOIN ConsolidatedMasterAbattoirDatabase c ON e.ClientRecordId = c.Id
         LEFT JOIN EggProductionVerifications ie ON ie.LinkedEPVId = e.Id AND ie.EPVType = 'Inspector'
         WHERE e.EPVType = 'Client' AND e.Status = 'Completed'
-          ${provFilter}
+          ${provFilter}${dateWhere}
         GROUP BY e.PeriodMonth, e.PeriodYear
         ORDER BY e.PeriodYear DESC, e.PeriodMonth DESC
       `);
@@ -1599,7 +1702,7 @@ router.get('/inspector/stats', async (req, res) => {
         JOIN ConsolidatedMasterAbattoirDatabase c ON e.ClientRecordId = c.Id
         JOIN EggProductionVerifications ie ON ie.LinkedEPVId = e.Id AND ie.EPVType = 'Inspector'
         WHERE e.EPVType = 'Client' AND e.Status = 'Completed'
-          ${provFilter}
+          ${provFilter}${dateWhere}
         GROUP BY c.FacilityProvince
         ORDER BY Rejections DESC
       `);

@@ -21,13 +21,60 @@
 }
 
 /* Header */
-.insp-header-card { margin-bottom: 0 !important; }
+.insp-header-card { margin-bottom: 12px !important; }
 .insp-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
 .insp-header h2 { margin: 0; font-size: 22px; color: #1e293b; }
 .insp-subtitle { color: #64748b; font-size: 13px; margin: 4px 0 0; }
 .insp-no-province { color: #dc2626; font-weight: 600; }
 
 .insp-province-filter { display: flex; align-items: center; gap: 8px; }
+
+/* ===== Date Filters ===== */
+.insp-date-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+  padding: 12px 20px;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.insp-filter-label {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 14px;
+}
+.insp-filter-select {
+  padding: 7px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #334155;
+  background: #f8fafc;
+  cursor: pointer;
+  min-width: 140px;
+}
+.insp-filter-select:focus {
+  outline: none;
+  border-color: #0E7C7B;
+  box-shadow: 0 0 0 2px rgba(14,124,123,0.15);
+}
+.insp-filter-clear {
+  padding: 7px 16px;
+  background: #fee2e2;
+  color: #dc2626;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.insp-filter-clear:hover {
+  background: #fecaca;
+}
 .insp-province-filter label { font-size: 13px; font-weight: 600; color: #475569; white-space: nowrap; }
 .insp-province-filter select {
   padding: 7px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;

@@ -67,7 +67,6 @@
   flex-wrap: wrap;
 }
 
-.co-client-id,
 .co-account-code,
 .co-town {
   display: inline-block;
@@ -77,10 +76,6 @@
   font-weight: 600;
 }
 
-.co-client-id {
-  background: #e0f2f2;
-  color: #065f5e;
-}
 
 .co-account-code {
   background: #f3f4f6;

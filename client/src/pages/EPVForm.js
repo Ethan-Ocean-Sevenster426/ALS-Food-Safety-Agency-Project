@@ -28,7 +28,7 @@ function EPVForm() {
 
   // Form data
   const [form, setForm] = useState({
-    BusinessName: '', FacilityType: '', FacilityProvince: '', TradingName: '',
+    BusinessName: '', FacilityType: '', FacilityProvince: '', PhysicalAddress: '', TradingName: '',
     AuthorizedPersonName: '', PositionInCompany: '',
     TelephoneNumber: '', CellPhoneNumber: '', EmailAddress: '',
     OpeningStock: 0, GradedEggsPurchased: 0, UngradedEggsPurchased: 0,
@@ -50,6 +50,7 @@ function EPVForm() {
         BusinessName: v.BusinessName || '',
         FacilityType: v.FacilityType || '',
         FacilityProvince: v.FacilityProvince || '',
+        PhysicalAddress: v.PhysicalAddress || '',
         TradingName: v.TradingName || '',
         AuthorizedPersonName: v.AuthorizedPersonName || '',
         PositionInCompany: v.PositionInCompany || '',
@@ -406,6 +407,10 @@ function EPVForm() {
                 <label>Trading Name</label>
                 <input type="text" value={form.TradingName} onChange={(e) => handleChange('TradingName', e.target.value)} disabled={isReadOnly} />
               </div>
+              <div className="epv-field epv-full">
+                <label>Physical Address</label>
+                <input type="text" value={form.PhysicalAddress} onChange={(e) => handleChange('PhysicalAddress', e.target.value)} disabled={isReadOnly} />
+              </div>
               <div className={`epv-field epv-full ${validationErrors.AuthorizedPersonName ? 'epv-field-error' : ''}`}>
                 <label>Name of Owner, Manager or Authorized Person <span className="epv-required-star">*</span></label>
                 <input type="text" value={form.AuthorizedPersonName} onChange={(e) => handleChange('AuthorizedPersonName', e.target.value)} disabled={isReadOnly} />
@@ -519,7 +524,7 @@ function EPVForm() {
                   <input type="text" value={formatNumber(form.SoldToStaff)} onChange={(e) => handleNumberChange('SoldToStaff', e.target.value)} disabled={isReadOnly} placeholder="0" />
                 </div>
                 <div className="epv-calc-row epv-deduction-row">
-                  <label>- Sold through Farm Stall:</label>
+                  <label>- Sold through Farm Stall (Informal Market):</label>
                   <input type="text" value={formatNumber(form.SoldThroughFarmStall)} onChange={(e) => handleNumberChange('SoldThroughFarmStall', e.target.value)} disabled={isReadOnly} placeholder="0" />
                 </div>
                 <div className="epv-calc-row epv-total-row epv-deduction-total">
@@ -705,6 +710,7 @@ function EPVForm() {
                 <div><span>Facility Type:</span> <strong>{form.FacilityType}</strong></div>
                 <div><span>Facility Province:</span> <strong>{form.FacilityProvince}</strong></div>
                 <div><span>Trading Name:</span> <strong>{form.TradingName}</strong></div>
+                <div className="epv-review-full"><span>Physical Address:</span> <strong>{form.PhysicalAddress}</strong></div>
                 <div><span>Authorized Person:</span> <strong>{form.AuthorizedPersonName}</strong></div>
                 <div><span>Position:</span> <strong>{form.PositionInCompany}</strong></div>
                 <div><span>Telephone:</span> <strong>{form.TelephoneNumber}</strong></div>
@@ -736,7 +742,7 @@ function EPVForm() {
                   <tr className="epv-review-section-header"><td colSpan="2">D. Sales</td></tr>
                   <tr><td>Sold to Trade</td><td className="epv-num">{(parseFloat(form.SoldToTrade) || 0).toLocaleString()}</td></tr>
                   <tr><td>Sold to Staff / Own Use</td><td className="epv-num">{(parseFloat(form.SoldToStaff) || 0).toLocaleString()}</td></tr>
-                  <tr><td>Sold through Farm Stall</td><td className="epv-num">{(parseFloat(form.SoldThroughFarmStall) || 0).toLocaleString()}</td></tr>
+                  <tr><td>Sold through Farm Stall (Informal Market)</td><td className="epv-num">{(parseFloat(form.SoldThroughFarmStall) || 0).toLocaleString()}</td></tr>
                   <tr className="epv-review-total"><td>Total D (Sales)</td><td className="epv-num">{totals.totalD.toLocaleString()}</td></tr>
                   <tr className="epv-review-levy"><td>Egg Levy Amount (D &times; R{LEVY_RATE})</td><td className="epv-num">R {totals.levyAmount.toFixed(2)}</td></tr>
 

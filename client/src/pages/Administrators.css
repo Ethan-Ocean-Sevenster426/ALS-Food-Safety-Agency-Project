@@ -26,6 +26,53 @@
   font-size: 14px;
 }
 
+/* ===== Date Filters ===== */
+.admin-date-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+  padding: 12px 20px;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.admin-filter-label {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 14px;
+}
+.admin-date-filter-select {
+  padding: 7px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #334155;
+  background: #f8fafc;
+  cursor: pointer;
+  min-width: 140px;
+}
+.admin-date-filter-select:focus {
+  outline: none;
+  border-color: #0E7C7B;
+  box-shadow: 0 0 0 2px rgba(14,124,123,0.15);
+}
+.admin-filter-clear {
+  padding: 7px 16px;
+  background: #fee2e2;
+  color: #dc2626;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.admin-filter-clear:hover {
+  background: #fecaca;
+}
+
 .admin-loading {
   text-align: center;
   color: #888;
@@ -340,6 +387,53 @@
   background: #16a34a;
 }
 
+/* ===== Period Badges ===== */
+.admin-period-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px 0 8px;
+}
+.admin-period-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1.5px solid #e2e8f0;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: all 0.15s;
+  min-width: 52px;
+}
+.admin-period-badge:hover {
+  border-color: #0E7C7B;
+  background: #e0f2f2;
+}
+.admin-period-active {
+  border-color: #0E7C7B;
+  background: #e0f2f2;
+  box-shadow: 0 0 0 2px rgba(14,124,123,0.18);
+}
+.admin-period-done {
+  opacity: 0.5;
+}
+.admin-period-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+}
+.admin-period-count {
+  font-size: 13px;
+  font-weight: 700;
+}
+.admin-period-count-pending {
+  color: #dc2626;
+}
+.admin-period-count-done {
+  color: #16a34a;
+}
+
 /* ===== Tab Content ===== */
 .admin-tab-content {
   border-radius: 0 12px 12px 12px;
@@ -490,12 +584,6 @@
 .admin-facility-link:hover {
   color: #0a6160;
   text-decoration: underline;
-}
-
-.admin-client-id {
-  font-family: monospace;
-  font-size: 12px;
-  color: #64748b;
 }
 
 .admin-ref {

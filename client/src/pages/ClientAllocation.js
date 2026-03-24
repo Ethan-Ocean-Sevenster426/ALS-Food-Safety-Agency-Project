@@ -5,7 +5,6 @@ import './ClientAllocation.css';
 
 // Main visible columns in the table
 const TABLE_FIELDS = [
-  { key: 'ClientID', label: 'Client ID' },
   { key: 'BusinessName', label: 'Business Name' },
   { key: 'AccountCode', label: 'Acc. Code', readOnly: true },
   { key: 'Email', label: 'Email' },
@@ -205,8 +204,8 @@ function ClientAllocation() {
   };
 
   const saveNewRow = async () => {
-    if (!newRow.ClientID && !newRow.BusinessName) {
-      setError('At least Client ID or Business Name is required.');
+    if (!newRow.BusinessName) {
+      setError('Business Name is required.');
       return;
     }
 
@@ -321,7 +320,7 @@ function ClientAllocation() {
       <div className="page-card">
         <div className="ca-header">
           <div>
-            <h2>Consolidated Master Abattoir Database</h2>
+            <h2>Consolidated Master Facility Database</h2>
             <p className="ca-subtitle">{total.toLocaleString()} records</p>
           </div>
           <div className="ca-header-actions">
@@ -365,7 +364,7 @@ function ClientAllocation() {
               <h3>Confirm Delete</h3>
               <p>Are you sure you want to delete this record?</p>
               <div className="ca-modal-record">
-                <strong>{deleteConfirm.ClientID}</strong> — {deleteConfirm.BusinessName}
+                <strong>{deleteConfirm.BusinessName}</strong>
               </div>
               <p className="ca-modal-warning">This action cannot be undone.</p>
               <div className="ca-modal-actions">
@@ -432,7 +431,6 @@ function ClientAllocation() {
                 <thead>
                   <tr>
                     <th>Date/Time</th>
-                    <th>Client ID</th>
                     <th>Business Name</th>
                     <th>Field Changed</th>
                     <th>Old Value</th>
@@ -442,14 +440,13 @@ function ClientAllocation() {
                 </thead>
                 <tbody>
                   {auditLoading ? (
-                    <tr><td colSpan="7" className="ca-loading">Loading...</td></tr>
+                    <tr><td colSpan="6" className="ca-loading">Loading...</td></tr>
                   ) : auditLog.length === 0 ? (
-                    <tr><td colSpan="7" className="ca-loading">No changes recorded yet.</td></tr>
+                    <tr><td colSpan="6" className="ca-loading">No changes recorded yet.</td></tr>
                   ) : (
                     auditLog.map((entry) => (
                       <tr key={entry.Id}>
                         <td className="ca-date-cell">{formatDate(entry.ChangedAt)}</td>
-                        <td>{entry.ClientID || '—'}</td>
                         <td>{entry.BusinessName || '—'}</td>
                         <td><span className={`ca-field-badge ${entry.FieldName === '_CREATED' ? 'ca-badge-created' : ''} ${entry.FieldName === '_DELETED' ? 'ca-badge-deleted' : ''} ${entry.FieldName === '_VERIFIED' ? 'ca-badge-verified' : ''}`}>{entry.FieldName}</span></td>
                         <td className="ca-old-value">{entry.OldValue}</td>

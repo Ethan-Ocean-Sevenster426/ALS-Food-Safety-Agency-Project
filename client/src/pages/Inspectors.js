@@ -60,10 +60,15 @@ function Inspectors() {
   const [owingSearch, setOwingSearch] = useState('');
   const [selectedProvince, setSelectedProvince] = useState(isInspectorRole ? assignedProvince : '');
   const [approvalSearch, setApprovalSearch] = useState('');
+  const [approvalPeriod, setApprovalPeriod] = useState(0);
+  const [incompletePeriod, setIncompletePeriod] = useState(0);
   const [notCompletedSearch, setNotCompletedSearch] = useState('');
   const [notCompletedMonth, setNotCompletedMonth] = useState(0);
   const [inspCreating, setInspCreating] = useState(null);
   const [kpiTargets, setKpiTargets] = useState({ collection_rate: 80, approvals_actioned: 90, facilities_visited: 100 });
+  const [filterYear, setFilterYear] = useState('');
+  const [filterQuarter, setFilterQuarter] = useState('');
+  const [filterMonth, setFilterMonth] = useState('');
 
   const formatR = (v) => `R ${(+v || 0).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const formatNum = (v) => (+v || 0).toLocaleString('en-ZA');
@@ -83,10 +88,18 @@ function Inspectors() {
     return '';
   }, [isInspectorRole, assignedProvince, selectedProvince]);
 
+  const getDateParams = useCallback(() => {
+    const p = {};
+    if (filterYear) p.year = filterYear;
+    if (filterQuarter) p.quarter = filterQuarter;
+    if (filterMonth) p.month = filterMonth;
+    return p;
+  }, [filterYear, filterQuarter, filterMonth]);
+
   const fetchStats = useCallback(async () => {
     setLoading(true);
     try {
-      const params = {};
+      const params = { ...getDateParams() };
       const prov = getProvinceParam();
       if (prov) params.province = prov;
       const res = await axios.get('http://localhost:5000/api/epv/inspector/stats', { params });
@@ -96,11 +109,11 @@ function Inspectors() {
     } finally {
       setLoading(false);
     }
-  }, [getProvinceParam]);
+  }, [getProvinceParam, getDateParams]);
 
   const fetchPendingApprovals = useCallback(async () => {
     try {
-      const params = {};
+      const params = { ...getDateParams() };
       const prov = getProvinceParam();
       if (prov) params.province = prov;
       const res = await axios.get('http://localhost:5000/api/epv/inspector/pending-approvals', { params });
@@ -109,11 +122,11 @@ function Inspectors() {
     } catch (err) {
       console.error('Failed to load pending approvals:', err);
     }
-  }, [getProvinceParam]);
+  }, [getProvinceParam, getDateParams]);
 
   const fetchNotCompleted = useCallback(async () => {
     try {
-      const params = {};
+      const params = { ...getDateParams() };
       const prov = getProvinceParam();
       if (prov) params.province = prov;
       const res = await axios.get('http://localhost:5000/api/epv/inspector/not-completed', { params });
@@ -121,7 +134,7 @@ function Inspectors() {
     } catch (err) {
       console.error('Failed to load not-completed:', err);
     }
-  }, [getProvinceParam]);
+  }, [getProvinceParam, getDateParams]);
 
   const refreshAll = useCallback(() => {
     fetchStats();
@@ -218,34 +231,66 @@ function Inspectors() {
   // Filtered & sorted lists
   const filteredNeedVisit = needVisit.filter(f =>
     (f.BusinessName || '').toLowerCase().includes(visitSearch.toLowerCase()) ||
-    (f.ClientID || '').toLowerCase().includes(visitSearch.toLowerCase()) ||
     (f.Town || '').toLowerCase().includes(visitSearch.toLowerCase())
   );
   const filteredOwing = owing.filter(f =>
-    (f.BusinessName || '').toLowerCase().includes(owingSearch.toLowerCase()) ||
-    (f.ClientID || '').toLowerCase().includes(owingSearch.toLowerCase())
+    (f.BusinessName || '').toLowerCase().includes(owingSearch.toLowerCase())
   );
 
-  const filteredApprovals = pendingApprovals.filter(a =>
-    (a.BusinessName || '').toLowerCase().includes(approvalSearch.toLowerCase()) ||
-    (a.ClientID || '').toLowerCase().includes(approvalSearch.toLowerCase()) ||
-    (a.ReferenceNumber || '').toLowerCase().includes(approvalSearch.toLowerCase())
-  );
+  // Approvals: group by period and filter
+  const approvalsByPeriod = {};
+  pendingApprovals.forEach(a => {
+    const key = (a.PeriodYear || 0) * 100 + (a.PeriodMonth || 0);
+    if (!approvalsByPeriod[key]) approvalsByPeriod[key] = { year: a.PeriodYear, month: a.PeriodMonth, count: 0 };
+    approvalsByPeriod[key].count++;
+  });
+  const approvalPeriods = Object.values(approvalsByPeriod).sort((a, b) => a.year - b.year || a.month - b.month);
 
-  // Not-completed: group by month, filter by search and optional month filter
+  const filteredApprovals = pendingApprovals.filter(a => {
+    if (approvalPeriod > 0) {
+      const aKey = (a.PeriodYear || 0) * 100 + (a.PeriodMonth || 0);
+      if (aKey !== approvalPeriod) return false;
+    }
+    return (a.BusinessName || '').toLowerCase().includes(approvalSearch.toLowerCase()) ||
+      (a.ReferenceNumber || '').toLowerCase().includes(approvalSearch.toLowerCase());
+  });
+
+  // Incomplete: group by period
+  const incompleteByPeriod = {};
+  inspEPVsToComplete.forEach(e => {
+    const key = (e.PeriodYear || 0) * 100 + (e.PeriodMonth || 0);
+    if (!incompleteByPeriod[key]) incompleteByPeriod[key] = { year: e.PeriodYear, month: e.PeriodMonth, count: 0 };
+    incompleteByPeriod[key].count++;
+  });
+  const incompletePeriods = Object.values(incompleteByPeriod).sort((a, b) => a.year - b.year || a.month - b.month);
+
+  const filteredIncomplete = inspEPVsToComplete.filter(e => {
+    if (incompletePeriod > 0) {
+      const eKey = (e.PeriodYear || 0) * 100 + (e.PeriodMonth || 0);
+      if (eKey !== incompletePeriod) return false;
+    }
+    return true;
+  });
+
+  // Not-completed: group by year+month key, filter by search and optional period filter
+  // notCompletedMonth stores a "YYYYMM" key like 202501, or 0 for all
   const filteredNotCompleted = notCompleted.filter(f => {
-    if (notCompletedMonth > 0 && f.PeriodMonth !== notCompletedMonth) return false;
+    if (notCompletedMonth > 0) {
+      const fKey = f.PeriodYear * 100 + f.PeriodMonth;
+      if (fKey !== notCompletedMonth) return false;
+    }
     const search = notCompletedSearch.toLowerCase();
     if (!search) return true;
     return (f.BusinessName || '').toLowerCase().includes(search) ||
-      (f.ClientID || '').toLowerCase().includes(search) ||
       (f.FacilityProvince || '').toLowerCase().includes(search);
   });
-  const notCompletedByMonth = {};
+  const notCompletedByPeriod = {};
   notCompleted.forEach(f => {
-    if (!notCompletedByMonth[f.PeriodMonth]) notCompletedByMonth[f.PeriodMonth] = 0;
-    notCompletedByMonth[f.PeriodMonth]++;
+    const key = f.PeriodYear * 100 + f.PeriodMonth;
+    if (!notCompletedByPeriod[key]) notCompletedByPeriod[key] = { year: f.PeriodYear, month: f.PeriodMonth, count: 0 };
+    notCompletedByPeriod[key].count++;
   });
+  const ncPeriods = Object.values(notCompletedByPeriod).sort((a, b) => a.year - b.year || a.month - b.month);
 
   const visitSort = useSortable(filteredNeedVisit, 'BusinessName', 'asc');
   const owingSort = useSortable(filteredOwing, 'TotalOwing', 'desc');
@@ -306,6 +351,30 @@ function Inspectors() {
         </div>
       </div>
 
+      {/* Date Filters */}
+      <div className="insp-date-filters">
+        <label className="insp-filter-label">Filter:</label>
+        <select className="insp-filter-select" value={filterYear} onChange={e => { setFilterYear(e.target.value); if (!e.target.value) { setFilterQuarter(''); setFilterMonth(''); } }}>
+          <option value="">All Years</option>
+          <option value="2025">2025</option>
+          <option value="2026">2026</option>
+        </select>
+        <select className="insp-filter-select" value={filterQuarter} onChange={e => { setFilterQuarter(e.target.value); if (e.target.value) setFilterMonth(''); }}>
+          <option value="">All Quarters</option>
+          <option value="1">Q1 (Jan–Mar)</option>
+          <option value="2">Q2 (Apr–Jun)</option>
+          <option value="3">Q3 (Jul–Sep)</option>
+          <option value="4">Q4 (Oct–Dec)</option>
+        </select>
+        <select className="insp-filter-select" value={filterMonth} onChange={e => { setFilterMonth(e.target.value); if (e.target.value) setFilterQuarter(''); }}>
+          <option value="">All Months</option>
+          {MONTH_NAMES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+        </select>
+        {(filterYear || filterQuarter || filterMonth) && (
+          <button className="insp-filter-clear" onClick={() => { setFilterYear(''); setFilterQuarter(''); setFilterMonth(''); }}>Clear Filters</button>
+        )}
+      </div>
+
       {/* KPI Gauges */}
       {(() => {
         const now = new Date();
@@ -319,10 +388,10 @@ function Inspectors() {
         const prevBilled = prevMonths.reduce((a, m) => a + (m.TotalBilled || 0), 0);
         const prevPaid = prevMonths.reduce((a, m) => a + (m.TotalPaid || 0), 0);
         const prevPct = prevBilled > 0 ? +((prevPaid / prevBilled) * 100).toFixed(1) : 0;
-        const prevMonthNames = prevMonths
-          .sort((a, b) => a.PeriodYear - b.PeriodYear || a.PeriodMonth - b.PeriodMonth)
-          .map(m => MONTH_NAMES[m.PeriodMonth - 1].slice(0, 3))
-          .join(', ');
+        const sortedPrev = [...prevMonths].sort((a, b) => a.PeriodYear - b.PeriodYear || a.PeriodMonth - b.PeriodMonth);
+        const prevMonthNames = sortedPrev.length > 0
+          ? `${MONTH_NAMES[sortedPrev[0].PeriodMonth - 1].slice(0, 3)} ${sortedPrev[0].PeriodYear} – ${MONTH_NAMES[sortedPrev[sortedPrev.length - 1].PeriodMonth - 1].slice(0, 3)} ${sortedPrev[sortedPrev.length - 1].PeriodYear}`
+          : 'Prior Months';
 
         const curBilled = curMonthData ? (curMonthData.TotalBilled || 0) : 0;
         const curPaid = curMonthData ? (curMonthData.TotalPaid || 0) : 0;
@@ -536,12 +605,25 @@ function Inspectors() {
         {activeTab === 'approvals' && (
           <>
             <div className="insp-tab-header">
-              <h3>Pending Approvals — Facility EPVs Awaiting Verification ({pendingApprovals.length})</h3>
+              <h3>Pending Approvals — Facility EPVs Awaiting Verification ({filteredApprovals.length})</h3>
               <input className="insp-tab-search" placeholder="Search by name, client ID, or ref..." value={approvalSearch} onChange={e => setApprovalSearch(e.target.value)} />
             </div>
             <p className="insp-tab-desc">
               These facility EPVs have been completed but not yet approved or rejected by an inspector. Click column headers to sort.
             </p>
+            {approvalPeriods.length > 1 && (
+              <div className="insp-nc-month-badges">
+                {approvalPeriods.map(p => {
+                  const key = p.year * 100 + p.month;
+                  return (
+                    <button key={key} className={`insp-nc-month-badge ${approvalPeriod === key ? 'insp-nc-month-active' : ''}`} onClick={() => setApprovalPeriod(approvalPeriod === key ? 0 : key)}>
+                      <span className="insp-nc-month-name">{MONTH_NAMES[p.month - 1].slice(0, 3)} {p.year !== new Date().getFullYear() ? `'${String(p.year).slice(2)}` : ''}</span>
+                      <span className="insp-nc-month-count insp-nc-month-count-pending">{p.count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             {approvalSort.sorted.length === 0 ? (
               <p className="insp-all-done">No EPVs pending approval!</p>
             ) : (
@@ -614,12 +696,25 @@ function Inspectors() {
         {activeTab === 'incomplete' && (
           <>
             <div className="insp-tab-header">
-              <h3>Inspector EPVs to Complete ({inspEPVsToComplete.length})</h3>
+              <h3>Inspector EPVs to Complete ({filteredIncomplete.length})</h3>
             </div>
             <p className="insp-tab-desc">
               These facility EPVs were <strong>rejected</strong> and an Inspector EPV was created. Complete the Inspector EPV form with the correct amounts.
             </p>
-            {inspEPVsToComplete.length === 0 ? (
+            {incompletePeriods.length > 1 && (
+              <div className="insp-nc-month-badges">
+                {incompletePeriods.map(p => {
+                  const key = p.year * 100 + p.month;
+                  return (
+                    <button key={key} className={`insp-nc-month-badge ${incompletePeriod === key ? 'insp-nc-month-active' : ''}`} onClick={() => setIncompletePeriod(incompletePeriod === key ? 0 : key)}>
+                      <span className="insp-nc-month-name">{MONTH_NAMES[p.month - 1].slice(0, 3)} {p.year !== new Date().getFullYear() ? `'${String(p.year).slice(2)}` : ''}</span>
+                      <span className="insp-nc-month-count insp-nc-month-count-pending">{p.count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {filteredIncomplete.length === 0 ? (
               <p className="insp-all-done">No inspector EPVs to complete!</p>
             ) : (
               <div className="insp-approval-table-wrap">
@@ -639,7 +734,7 @@ function Inspectors() {
                     </tr>
                   </thead>
                   <tbody>
-                    {inspEPVsToComplete.map(epv => (
+                    {filteredIncomplete.map(epv => (
                       <tr key={epv.Id} className="insp-need-visit-row">
                         <td className="insp-epv-ref">{epv.ReferenceNumber || '—'}</td>
                         <td className="insp-epv-ref">{epv.InspEPVRef || '—'}</td>
@@ -669,13 +764,14 @@ function Inspectors() {
         {activeTab === 'notcompleted' && (
           <>
             <div className="insp-tab-header">
-              <h3>Facilities Not Yet Completed EPV — {new Date().getFullYear()} ({notCompleted.length})</h3>
+              <h3>Facilities Not Yet Completed EPV — {filterYear || '2025'}{!filterYear && ` – ${new Date().getFullYear()}`} ({notCompleted.length})</h3>
               <div className="insp-nc-controls">
                 <select className="insp-nc-month-filter" value={notCompletedMonth} onChange={e => setNotCompletedMonth(+e.target.value)}>
                   <option value={0}>All Months ({notCompleted.length})</option>
-                  {Array.from({ length: new Date().getMonth() + 1 }, (_, i) => i + 1).map(m => (
-                    <option key={m} value={m}>{MONTH_NAMES[m - 1]} ({notCompletedByMonth[m] || 0})</option>
-                  ))}
+                  {ncPeriods.map(p => {
+                    const key = p.year * 100 + p.month;
+                    return <option key={key} value={key}>{MONTH_NAMES[p.month - 1]} {p.year} ({p.count})</option>;
+                  })}
                 </select>
                 <input className="insp-tab-search" placeholder="Search facilities..." value={notCompletedSearch} onChange={e => setNotCompletedSearch(e.target.value)} />
               </div>
@@ -685,22 +781,22 @@ function Inspectors() {
             </p>
             {/* Month summary badges */}
             <div className="insp-nc-month-badges">
-              {Array.from({ length: new Date().getMonth() + 1 }, (_, i) => i + 1).map(m => {
-                const count = notCompletedByMonth[m] || 0;
+              {ncPeriods.map(p => {
+                const key = p.year * 100 + p.month;
                 return (
                   <button
-                    key={m}
-                    className={`insp-nc-month-badge ${notCompletedMonth === m ? 'insp-nc-month-active' : ''} ${count === 0 ? 'insp-nc-month-done' : ''}`}
-                    onClick={() => setNotCompletedMonth(notCompletedMonth === m ? 0 : m)}
+                    key={key}
+                    className={`insp-nc-month-badge ${notCompletedMonth === key ? 'insp-nc-month-active' : ''} ${p.count === 0 ? 'insp-nc-month-done' : ''}`}
+                    onClick={() => setNotCompletedMonth(notCompletedMonth === key ? 0 : key)}
                   >
-                    <span className="insp-nc-month-name">{MONTH_NAMES[m - 1].slice(0, 3)}</span>
-                    <span className={`insp-nc-month-count ${count > 0 ? 'insp-nc-month-count-pending' : 'insp-nc-month-count-done'}`}>{count}</span>
+                    <span className="insp-nc-month-name">{MONTH_NAMES[p.month - 1].slice(0, 3)} {p.year !== new Date().getFullYear() ? `'${String(p.year).slice(2)}` : ''}</span>
+                    <span className={`insp-nc-month-count ${p.count > 0 ? 'insp-nc-month-count-pending' : 'insp-nc-month-count-done'}`}>{p.count}</span>
                   </button>
                 );
               })}
             </div>
             {filteredNotCompleted.length === 0 ? (
-              <p className="insp-all-done">All facilities have completed their EPVs{notCompletedMonth > 0 ? ` for ${MONTH_NAMES[notCompletedMonth - 1]}` : ''}!</p>
+              <p className="insp-all-done">All facilities have completed their EPVs{notCompletedMonth > 0 ? ` for ${MONTH_NAMES[(notCompletedMonth % 100) - 1]} ${Math.floor(notCompletedMonth / 100)}` : ''}!</p>
             ) : (
               <div className="insp-approval-table-wrap">
                 <table className="insp-table insp-sortable">
@@ -708,7 +804,6 @@ function Inspectors() {
                     <tr>
                       <th onClick={() => notCompletedSort.toggleSort('PeriodMonth')} className="insp-sortable-th">Month<notCompletedSort.SortIcon col="PeriodMonth" /></th>
                       <th onClick={() => notCompletedSort.toggleSort('BusinessName')} className="insp-sortable-th">Business Name<notCompletedSort.SortIcon col="BusinessName" /></th>
-                      <th onClick={() => notCompletedSort.toggleSort('ClientID')} className="insp-sortable-th">Client ID<notCompletedSort.SortIcon col="ClientID" /></th>
                       <th onClick={() => notCompletedSort.toggleSort('FacilityProvince')} className="insp-sortable-th">Province<notCompletedSort.SortIcon col="FacilityProvince" /></th>
                       <th onClick={() => notCompletedSort.toggleSort('FacilityType')} className="insp-sortable-th">Type<notCompletedSort.SortIcon col="FacilityType" /></th>
                       <th>Status</th>
@@ -718,9 +813,8 @@ function Inspectors() {
                   <tbody>
                     {notCompletedSort.sorted.slice(0, 300).map((f, idx) => (
                       <tr key={`${f.Id}-${f.PeriodMonth}-${idx}`}>
-                        <td><strong>{MONTH_NAMES[f.PeriodMonth - 1]}</strong></td>
+                        <td><strong>{MONTH_NAMES[f.PeriodMonth - 1].slice(0, 3)} {f.PeriodYear}</strong></td>
                         <td><strong>{f.BusinessName}</strong></td>
-                        <td className="insp-epv-ref">{f.ClientID}</td>
                         <td>{f.FacilityProvince}</td>
                         <td>{f.FacilityType || '—'}</td>
                         <td>
@@ -812,7 +906,6 @@ function Inspectors() {
                 <thead>
                   <tr>
                     <th onClick={() => visitSort.toggleSort('BusinessName')} className="insp-sortable-th">Business Name<visitSort.SortIcon col="BusinessName" /></th>
-                    <th onClick={() => visitSort.toggleSort('ClientID')} className="insp-sortable-th">Client ID<visitSort.SortIcon col="ClientID" /></th>
                     <th onClick={() => visitSort.toggleSort('Town')} className="insp-sortable-th">Town<visitSort.SortIcon col="Town" /></th>
                     <th onClick={() => visitSort.toggleSort('FacilityProvince')} className="insp-sortable-th">Province<visitSort.SortIcon col="FacilityProvince" /></th>
                     <th onClick={() => visitSort.toggleSort('FacilityType')} className="insp-sortable-th">Facility Type<visitSort.SortIcon col="FacilityType" /></th>
@@ -823,7 +916,6 @@ function Inspectors() {
                   {visitSort.sorted.slice(0, 200).map(f => (
                     <tr key={f.Id} className="insp-need-visit-row">
                       <td><strong>{f.BusinessName}</strong></td>
-                      <td className="insp-epv-ref">{f.ClientID}</td>
                       <td>{f.Town || '—'}</td>
                       <td>{f.FacilityProvince}</td>
                       <td>{f.FacilityType || '—'}</td>
@@ -851,7 +943,6 @@ function Inspectors() {
                 <thead>
                   <tr>
                     <th onClick={() => owingSort.toggleSort('BusinessName')} className="insp-sortable-th">Business Name<owingSort.SortIcon col="BusinessName" /></th>
-                    <th onClick={() => owingSort.toggleSort('ClientID')} className="insp-sortable-th">Client ID<owingSort.SortIcon col="ClientID" /></th>
                     <th onClick={() => owingSort.toggleSort('FacilityProvince')} className="insp-sortable-th">Province<owingSort.SortIcon col="FacilityProvince" /></th>
                     <th onClick={() => owingSort.toggleSort('TotalBilled')} className="insp-sortable-th">Total Billed<owingSort.SortIcon col="TotalBilled" /></th>
                     <th onClick={() => owingSort.toggleSort('TotalPaid')} className="insp-sortable-th">Total Paid<owingSort.SortIcon col="TotalPaid" /></th>
@@ -863,7 +954,6 @@ function Inspectors() {
                   {owingSort.sorted.slice(0, 200).map(f => (
                     <tr key={f.ClientRecordId}>
                       <td><strong>{f.BusinessName}</strong></td>
-                      <td className="insp-epv-ref">{f.ClientID}</td>
                       <td>{f.FacilityProvince}</td>
                       <td>{formatR(f.TotalBilled)}</td>
                       <td className="insp-paid-cell">{formatR(f.TotalPaid)}</td>
