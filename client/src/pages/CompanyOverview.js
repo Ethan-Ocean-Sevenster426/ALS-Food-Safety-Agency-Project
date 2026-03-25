@@ -1226,7 +1226,7 @@ function CompanyOverview() {
           <p className="co-loading">Loading users...</p>
         ) : (
           <>
-            <table className="co-table">
+            <div className="co-table-wrap"><table className="co-table">
               <thead>
                 <tr>
                   <th>Name</th>
@@ -1271,7 +1271,7 @@ function CompanyOverview() {
                   ))
                 )}
               </tbody>
-            </table>
+            </table></div>
 
             {pendingInvites.length > 0 && (
               <div className="co-pending-section">
@@ -1318,7 +1318,7 @@ function CompanyOverview() {
         ) : epvList.length === 0 ? (
           <p className="co-loading">No verifications sent yet.{isAdmin ? ' Click "Send EPV" to send the first one.' : ' Your administrator will send the first one.'}</p>
         ) : (
-          <table className="co-table co-epv-table">
+          <div className="co-table-wrap"><table className="co-table co-epv-table">
             <thead>
               <tr>
                 <th>Ref #</th>
@@ -1695,7 +1695,7 @@ function CompanyOverview() {
               );
               })}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
 
@@ -1708,7 +1708,7 @@ function CompanyOverview() {
         {epvList.filter(e => e.Status === 'Completed').length === 0 ? (
           <p className="co-loading">No completed verifications yet.</p>
         ) : (
-          <table className="co-table co-invoice-table">
+          <div className="co-table-wrap"><table className="co-table co-invoice-table">
             <thead>
               <tr>
                 <th>EPV Ref #</th>
@@ -1825,7 +1825,7 @@ function CompanyOverview() {
                 );
               })}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
 
@@ -1845,7 +1845,7 @@ function CompanyOverview() {
             ) : auditLog.length === 0 ? (
               <p className="co-loading">No changes recorded yet.</p>
             ) : (
-              <table className="co-table co-audit-table">
+              <div className="co-table-wrap"><table className="co-table co-audit-table">
                 <thead>
                   <tr>
                     <th>Date/Time</th>
@@ -1868,7 +1868,7 @@ function CompanyOverview() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             )}
             {auditTotalPages > 1 && (
               <div className="co-pagination">

@@ -426,6 +426,13 @@
   opacity: 0.6;
 }
 
+/* ===== Table Wrapper ===== */
+.co-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 8px;
+}
+
 /* ===== Users Table ===== */
 .co-table {
   width: 100%;
