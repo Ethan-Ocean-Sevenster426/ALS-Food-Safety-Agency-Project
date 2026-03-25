@@ -1292,7 +1292,7 @@ function CompanyOverview() {
       {/* ===== EGG PRODUCTION VERIFICATIONS ===== */}
       <div className="page-card co-section">
         <div className="co-section-header">
-          <h3>Egg Production Verifications ({epvList.length})</h3>
+          <h3 style={{fontSize: '13px', margin: 0}}>EPVs ({epvList.length})</h3>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             {isAdmin && (() => {
               const now = new Date();
@@ -1300,7 +1300,7 @@ function CompanyOverview() {
               const curYear = now.getFullYear();
               const existsThisMonth = epvList.some(e => e.PeriodMonth === curMonth && e.PeriodYear === curYear);
               return existsThisMonth ? (
-                <span className="co-epv-sent-label">EPV Sent for {MONTH_NAMES[curMonth - 1]} {curYear}</span>
+                <span className="co-epv-sent-label">EPV SENT {MONTH_NAMES[curMonth - 1].slice(0,3).toUpperCase()} {curYear}</span>
               ) : (
                 <button className="co-epv-send-btn" onClick={sendEPV} disabled={epvSending}>
                   {epvSending ? 'Sending...' : 'Send EPV'}
@@ -1324,18 +1324,18 @@ function CompanyOverview() {
                 <th>Ref #</th>
                 <th>Period</th>
                 <th>Status</th>
-                <th>Completed</th>
-                <th>Facility EPV Document</th>
-                <th>Inspector EPV Document</th>
+                <th>Done</th>
+                <th>Facility EPV</th>
+                <th>Insp. EPV</th>
                 <th>Verified</th>
-                <th>Manual Inspection</th>
-                <th>Inspector Comments</th>
-                <th>Amount Outstanding</th>
-                <th>Payment Status</th>
-                <th>Proof Of Payment</th>
-                <th>POP Comments</th>
-                <th>Amount Reconciled</th>
+                <th>Manual Insp.</th>
+                <th>Comments</th>
+                <th>Outstanding</th>
+                <th>Payment</th>
+                <th>POP</th>
+                <th>POP Note</th>
                 <th>Reconciled</th>
+                <th>&#x2713;</th>
               </tr>
               <tr className="co-filter-row">
                 <th><input className="co-filter-input" placeholder="Search..." value={epvFilters.ref || ''} onChange={e => setEpvFilters(p => ({...p, ref: e.target.value}))} /></th>
@@ -1364,9 +1364,9 @@ function CompanyOverview() {
                   className={`co-epv-row ${epv.IsReconciled ? 'co-epv-reconciled' : ''} ${expandedEpvId === epv.Id ? 'co-epv-expanded' : ''}`}
                   onClick={() => setExpandedEpvId(expandedEpvId === epv.Id ? null : epv.Id)}
                 >
-                  <td className="co-epv-ref">{epv.ReferenceNumber || '—'}</td>
+                  <td className="co-epv-ref">{(epv.ReferenceNumber || '—').replace('EPV-', '')}</td>
                   <td className="co-epv-period">
-                    {MONTH_NAMES[(epv.PeriodMonth || 1) - 1]} {epv.PeriodYear}
+                    {MONTH_NAMES[(epv.PeriodMonth || 1) - 1].slice(0,3)} '{String(epv.PeriodYear).slice(2)}
                   </td>
                   <td>
                     <span className={`co-epv-status co-epv-${epv.Status.toLowerCase()}`}>
@@ -1381,7 +1381,7 @@ function CompanyOverview() {
                       </button>
                     ) : isAdmin ? (
                       <button className="co-epv-edit-btn" onClick={() => navigate(`/epv/${epv.Token}`)}>
-                        View / Edit
+                        Edit
                       </button>
                     ) : (
                       <button className="co-epv-view-btn" onClick={() => navigate(`/epv/${epv.Token}`)}>
@@ -1401,7 +1401,7 @@ function CompanyOverview() {
                         )
                       ) : user.role === 'Super Admin' ? (
                         <button className="co-epv-edit-btn" onClick={() => navigate(`/epv/${epv.inspectorEPV.Token}`)}>
-                          View / Edit
+                          Edit
                         </button>
                       ) : (
                         <button className="co-epv-view-btn" onClick={() => navigate(`/epv/${epv.inspectorEPV.Token}`)}>
@@ -1423,10 +1423,10 @@ function CompanyOverview() {
                             checked
                             onChange={() => toggleVerify(epv.Id, epv.IsVerified)}
                           />
-                          <span>Inspector Approved</span>
+                          <span>Approved</span>
                         </label>
                       ) : (
-                        <span className="co-verified-badge">Inspector Approved</span>
+                        <span className="co-verified-badge">Approved</span>
                       )
                     ) : epv.inspectorEPV && epv.inspectorEPV.Status === 'Completed' ? (
                       user.role === 'Super Admin' ? (
@@ -1508,7 +1508,7 @@ function CompanyOverview() {
                         <div className="co-comment-cell">
                           <textarea
                             className="co-comment-input"
-                            placeholder="Add comment..."
+                            placeholder="Note..."
                             value={epvComments[epv.Id] !== undefined ? epvComments[epv.Id] : (epv.InspectorComment || '')}
                             onChange={(e) => setEpvComments(prev => ({ ...prev, [epv.Id]: e.target.value }))}
                             rows={2}
@@ -1580,7 +1580,7 @@ function CompanyOverview() {
                       </div>
                     ) : epv.Status === 'Completed' && !epv.IsReconciled && user.role !== 'Inspector' ? (
                       <label className="co-pop-upload-btn">
-                        {popUploading === epv.Id ? 'Uploading...' : '+ Upload POP'}
+                        {popUploading === epv.Id ? '...' : 'Upload'}
                         <input
                           type="file"
                           accept=".pdf,.png,.jpg,.jpeg"
@@ -1598,7 +1598,7 @@ function CompanyOverview() {
                       <div className="co-comment-cell">
                         <textarea
                           className="co-comment-input"
-                          placeholder="Add POP comment..."
+                          placeholder="Note..."
                           value={popComments[epv.Id] !== undefined ? popComments[epv.Id] : (epv.POPComment || '')}
                           onChange={(e) => setPopComments(prev => ({ ...prev, [epv.Id]: e.target.value }))}
                           rows={2}
@@ -1664,7 +1664,6 @@ function CompanyOverview() {
                           checked={false}
                           onChange={() => toggleReconcile(epv.Id, epv.IsReconciled)}
                         />
-                        <span>Mark</span>
                       </label>
                     ) : (
                       <span className="co-not-reconciled">Not Reconciled</span>
@@ -1740,7 +1739,7 @@ function CompanyOverview() {
                 const ao = getAmountOutstanding(epv);
                 return (
                   <tr key={epv.Id} className={inv && inv.SentAt ? 'co-inv-sent-row' : ''}>
-                    <td className="co-epv-ref">{epv.ReferenceNumber || '—'}</td>
+                    <td className="co-epv-ref">{(epv.ReferenceNumber || '—').replace('EPV-', '')}</td>
                     <td>{MONTH_NAMES[(epv.PeriodMonth || 1) - 1]} {epv.PeriodYear}</td>
                     <td className="co-epv-ref">
                       {inv ? (

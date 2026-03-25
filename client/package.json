@@ -27,6 +27,7 @@
       "react-app/jest"
     ]
   },
+  "proxy": "https://egg-production-verification.fsa-pty.co.za",
   "browserslist": {
     "production": [
       ">0.2%",
