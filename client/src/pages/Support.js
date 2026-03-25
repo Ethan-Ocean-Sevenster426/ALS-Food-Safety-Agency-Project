@@ -37,7 +37,7 @@ function Support() {
   const fetchTickets = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await axios.get('http://localhost:5000/api/support/tickets', {
+      const res = await axios.get('/api/support/tickets', {
         params: {
           userId: user.id,
           role: user.role,
@@ -56,7 +56,7 @@ function Support() {
 
   useEffect(() => {
     if (canManage) {
-      axios.get('http://localhost:5000/api/auth/users')
+      axios.get('/api/auth/users')
         .then(res => {
           const admins = res.data.users.filter(u =>
             u.Role === 'Super Admin' || u.Role === 'Admin'
@@ -79,7 +79,7 @@ function Support() {
     setDetailLoading(true);
     setNewComment('');
     try {
-      const res = await axios.get(`http://localhost:5000/api/support/tickets/${ticket.Id}`);
+      const res = await axios.get(`/api/support/tickets/${ticket.Id}`);
       setTicketDetail(res.data.ticket);
       setComments(res.data.comments);
     } catch (err) {
@@ -98,7 +98,7 @@ function Support() {
   const updateTicket = async (field, value) => {
     if (!ticketDetail) return;
     try {
-      await axios.put(`http://localhost:5000/api/support/tickets/${ticketDetail.Id}`, {
+      await axios.put(`/api/support/tickets/${ticketDetail.Id}`, {
         [field]: value,
       });
       setTicketDetail(prev => ({ ...prev, [field === 'assignedToUserId' ? 'AssignedToUserId' : field.charAt(0).toUpperCase() + field.slice(1)]: value }));
@@ -114,13 +114,13 @@ function Support() {
     if (!newComment.trim()) return;
     setCommenting(true);
     try {
-      await axios.post(`http://localhost:5000/api/support/tickets/${ticketDetail.Id}/comments`, {
+      await axios.post(`/api/support/tickets/${ticketDetail.Id}/comments`, {
         userId: user.id,
         comment: newComment,
       });
       setNewComment('');
       // Refresh comments
-      const res = await axios.get(`http://localhost:5000/api/support/tickets/${ticketDetail.Id}`);
+      const res = await axios.get(`/api/support/tickets/${ticketDetail.Id}`);
       setComments(res.data.comments);
       setTicketDetail(res.data.ticket);
     } catch (err) {

@@ -238,7 +238,7 @@ function CompanyOverview() {
     if (!canSelectCompany) return;
     setCompaniesLoading(true);
     try {
-      const res = await axios.get('http://localhost:5000/api/clients', { params: { limit: 9999 } });
+      const res = await axios.get('/api/clients', { params: { limit: 9999 } });
       setAllCompanies(res.data.data);
     } catch (err) {
       console.error('Failed to load companies');
@@ -254,7 +254,7 @@ function CompanyOverview() {
     if (!activeCompanyId) { setLoading(false); return; }
     setLoading(true);
     try {
-      const res = await axios.get(`http://localhost:5000/api/company/${activeCompanyId}`);
+      const res = await axios.get(`/api/company/${activeCompanyId}`);
       setCompany(res.data.company);
     } catch (err) {
       setError('Failed to load company details.');
@@ -267,7 +267,7 @@ function CompanyOverview() {
     if (!activeCompanyId) return;
     setUsersLoading(true);
     try {
-      const res = await axios.get(`http://localhost:5000/api/company/${activeCompanyId}/users`);
+      const res = await axios.get(`/api/company/${activeCompanyId}/users`);
       setCompanyUsers(res.data.users);
       setPendingInvites(res.data.pendingInvites);
     } catch (err) {
@@ -281,7 +281,7 @@ function CompanyOverview() {
   const fetchAuditCount = useCallback(async () => {
     if (!activeCompanyId) return;
     try {
-      const res = await axios.get(`http://localhost:5000/api/company/${activeCompanyId}/audit-log`, {
+      const res = await axios.get(`/api/company/${activeCompanyId}/audit-log`, {
         params: { page: 1, limit: 1 },
       });
       setAuditTotal(res.data.total);
@@ -294,7 +294,7 @@ function CompanyOverview() {
     if (!activeCompanyId) return;
     setAuditLoading(true);
     try {
-      const res = await axios.get(`http://localhost:5000/api/company/${activeCompanyId}/audit-log`, {
+      const res = await axios.get(`/api/company/${activeCompanyId}/audit-log`, {
         params: { page: auditPage, limit: 50 },
       });
       setAuditLog(res.data.data);
@@ -311,7 +311,7 @@ function CompanyOverview() {
     if (!activeCompanyId) return;
     setEpvLoading(true);
     try {
-      const res = await axios.get(`http://localhost:5000/api/epv/company/${activeCompanyId}`);
+      const res = await axios.get(`/api/epv/company/${activeCompanyId}`);
       setEpvList(res.data.verifications);
     } catch (err) {
       console.error('Failed to load EPVs');
@@ -323,7 +323,7 @@ function CompanyOverview() {
   const fetchInvoices = useCallback(async () => {
     if (!activeCompanyId) return;
     try {
-      const res = await axios.get(`http://localhost:5000/api/invoices/company/${activeCompanyId}`);
+      const res = await axios.get(`/api/invoices/company/${activeCompanyId}`);
       setInvoices(res.data);
     } catch (err) {
       console.error('Failed to load invoices');
@@ -333,7 +333,7 @@ function CompanyOverview() {
   const fetchEmailStatus = useCallback(async () => {
     if (!activeCompanyId) return;
     try {
-      const res = await axios.get(`http://localhost:5000/api/invoices/email-log/${activeCompanyId}`);
+      const res = await axios.get(`/api/invoices/email-log/${activeCompanyId}`);
       setEmailStatus(res.data.emailStatus || {});
     } catch (err) {
       console.error('Failed to load email status');
@@ -422,7 +422,7 @@ function CompanyOverview() {
 
     setSaving(true);
     try {
-      await axios.put(`http://localhost:5000/api/company/${activeCompanyId}`, {
+      await axios.put(`/api/company/${activeCompanyId}`, {
         updates: changes,
         changedBy: userLabel,
       });
@@ -445,7 +445,7 @@ function CompanyOverview() {
     setInviteSending(true);
     setError('');
     try {
-      const res = await axios.post(`http://localhost:5000/api/company/${activeCompanyId}/invite`, {
+      const res = await axios.post(`/api/company/${activeCompanyId}/invite`, {
         email: inviteEmail,
         role: inviteRole,
         invitedBy: userLabel,
@@ -466,7 +466,7 @@ function CompanyOverview() {
   const executeDeleteUser = async () => {
     if (!deleteConfirm) return;
     try {
-      await axios.delete(`http://localhost:5000/api/company/${activeCompanyId}/users/${deleteConfirm.Id}`);
+      await axios.delete(`/api/company/${activeCompanyId}/users/${deleteConfirm.Id}`);
       setDeleteConfirm(null);
       setSuccessMsg(`User "${deleteConfirm.FirstName} ${deleteConfirm.LastName}" removed.`);
       fetchUsers();
@@ -488,7 +488,7 @@ function CompanyOverview() {
     setResetting(true);
     setError('');
     try {
-      await axios.put(`http://localhost:5000/api/auth/users/${resetModal.Id}/reset-password`, {
+      await axios.put(`/api/auth/users/${resetModal.Id}/reset-password`, {
         newPassword: resetPassword,
       });
       setResetModal(null);
@@ -514,7 +514,7 @@ function CompanyOverview() {
     setAddEpvCreating(true);
     setError('');
     try {
-      const res = await axios.post('http://localhost:5000/api/epv/create-manual', {
+      const res = await axios.post('/api/epv/create-manual', {
         clientRecordId: activeCompanyId,
         periodMonth: parseInt(addEpvMonth),
         periodYear: parseInt(addEpvYear),
@@ -541,7 +541,7 @@ function CompanyOverview() {
       formData.append('pop', file);
       formData.append('uploadedBy', userLabel);
       formData.append('userRole', user.role);
-      await axios.post(`http://localhost:5000/api/epv/${epvId}/upload-pop`, formData, {
+      await axios.post(`/api/epv/${epvId}/upload-pop`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setSuccessMsg('Proof of Payment uploaded successfully.');
@@ -558,7 +558,7 @@ function CompanyOverview() {
     if (!window.confirm('Are you sure you want to delete this Proof of Payment? This will also remove reconciliation.')) return;
     setError('');
     try {
-      await axios.delete(`http://localhost:5000/api/epv/${epvId}/pop`, { data: { deletedBy: userLabel, userRole: user.role } });
+      await axios.delete(`/api/epv/${epvId}/pop`, { data: { deletedBy: userLabel, userRole: user.role } });
       setSuccessMsg('POP deleted successfully.');
       refreshAll();
     } catch (err) {
@@ -570,7 +570,7 @@ function CompanyOverview() {
   const toggleReconcile = async (epvId, currentValue) => {
     setError('');
     try {
-      await axios.put(`http://localhost:5000/api/epv/${epvId}/reconcile`, {
+      await axios.put(`/api/epv/${epvId}/reconcile`, {
         reconciled: !currentValue,
         reconciledBy: userLabel,
         userRole: user.role,
@@ -586,7 +586,7 @@ function CompanyOverview() {
   const toggleVerify = async (epvId, currentValue) => {
     setError('');
     try {
-      await axios.put(`http://localhost:5000/api/epv/${epvId}/verify`, {
+      await axios.put(`/api/epv/${epvId}/verify`, {
         verified: !currentValue,
         verifiedBy: userLabel,
         userRole: user.role,
@@ -604,7 +604,7 @@ function CompanyOverview() {
   const toggleManualInspection = async (epvId, currentValue) => {
     setError('');
     try {
-      await axios.put(`http://localhost:5000/api/epv/${epvId}/manual-inspection`, {
+      await axios.put(`/api/epv/${epvId}/manual-inspection`, {
         checked: !currentValue,
         changedBy: userLabel,
         userRole: user.role,
@@ -620,7 +620,7 @@ function CompanyOverview() {
   const saveReconciledAmount = async (epvId) => {
     setError('');
     try {
-      await axios.put(`http://localhost:5000/api/epv/${epvId}/reconciled-amount`, {
+      await axios.put(`/api/epv/${epvId}/reconciled-amount`, {
         amount: reconciledAmounts[epvId] || null,
         changedBy: userLabel,
         userRole: user.role,
@@ -637,7 +637,7 @@ function CompanyOverview() {
   const saveComment = async (epvId) => {
     setError('');
     try {
-      await axios.put(`http://localhost:5000/api/epv/${epvId}/comment`, {
+      await axios.put(`/api/epv/${epvId}/comment`, {
         comment: epvComments[epvId] || '',
         commentBy: userLabel,
         userRole: user.role,
@@ -654,7 +654,7 @@ function CompanyOverview() {
   const savePopComment = async (epvId) => {
     setError('');
     try {
-      await axios.put(`http://localhost:5000/api/epv/${epvId}/pop-comment`, {
+      await axios.put(`/api/epv/${epvId}/pop-comment`, {
         comment: popComments[epvId] || '',
         commentBy: userLabel,
         userRole: user.role,
@@ -671,7 +671,7 @@ function CompanyOverview() {
   const updatePaymentStatus = async (epvId, status) => {
     setError('');
     try {
-      await axios.put(`http://localhost:5000/api/epv/${epvId}/payment-status`, {
+      await axios.put(`/api/epv/${epvId}/payment-status`, {
         status,
         changedBy: userLabel,
         userRole: user.role,
@@ -688,7 +688,7 @@ function CompanyOverview() {
     setInvoiceGenerating(epvId);
     setError('');
     try {
-      const res = await axios.post('http://localhost:5000/api/invoices/generate', {
+      const res = await axios.post('/api/invoices/generate', {
         verificationId: epvId,
         generatedBy: userLabel,
         userRole: user.role,
@@ -712,7 +712,7 @@ function CompanyOverview() {
     setInvoiceSending(invoiceId);
     setError('');
     try {
-      const res = await axios.post(`http://localhost:5000/api/invoices/send/${invoiceId}`, {
+      const res = await axios.post(`/api/invoices/send/${invoiceId}`, {
         sentBy: userLabel,
         userRole: user.role,
       });
@@ -730,7 +730,7 @@ function CompanyOverview() {
     if (!window.confirm('Are you sure you want to delete this invoice?')) return;
     setError('');
     try {
-      await axios.delete(`http://localhost:5000/api/invoices/${invoiceId}`, {
+      await axios.delete(`/api/invoices/${invoiceId}`, {
         data: { deletedBy: userLabel, userRole: user.role },
       });
       setSuccessMsg('Invoice deleted.');
@@ -770,7 +770,7 @@ function CompanyOverview() {
     setInspCreating(epv.Id);
     setError('');
     try {
-      const res = await axios.post('http://localhost:5000/api/epv/inspector/create', {
+      const res = await axios.post('/api/epv/inspector/create', {
         clientEpvId: epv.Id,
         inspectorId: user.id,
         inspectorName: `${user.firstName} ${user.lastName}`,
@@ -789,7 +789,7 @@ function CompanyOverview() {
   const deleteInspectorEPV = async (inspEpvId) => {
     if (!window.confirm('Are you sure you want to delete this Inspector EPV? This action cannot be undone.')) return;
     try {
-      await axios.delete(`http://localhost:5000/api/epv/inspector/${inspEpvId}`, { data: { deletedBy: userLabel, userRole: user.role } });
+      await axios.delete(`/api/epv/inspector/${inspEpvId}`, { data: { deletedBy: userLabel, userRole: user.role } });
       setSuccessMsg('Inspector EPV deleted.');
       refreshAll();
     } catch (err) {
@@ -802,7 +802,7 @@ function CompanyOverview() {
     setInspCreating(clientEpvId);
     setError('');
     try {
-      const res = await axios.post('http://localhost:5000/api/epv/inspector/create', {
+      const res = await axios.post('/api/epv/inspector/create', {
         clientEpvId,
         inspectorId: user.id,
         inspectorName: `${user.firstName} ${user.lastName}`,
@@ -822,7 +822,7 @@ function CompanyOverview() {
     setEpvSending(true);
     setError('');
     try {
-      const res = await axios.post('http://localhost:5000/api/epv/send', {
+      const res = await axios.post('/api/epv/send', {
         clientRecordId: activeCompanyId,
         sentBy: userLabel,
         userRole: user.role,
@@ -1568,7 +1568,7 @@ function CompanyOverview() {
                   <td className="co-epv-pop" onClick={e => e.stopPropagation()}>
                     {epv.POPFilePath ? (
                       <div className="co-pop-uploaded-container">
-                        <a href={`http://localhost:5000/api/epv/${epv.Id}/pop`} target="_blank" rel="noreferrer" className="co-pop-view-btn">
+                        <a href={`/api/epv/${epv.Id}/pop`} target="_blank" rel="noreferrer" className="co-pop-view-btn">
                           <span className="co-pop-icon">&#128196;</span> View
                         </a>
                         <span className="co-pop-date">{formatDate(epv.POPUploadedAt)}</span>
@@ -1744,7 +1744,7 @@ function CompanyOverview() {
                     <td>{MONTH_NAMES[(epv.PeriodMonth || 1) - 1]} {epv.PeriodYear}</td>
                     <td className="co-epv-ref">
                       {inv ? (
-                        <a href={`http://localhost:5000/api/invoices/download/${inv.FilePath}`} target="_blank" rel="noreferrer" className="co-invoice-link">
+                        <a href={`/api/invoices/download/${inv.FilePath}`} target="_blank" rel="noreferrer" className="co-invoice-link">
                           {inv.InvoiceNumber}
                         </a>
                       ) : '—'}
@@ -1788,7 +1788,7 @@ function CompanyOverview() {
                       <div className="co-invoice-actions">
                         {/* View PDF — everyone can see if invoice exists */}
                         {inv && (
-                          <a href={`http://localhost:5000/api/invoices/download/${inv.FilePath}`} target="_blank" rel="noreferrer" className="co-invoice-download-btn">
+                          <a href={`/api/invoices/download/${inv.FilePath}`} target="_blank" rel="noreferrer" className="co-invoice-download-btn">
                             View
                           </a>
                         )}

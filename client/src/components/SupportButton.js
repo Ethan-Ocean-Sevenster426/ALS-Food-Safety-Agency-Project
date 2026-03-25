@@ -16,7 +16,7 @@ function SupportButton() {
 
   useEffect(() => {
     if (open) {
-      axios.get('http://localhost:5000/api/support/categories')
+      axios.get('/api/support/categories')
         .then(res => setCategories(res.data.categories || []))
         .catch(() => setCategories([]));
     }
@@ -45,7 +45,7 @@ function SupportButton() {
     setSubmitting(true);
     setError('');
     try {
-      await axios.post('http://localhost:5000/api/support/tickets', {
+      await axios.post('/api/support/tickets', {
         categoryId: parseInt(categoryId),
         subject,
         description,

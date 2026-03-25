@@ -98,7 +98,7 @@ function ClientAllocation() {
     setLoading(true);
     setError('');
     try {
-      const res = await axios.get('http://localhost:5000/api/clients', {
+      const res = await axios.get('/api/clients', {
         params: { page, limit, search },
       });
       setClients(res.data.data);
@@ -116,7 +116,7 @@ function ClientAllocation() {
     try {
       const params = { page: auditPage, limit: 50 };
       if (auditRecordFilter) params.recordId = auditRecordFilter;
-      const res = await axios.get('http://localhost:5000/api/clients/audit-log', { params });
+      const res = await axios.get('/api/clients/audit-log', { params });
       setAuditLog(res.data.data);
       setAuditTotalPages(res.data.totalPages);
       setAuditTotal(res.data.total);
@@ -180,7 +180,7 @@ function ClientAllocation() {
 
     setSaving(true);
     try {
-      await axios.put(`http://localhost:5000/api/clients/${editingId}`, {
+      await axios.put(`/api/clients/${editingId}`, {
         updates: changes,
         changedBy: userLabel,
       });
@@ -212,7 +212,7 @@ function ClientAllocation() {
     setAddingSaving(true);
     setError('');
     try {
-      await axios.post('http://localhost:5000/api/clients', {
+      await axios.post('/api/clients', {
         client: newRow,
         createdBy: userLabel,
       });
@@ -240,7 +240,7 @@ function ClientAllocation() {
   const executeDelete = async () => {
     if (!deleteConfirm) return;
     try {
-      await axios.delete(`http://localhost:5000/api/clients/${deleteConfirm.Id}`, {
+      await axios.delete(`/api/clients/${deleteConfirm.Id}`, {
         data: { deletedBy: userLabel },
       });
       setDeleteConfirm(null);
@@ -267,7 +267,7 @@ function ClientAllocation() {
     setInviteSending(true);
     setError('');
     try {
-      const res = await axios.post('http://localhost:5000/api/invites', {
+      const res = await axios.post('/api/invites', {
         clientRecordId: inviteModal.Id,
         role: inviteRole,
         invitedBy: userLabel,
@@ -290,7 +290,7 @@ function ClientAllocation() {
     setEpvSending(client.Id);
     setError('');
     try {
-      const res = await axios.post('http://localhost:5000/api/epv/send', {
+      const res = await axios.post('/api/epv/send', {
         clientRecordId: client.Id,
         sentBy: userLabel,
       });

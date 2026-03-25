@@ -86,7 +86,7 @@ function Administrators() {
       if (statsYear) params.year = statsYear;
       if (statsQuarter) params.quarter = statsQuarter;
       if (statsMonth) params.month = statsMonth;
-      const res = await axios.get('http://localhost:5000/api/admin/stats', { params });
+      const res = await axios.get('/api/admin/stats', { params });
       setStats(res.data);
     } catch (err) {
       setError('Failed to load admin stats.');
@@ -104,7 +104,7 @@ function Administrators() {
       if (filterYear) params.year = filterYear;
       if (search) params.search = search;
 
-      const res = await axios.get('http://localhost:5000/api/admin/reconciliation', { params });
+      const res = await axios.get('/api/admin/reconciliation', { params });
       setReconData(res.data);
     } catch (err) {
       console.error('Failed to load reconciliation data:', err);
@@ -119,7 +119,7 @@ function Administrators() {
 
   useEffect(() => {
     refreshAll();
-    axios.get('http://localhost:5000/api/dashboard/kpi-targets')
+    axios.get('/api/dashboard/kpi-targets')
       .then(res => {
         const t = res.data.targets || {};
         setKpiTargets({
@@ -149,7 +149,7 @@ function Administrators() {
     }
     setError('');
     try {
-      await axios.put('http://localhost:5000/api/admin/reconcile-batch', {
+      await axios.put('/api/admin/reconcile-batch', {
         items: [{ id: epv.Id, amount: parseFloat(amount) }],
         reconciledBy: userLabel,
         userRole: user.role,
@@ -167,7 +167,7 @@ function Administrators() {
   const reconcileFull = async (epv) => {
     setError('');
     try {
-      await axios.put('http://localhost:5000/api/admin/reconcile-batch', {
+      await axios.put('/api/admin/reconcile-batch', {
         items: [{ id: epv.Id, amount: epv.TotalBilled }],
         reconciledBy: userLabel,
         userRole: user.role,
@@ -191,7 +191,7 @@ function Administrators() {
           id: e.Id,
           amount: editAmounts[e.Id] ? parseFloat(editAmounts[e.Id]) : e.TotalBilled,
         }));
-      await axios.put('http://localhost:5000/api/admin/reconcile-batch', {
+      await axios.put('/api/admin/reconcile-batch', {
         items,
         reconciledBy: userLabel,
         userRole: user.role,

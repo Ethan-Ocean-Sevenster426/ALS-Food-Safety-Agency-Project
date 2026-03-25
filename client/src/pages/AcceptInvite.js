@@ -69,7 +69,7 @@ function AcceptInvite() {
 
   const fetchInvite = useCallback(async () => {
     try {
-      const res = await axios.get(`http://localhost:5000/api/invites/${token}`);
+      const res = await axios.get(`/api/invites/${token}`);
       setInvite(res.data.invite);
 
       // Pre-fill wizard data from existing record
@@ -116,7 +116,7 @@ function AcceptInvite() {
     setSubmitting(true);
     setError('');
     try {
-      await axios.post(`http://localhost:5000/api/invites/${token}/accept`, {
+      await axios.post(`/api/invites/${token}/accept`, {
         firstName,
         lastName,
         password,

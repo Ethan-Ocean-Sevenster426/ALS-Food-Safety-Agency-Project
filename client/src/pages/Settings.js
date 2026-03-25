@@ -39,7 +39,7 @@ function Settings() {
     if (!isAdmin) return;
     setLoading(true);
     try {
-      const res = await axios.get('http://localhost:5000/api/auth/users');
+      const res = await axios.get('/api/auth/users');
       setUsers(res.data.users);
     } catch (err) {
       setError('Failed to load users.');
@@ -59,7 +59,7 @@ function Settings() {
 
   const handleRoleChange = async (userId, newRole) => {
     try {
-      await axios.put(`http://localhost:5000/api/auth/users/${userId}/role`, { role: newRole });
+      await axios.put(`/api/auth/users/${userId}/role`, { role: newRole });
       setSuccessMsg('Role updated.');
       if (userId === user.id) {
         const updated = { ...user, role: newRole };
@@ -74,7 +74,7 @@ function Settings() {
   const executeDelete = async () => {
     if (!deleteConfirm) return;
     try {
-      await axios.delete(`http://localhost:5000/api/auth/users/${deleteConfirm.Id}`);
+      await axios.delete(`/api/auth/users/${deleteConfirm.Id}`);
       setDeleteConfirm(null);
       setSuccessMsg(`User "${deleteConfirm.FirstName} ${deleteConfirm.LastName}" deleted.`);
       fetchUsers();
@@ -93,7 +93,7 @@ function Settings() {
     setResetting(true);
     setError('');
     try {
-      await axios.put(`http://localhost:5000/api/auth/users/${resetModal.Id}/reset-password`, {
+      await axios.put(`/api/auth/users/${resetModal.Id}/reset-password`, {
         newPassword: resetPassword,
       });
       setResetModal(null);
@@ -110,7 +110,7 @@ function Settings() {
     if (!deactivateConfirm) return;
     const newStatus = !deactivateConfirm.IsActive;
     try {
-      await axios.put(`http://localhost:5000/api/auth/users/${deactivateConfirm.Id}/deactivate`, {
+      await axios.put(`/api/auth/users/${deactivateConfirm.Id}/deactivate`, {
         isActive: newStatus,
       });
       setDeactivateConfirm(null);
@@ -125,7 +125,7 @@ function Settings() {
   const fetchCompanies = useCallback(async (search) => {
     setCompaniesLoading(true);
     try {
-      const res = await axios.get(`http://localhost:5000/api/clients?limit=20&search=${encodeURIComponent(search)}`);
+      const res = await axios.get(`/api/clients?limit=20&search=${encodeURIComponent(search)}`);
       setCompanies(res.data.clients || []);
     } catch {
       setCompanies([]);
@@ -162,7 +162,7 @@ function Settings() {
     setAddUserSubmitting(true);
     setError('');
     try {
-      await axios.post('http://localhost:5000/api/auth/signup', {
+      await axios.post('/api/auth/signup', {
         firstName,
         lastName,
         email,
@@ -204,7 +204,7 @@ function Settings() {
     setEditSubmitting(true);
     setError('');
     try {
-      await axios.put(`http://localhost:5000/api/auth/users/${editModal.Id}`, editData);
+      await axios.put(`/api/auth/users/${editModal.Id}`, editData);
       setEditModal(null);
       setSuccessMsg(`User "${editData.firstName} ${editData.lastName}" updated.`);
       // Update localStorage if editing self

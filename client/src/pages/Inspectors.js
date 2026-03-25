@@ -102,7 +102,7 @@ function Inspectors() {
       const params = { ...getDateParams() };
       const prov = getProvinceParam();
       if (prov) params.province = prov;
-      const res = await axios.get('http://localhost:5000/api/epv/inspector/stats', { params });
+      const res = await axios.get('/api/epv/inspector/stats', { params });
       setStats(res.data);
     } catch (err) {
       setError('Failed to load inspector stats.');
@@ -116,7 +116,7 @@ function Inspectors() {
       const params = { ...getDateParams() };
       const prov = getProvinceParam();
       if (prov) params.province = prov;
-      const res = await axios.get('http://localhost:5000/api/epv/inspector/pending-approvals', { params });
+      const res = await axios.get('/api/epv/inspector/pending-approvals', { params });
       setPendingApprovals(res.data.pendingApprovals || []);
       setInspEPVsToComplete(res.data.inspectorEPVsToComplete || []);
     } catch (err) {
@@ -129,7 +129,7 @@ function Inspectors() {
       const params = { ...getDateParams() };
       const prov = getProvinceParam();
       if (prov) params.province = prov;
-      const res = await axios.get('http://localhost:5000/api/epv/inspector/not-completed', { params });
+      const res = await axios.get('/api/epv/inspector/not-completed', { params });
       setNotCompleted(res.data.notCompleted || []);
     } catch (err) {
       console.error('Failed to load not-completed:', err);
@@ -144,7 +144,7 @@ function Inspectors() {
 
   useEffect(() => {
     refreshAll();
-    axios.get('http://localhost:5000/api/dashboard/kpi-targets')
+    axios.get('/api/dashboard/kpi-targets')
       .then(res => {
         const t = res.data.targets || {};
         setKpiTargets({
@@ -160,7 +160,7 @@ function Inspectors() {
   const approveEpv = async (epvId) => {
     setError('');
     try {
-      await axios.put(`http://localhost:5000/api/epv/${epvId}/verify`, {
+      await axios.put(`/api/epv/${epvId}/verify`, {
         verified: true,
         verifiedBy: userLabel,
         userRole: user.role,
@@ -182,7 +182,7 @@ function Inspectors() {
     setInspCreating(epv.Id);
     setError('');
     try {
-      const res = await axios.post('http://localhost:5000/api/epv/inspector/create', {
+      const res = await axios.post('/api/epv/inspector/create', {
         clientEpvId: epv.Id,
         inspectorId: user.id,
         inspectorName: userLabel,

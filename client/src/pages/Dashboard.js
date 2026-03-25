@@ -31,9 +31,9 @@ function Dashboard() {
     if (filterMonth) params.month = filterMonth;
 
     Promise.all([
-      axios.get('http://localhost:5000/api/dashboard/stats'),
-      axios.get('http://localhost:5000/api/dashboard/epv-overview', { params }),
-      axios.get('http://localhost:5000/api/dashboard/kpi-targets'),
+      axios.get('/api/dashboard/stats'),
+      axios.get('/api/dashboard/epv-overview', { params }),
+      axios.get('/api/dashboard/kpi-targets'),
     ])
       .then(([statsRes, epvRes, kpiRes]) => {
         setStats(statsRes.data);
@@ -57,7 +57,7 @@ function Dashboard() {
   const saveKpiTargets = async () => {
     setKpiSaving(true);
     try {
-      await axios.put('http://localhost:5000/api/dashboard/kpi-targets', {
+      await axios.put('/api/dashboard/kpi-targets', {
         targets: editTargets,
         updatedBy: `${user.firstName} ${user.lastName} (${user.email})`,
         userRole: user.role,

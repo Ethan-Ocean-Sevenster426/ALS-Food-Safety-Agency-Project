@@ -43,7 +43,7 @@ function EPVForm() {
   const fetchVerification = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`http://localhost:5000/api/epv/token/${token}`);
+      const res = await axios.get(`/api/epv/token/${token}`);
       const v = res.data.verification;
       setVerification(v);
       setForm({
@@ -206,14 +206,14 @@ function EPVForm() {
 
       if (isCompleted && canEdit) {
         // Admin editing a completed form
-        await axios.put(`http://localhost:5000/api/epv/${verification.Id}/edit`, {
+        await axios.put(`/api/epv/${verification.Id}/edit`, {
           data: form,
           editedBy: completedBy,
         });
         setSuccessMsg('Verification updated successfully!');
         setStep(5);
       } else {
-        await axios.put(`http://localhost:5000/api/epv/token/${token}/submit`, {
+        await axios.put(`/api/epv/token/${token}/submit`, {
           data: form,
           completedBy,
         });
