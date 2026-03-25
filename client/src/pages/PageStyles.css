@@ -46,3 +46,42 @@
   color: #444;
   width: 120px;
 }
+
+/* ===== Responsive ===== */
+@media (max-width: 768px) {
+  .page-container {
+    padding: 12px;
+    margin: 8px;
+    border-radius: 8px;
+    min-height: calc(100vh - 76px);
+  }
+
+  .page-card {
+    padding: 16px;
+    border-radius: 8px;
+  }
+
+  .page-card h2 {
+    font-size: 18px;
+  }
+
+  .settings-row {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .settings-label {
+    width: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-container {
+    padding: 8px;
+    margin: 4px;
+  }
+
+  .page-card {
+    padding: 12px;
+  }
+}

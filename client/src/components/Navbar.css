@@ -1,6 +1,9 @@
 .navbar {
   background: rgb(30, 41, 59);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+  position: sticky;
+  top: 0;
+  z-index: 100;
 }
 
 .navbar-top {
@@ -98,4 +101,126 @@
 
 .navbar-logout:hover {
   background: rgba(255, 255, 255, 0.28);
+}
+
+/* Hamburger button - hidden on desktop */
+.navbar-hamburger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  margin-left: auto;
+}
+
+.hamburger-line {
+  display: block;
+  width: 24px;
+  height: 2px;
+  background: #fff;
+  border-radius: 2px;
+  transition: transform 0.3s, opacity 0.3s;
+}
+
+.hamburger-line.open:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.hamburger-line.open:nth-child(2) { opacity: 0; }
+.hamburger-line.open:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+/* Mobile user info inside menu - hidden on desktop */
+.navbar-user-mobile {
+  display: none;
+}
+
+/* Overlay */
+.navbar-overlay {
+  display: none;
+}
+
+/* ===== Responsive ===== */
+
+@media (max-width: 1024px) {
+  .navbar-top {
+    padding: 0 16px;
+  }
+
+  .navbar-links a {
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+
+  .navbar-brand {
+    margin-right: 20px;
+  }
+
+  .navbar-username {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .navbar-hamburger {
+    display: flex;
+  }
+
+  .navbar-user-desktop {
+    display: none;
+  }
+
+  .navbar-links {
+    display: none;
+    position: fixed;
+    top: 60px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    flex-direction: column;
+    background: rgb(30, 41, 59);
+    padding: 16px;
+    gap: 4px;
+    z-index: 200;
+    overflow-y: auto;
+  }
+
+  .navbar-links-open {
+    display: flex;
+  }
+
+  .navbar-links a {
+    padding: 14px 16px;
+    font-size: 16px;
+    border-radius: 8px;
+  }
+
+  .navbar-user-mobile {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+  }
+
+  .navbar-user-mobile .navbar-logout {
+    text-align: center;
+    padding: 12px;
+    font-size: 15px;
+  }
+
+  .navbar-overlay {
+    display: block;
+    position: fixed;
+    top: 60px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 199;
+  }
+
+  .navbar-brand {
+    margin-right: auto;
+  }
 }

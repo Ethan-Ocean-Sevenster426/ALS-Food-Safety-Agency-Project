@@ -1,7 +1,33 @@
 import jwt
 from django.conf import settings
 from django.http import JsonResponse
+from django.urls import resolve, Resolver404
 from api.models import User
+
+
+class SlashNormalizationMiddleware:
+    """Try the URL as-is; if it 404s, try with/without trailing slash."""
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        path = request.path
+        try:
+            resolve(path)
+        except Resolver404:
+            # Try the opposite slash variant
+            if path.endswith('/'):
+                alt = path.rstrip('/')
+            else:
+                alt = path + '/'
+            try:
+                resolve(alt)
+                request.path_info = alt
+                request.path = alt
+            except Resolver404:
+                pass  # Let it 404 naturally
+        return self.get_response(request)
 
 
 # Routes that don't require authentication
