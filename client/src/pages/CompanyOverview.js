@@ -1323,7 +1323,6 @@ function CompanyOverview() {
               <tr>
                 <th>Ref #</th>
                 <th>Period</th>
-                <th>Status</th>
                 <th>Completed</th>
                 <th>Facility EPV</th>
                 <th>Insp. EPV</th>
@@ -1340,7 +1339,6 @@ function CompanyOverview() {
               <tr className="co-filter-row">
                 <th><input className="co-filter-input" placeholder="Search..." value={epvFilters.ref || ''} onChange={e => setEpvFilters(p => ({...p, ref: e.target.value}))} /></th>
                 <th><input className="co-filter-input" placeholder="Search..." value={epvFilters.period || ''} onChange={e => setEpvFilters(p => ({...p, period: e.target.value}))} /></th>
-                <th><input className="co-filter-input" placeholder="Search..." value={epvFilters.status || ''} onChange={e => setEpvFilters(p => ({...p, status: e.target.value}))} /></th>
                 <th><input className="co-filter-input" placeholder="Search..." value={epvFilters.completed || ''} onChange={e => setEpvFilters(p => ({...p, completed: e.target.value}))} /></th>
                 <th></th>
                 <th></th>
@@ -1367,11 +1365,6 @@ function CompanyOverview() {
                   <td className="co-epv-ref">{(epv.ReferenceNumber || '—').replace('EPV-', '')}</td>
                   <td className="co-epv-period">
                     {MONTH_NAMES[(epv.PeriodMonth || 1) - 1].slice(0,3)} '{String(epv.PeriodYear).slice(2)}
-                  </td>
-                  <td>
-                    <span className={`co-epv-status co-epv-${epv.Status.toLowerCase()}`}>
-                      {epv.Status}
-                    </span>
                   </td>
                   <td className="co-date">{epv.CompletedAt ? formatDate(epv.CompletedAt) : '—'}</td>
                   <td className="co-epv-actions" onClick={e => e.stopPropagation()}>
