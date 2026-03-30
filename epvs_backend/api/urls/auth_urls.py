@@ -12,7 +12,7 @@ from api.views.auth_views import (
 )
 
 urlpatterns = [
-    path('', signup, name='signup'),
+    path('signup', signup, name='signup'),
     path('login', login, name='login'),
     path('users', get_users, name='get_users'),
     path('users/<int:id>', user_detail, name='user_detail'),
