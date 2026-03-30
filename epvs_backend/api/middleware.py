@@ -39,6 +39,7 @@ PUBLIC_PATHS = [
     '/api/auth/reset-password/',
     '/api/invites/',
     '/api/epv/token/',
+    '/api/invoices/download/',
 ]
 
 
