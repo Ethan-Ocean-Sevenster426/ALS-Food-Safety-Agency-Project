@@ -126,7 +126,7 @@ function Settings() {
     setCompaniesLoading(true);
     try {
       const res = await axios.get(`/api/clients?limit=20&search=${encodeURIComponent(search)}`);
-      setCompanies(res.data.clients || []);
+      setCompanies(res.data.clients || res.data.data || []);
     } catch {
       setCompanies([]);
     } finally {

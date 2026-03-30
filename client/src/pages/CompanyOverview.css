@@ -1034,11 +1034,11 @@
 }
 
 .co-epv-table th {
-  font-size: 11px;
+  font-size: 9px;
   text-align: center;
-  padding: 8px 5px;
+  padding: 5px 3px;
   text-transform: uppercase;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.2px;
   font-weight: 700;
 }
 
@@ -1240,17 +1240,17 @@
 
 .co-verified-badge {
   display: inline-block;
-  padding: 3px 8px;
+  padding: 2px 5px;
   background: #dcfce7;
   color: #15803d;
   border: 1px solid #bbf7d0;
   border-radius: 10px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
 }
 
 .co-not-verified {
-  font-size: 10px;
+  font-size: 11px;
   color: #9ca3af;
 }
 
@@ -1652,11 +1652,34 @@
 }
 
 .co-payment-badge {
-  padding: 3px 6px;
+  padding: 2px 5px;
   border-radius: 4px;
   font-size: 10px;
   font-weight: 600;
   display: inline-block;
+}
+
+.co-payment-select {
+  padding: 2px 3px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  border: 1px solid #d1d5db;
+  cursor: pointer;
+  outline: none;
+  width: 65px;
+}
+
+.co-payment-select.co-payment-not-paid {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fca5a5;
+}
+
+.co-payment-select.co-payment-paid {
+  background: #d1fae5;
+  color: #065f46;
+  border-color: #6ee7b7;
 }
 
 .co-payment-not-paid {

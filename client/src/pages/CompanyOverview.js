@@ -1550,16 +1550,14 @@ function CompanyOverview() {
                       epv.POPFilePath ? (
                         <span className="co-payment-badge co-payment-paid">Paid</span>
                       ) : (
-                        <label className="co-payment-toggle">
-                          <input
-                            type="checkbox"
-                            checked={(epv.ClientPaymentStatus || 'Not Paid') === 'Paid'}
-                            onChange={e => updatePaymentStatus(epv.Id, e.target.checked ? 'Paid' : 'Not Paid')}
-                          />
-                          <span className={`co-payment-badge ${(epv.ClientPaymentStatus || 'Not Paid') === 'Paid' ? 'co-payment-paid' : 'co-payment-not-paid'}`}>
-                            {(epv.ClientPaymentStatus || 'Not Paid') === 'Paid' ? 'Paid' : 'Not Paid'}
-                          </span>
-                        </label>
+                        <select
+                          className={`co-payment-select ${(epv.ClientPaymentStatus || 'Not Paid') === 'Paid' ? 'co-payment-paid' : 'co-payment-not-paid'}`}
+                          value={epv.ClientPaymentStatus || 'Not Paid'}
+                          onChange={e => updatePaymentStatus(epv.Id, e.target.value)}
+                        >
+                          <option value="Not Paid">Not Paid</option>
+                          <option value="Paid">Paid</option>
+                        </select>
                       )
                     ) : (
                       <span className="co-pop-na">—</span>
