@@ -333,21 +333,44 @@ def _update_ticket(request, id):
         ticket.updated_at = timezone.now()
         ticket.save()
 
-        # Send closure email
-        if new_status == 'Closed':
+        # Send notification email for any status or priority change
+        if new_status or new_priority:
             try:
                 creator = User.objects.filter(pk=ticket.created_by_user_id).first()
                 category = SupportTicketCategory.objects.filter(pk=ticket.category_id).first()
                 if creator:
+                    changes_html = ''
+                    if new_status:
+                        status_color = '#16a34a' if new_status == 'Closed' else '#d97706' if new_status == 'In Progress' else '#0E7C7B'
+                        changes_html += (
+                            f'<tr><td style="padding: 6px 0; font-weight: 600;">Status:</td>'
+                            f'<td style="padding: 6px 0; color: {status_color}; font-weight: 700;">{new_status}</td></tr>'
+                        )
+                    if new_priority:
+                        priority_color = '#dc2626' if new_priority in ('High', 'Urgent') else '#d97706' if new_priority == 'Medium' else '#6b7280'
+                        changes_html += (
+                            f'<tr><td style="padding: 6px 0; font-weight: 600;">Priority:</td>'
+                            f'<td style="padding: 6px 0; color: {priority_color}; font-weight: 700;">{new_priority}</td></tr>'
+                        )
+
+                    title = f'Ticket #{ticket.id} Updated'
+                    if new_status == 'Closed':
+                        title = f'Ticket #{ticket.id} Closed'
+                        intro = f'Hi {creator.first_name}, your support ticket has been resolved and closed.'
+                    elif new_status == 'In Progress':
+                        intro = f'Hi {creator.first_name}, your support ticket is now being worked on.'
+                    elif new_status == 'Resolved':
+                        intro = f'Hi {creator.first_name}, your support ticket has been resolved.'
+                    else:
+                        intro = f'Hi {creator.first_name}, your support ticket has been updated.'
+
                     send_email(
                         to=creator.email,
-                        subject=f'EPVS Support - Ticket #{ticket.id} Closed',
+                        subject=f'EPVS Support - {title}',
                         html=wrap_email(
-                            '<h2 style="color: #1e293b; margin-top: 0;">Ticket Closed</h2>'
-                            '<p style="color: #555; font-size: 15px; line-height: 1.6;">'
-                            f'Hi {creator.first_name}, your support ticket has been resolved and closed.'
-                            '</p>'
-                            '<div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px; margin: 20px 0;">'
+                            f'<h2 style="color: #1e293b; margin-top: 0;">{title}</h2>'
+                            f'<p style="color: #555; font-size: 15px; line-height: 1.6;">{intro}</p>'
+                            '<div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin: 20px 0;">'
                             '<table style="width: 100%; font-size: 14px; color: #374151;">'
                             '<tr><td style="padding: 6px 0; font-weight: 600; width: 130px;">Ticket Reference:</td>'
                             f'<td style="padding: 6px 0; color: #0E7C7B; font-weight: 700; font-size: 16px;">#{ticket.id}</td></tr>'
@@ -355,17 +378,15 @@ def _update_ticket(request, id):
                             f'<td style="padding: 6px 0;">{ticket.subject}</td></tr>'
                             '<tr><td style="padding: 6px 0; font-weight: 600;">Issue Type:</td>'
                             f'<td style="padding: 6px 0;">{category.name if category else ""}</td></tr>'
-                            '<tr><td style="padding: 6px 0; font-weight: 600;">Status:</td>'
-                            '<td style="padding: 6px 0; color: #16a34a; font-weight: 700;">Closed</td></tr>'
+                            f'{changes_html}'
                             '</table></div>'
                             '<p style="color: #555; font-size: 14px; line-height: 1.6;">'
-                            'If you believe this issue has not been fully resolved, please log a new ticket or contact our support team.'
+                            'You can view this ticket by navigating to the <strong>Support</strong> tab in the EPVS system.'
                             '</p>'
-                            '<p style="color: #999; font-size: 13px;">Thank you for using EPVS Support.</p>'
                         ),
                     )
             except Exception as email_err:
-                logger.error('Failed to send ticket closed email: %s', email_err)
+                logger.error('Failed to send ticket update email: %s', email_err)
 
         return Response({'message': 'Ticket updated.'})
     except Exception:
