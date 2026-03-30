@@ -1324,7 +1324,7 @@ function CompanyOverview() {
                 <th>Ref #</th>
                 <th>Period</th>
                 <th>Status</th>
-                <th>Done</th>
+                <th>Completed</th>
                 <th>Facility EPV</th>
                 <th>Insp. EPV</th>
                 <th>Verified</th>
