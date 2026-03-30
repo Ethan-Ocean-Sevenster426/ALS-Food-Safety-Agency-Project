@@ -212,7 +212,7 @@ function ClientAllocation() {
     setAddingSaving(true);
     setError('');
     try {
-      await axios.post('/api/clients', {
+      await axios.post('/api/clients/create', {
         client: newRow,
         createdBy: userLabel,
       });

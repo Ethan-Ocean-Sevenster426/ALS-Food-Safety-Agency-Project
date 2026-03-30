@@ -422,7 +422,7 @@ function CompanyOverview() {
 
     setSaving(true);
     try {
-      await axios.put(`/api/company/${activeCompanyId}`, {
+      await axios.put(`/api/company/${activeCompanyId}/update`, {
         updates: changes,
         changedBy: userLabel,
       });
