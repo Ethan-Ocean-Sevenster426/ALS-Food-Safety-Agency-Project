@@ -1335,6 +1335,8 @@
   font-weight: 700;
   color: #0E7C7B;
   font-size: 11px;
+  padding: 0;
+  white-space: nowrap;
 }
 
 .co-amount-awaiting {
@@ -1358,7 +1360,14 @@
 
 /* ===== Reconciled Amount Column ===== */
 .co-epv-reconciled-amount {
-  min-width: 120px;
+  min-width: 50px;
+  max-width: 70px;
+}
+
+.co-epv-reconciled-amount input {
+  font-size: 10px;
+  width: 50px;
+  padding: 2px 3px;
 }
 
 .co-reconciled-amount-cell {
@@ -1660,14 +1669,14 @@
 }
 
 .co-payment-select {
-  padding: 2px 3px;
-  border-radius: 4px;
-  font-size: 10px;
+  padding: 1px 2px;
+  border-radius: 3px;
+  font-size: 9px;
   font-weight: 600;
   border: 1px solid #d1d5db;
   cursor: pointer;
   outline: none;
-  width: 65px;
+  width: 55px;
 }
 
 .co-payment-select.co-payment-not-paid {

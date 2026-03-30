@@ -1328,13 +1328,13 @@ function CompanyOverview() {
                 <th>Facility EPV</th>
                 <th>Insp. EPV</th>
                 <th>Verified</th>
-                <th>Manual Insp.</th>
+                <th>Man.</th>
                 <th>Comments</th>
-                <th>Outstanding</th>
-                <th>Payment</th>
+                <th>Owing</th>
+                <th>Paid</th>
                 <th>POP</th>
                 <th>POP Note</th>
-                <th>Reconciled</th>
+                <th>Recon.</th>
                 <th>&#x2713;</th>
               </tr>
               <tr className="co-filter-row">
