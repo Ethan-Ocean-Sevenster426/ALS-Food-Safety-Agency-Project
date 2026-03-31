@@ -492,7 +492,7 @@ function EPVForm() {
                   <label>+ Ungraded Eggs Purchased:</label>
                   <input type="text" value={formatNumber(form.UngradedEggsPurchased)} onChange={(e) => handleNumberChange('UngradedEggsPurchased', e.target.value)} disabled={isReadOnly} placeholder="0" />
                 </div>
-                <div className="epv-calc-row epv-deduction-row">
+                <div className="epv-calc-row">
                   <label>+ Market Returns:</label>
                   <input type="text" value={formatNumber(form.MarketReturns)} onChange={(e) => handleNumberChange('MarketReturns', e.target.value)} disabled={isReadOnly} placeholder="0" />
                 </div>
