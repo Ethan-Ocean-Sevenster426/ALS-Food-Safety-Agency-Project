@@ -383,11 +383,19 @@ function EPVForm() {
               </div>
               <div className={`epv-field ${validationErrors.FacilityType ? 'epv-field-error' : ''}`}>
                 <label>Facility Type <span className="epv-required-star">*</span></label>
-                <select value={form.FacilityType} onChange={(e) => handleChange('FacilityType', e.target.value)} disabled={isReadOnly} className="epv-select">
-                  <option value="">— Select —</option>
-                  <option value="Producer">Producer</option>
-                  <option value="Re-Packer">Re-Packer</option>
-                </select>
+                <div className="epv-facility-type-options">
+                  {['Producer', 'Re-Packer', 'Breaking Plant'].map(type => (
+                    <label key={type} className="epv-checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={form.FacilityType === type}
+                        onChange={() => handleChange('FacilityType', form.FacilityType === type ? '' : type)}
+                        disabled={isReadOnly}
+                      />
+                      {type}
+                    </label>
+                  ))}
+                </div>
                 {validationErrors.FacilityType && <span className="epv-error-msg">{validationErrors.FacilityType}</span>}
               </div>
               <div className={`epv-field ${validationErrors.FacilityProvince ? 'epv-field-error' : ''}`}>
