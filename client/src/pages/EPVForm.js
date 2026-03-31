@@ -4,7 +4,7 @@ import axios from 'axios';
 import './EPVForm.css';
 
 
-const LEVY_RATE = 0.018;
+const LEVY_RATE = 0.020;
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -462,7 +462,7 @@ function EPVForm() {
                   <input type="text" value={formatNumber(form.OpeningStock)} onChange={(e) => handleNumberChange('OpeningStock', e.target.value)} disabled={isReadOnly} placeholder="0" />
                 </div>
                 <div className="epv-calc-row">
-                  <label>+ Eggs Produced during the Month:</label>
+                  <label>Eggs Produced during the Month:</label>
                   <input type="text" value={formatNumber(form.EggsProducedDuringMonth)} onChange={(e) => handleNumberChange('EggsProducedDuringMonth', e.target.value)} disabled={isReadOnly} placeholder="0" />
                 </div>
                 <div className="epv-calc-row epv-total-row">
@@ -732,7 +732,7 @@ function EPVForm() {
                 <tbody>
                   <tr className="epv-review-section-header"><td colSpan="2">A. Opening Stock</td></tr>
                   <tr><td>Opening Stock (previous month closing)</td><td className="epv-num">{(parseFloat(form.OpeningStock) || 0).toLocaleString()}</td></tr>
-                  <tr><td>+ Eggs Produced during the Month</td><td className="epv-num">{(parseFloat(form.EggsProducedDuringMonth) || 0).toLocaleString()}</td></tr>
+                  <tr><td>Eggs Produced during the Month</td><td className="epv-num">{(parseFloat(form.EggsProducedDuringMonth) || 0).toLocaleString()}</td></tr>
                   <tr className="epv-review-total"><td>Total A</td><td className="epv-num">{totals.totalA.toLocaleString()}</td></tr>
 
                   <tr className="epv-review-section-header"><td colSpan="2">B. Purchases</td></tr>
