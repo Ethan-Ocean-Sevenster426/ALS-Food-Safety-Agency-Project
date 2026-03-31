@@ -1333,8 +1333,8 @@ function CompanyOverview() {
                 <th>Paid</th>
                 <th>POP</th>
                 <th>POP Note</th>
-                <th>Recon.</th>
-                <th>&#x2713;</th>
+                <th>Recon. Am</th>
+                <th>Reconciled</th>
               </tr>
               <tr className="co-filter-row">
                 <th><input className="co-filter-input" placeholder="Search..." value={epvFilters.ref || ''} onChange={e => setEpvFilters(p => ({...p, ref: e.target.value}))} /></th>
