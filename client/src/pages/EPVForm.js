@@ -93,11 +93,11 @@ function EPVForm() {
     const eggsProduced = parseFloat(form.EggsProducedDuringMonth) || 0;
     const totalA = openingStock + eggsProduced;
 
-    // B = Purchases (Graded + Ungraded - Market Returns)
+    // B = Purchases (Graded + Ungraded + Market Returns)
     const graded = parseFloat(form.GradedEggsPurchased) || 0;
     const ungraded = parseFloat(form.UngradedEggsPurchased) || 0;
     const marketReturns = parseFloat(form.MarketReturns) || 0;
-    const totalB = graded + ungraded - marketReturns;
+    const totalB = graded + ungraded + marketReturns;
 
     // C = Deductions (sum of all deduction fields)
     const machineLoss = parseFloat(form.MachineLoss) || 0;
@@ -485,7 +485,7 @@ function EPVForm() {
                   <input type="text" value={formatNumber(form.UngradedEggsPurchased)} onChange={(e) => handleNumberChange('UngradedEggsPurchased', e.target.value)} disabled={isReadOnly} placeholder="0" />
                 </div>
                 <div className="epv-calc-row epv-deduction-row">
-                  <label>- Market Returns:</label>
+                  <label>+ Market Returns:</label>
                   <input type="text" value={formatNumber(form.MarketReturns)} onChange={(e) => handleNumberChange('MarketReturns', e.target.value)} disabled={isReadOnly} placeholder="0" />
                 </div>
                 <div className="epv-calc-row epv-total-row">
@@ -738,7 +738,7 @@ function EPVForm() {
                   <tr className="epv-review-section-header"><td colSpan="2">B. Purchases</td></tr>
                   <tr><td>+ Graded Eggs Purchased</td><td className="epv-num">{(parseFloat(form.GradedEggsPurchased) || 0).toLocaleString()}</td></tr>
                   <tr><td>+ Ungraded Eggs Purchased</td><td className="epv-num">{(parseFloat(form.UngradedEggsPurchased) || 0).toLocaleString()}</td></tr>
-                  <tr><td>- Market Returns</td><td className="epv-num">{(parseFloat(form.MarketReturns) || 0).toLocaleString()}</td></tr>
+                  <tr><td>+ Market Returns</td><td className="epv-num">{(parseFloat(form.MarketReturns) || 0).toLocaleString()}</td></tr>
                   <tr className="epv-review-total"><td>Total B (Purchases)</td><td className="epv-num">{totals.totalB.toLocaleString()}</td></tr>
 
                   <tr className="epv-review-section-header"><td colSpan="2">C. Deductions</td></tr>
