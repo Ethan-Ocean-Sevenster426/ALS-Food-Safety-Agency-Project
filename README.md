@@ -169,8 +169,12 @@ node seed-tickets.js              # Creates resolved/closed support tickets
 node seed-inspector-facilities.js # One fictional facility per inspector (dev/demo)
 node seed-history.js              # 12 months of verified 2025 + 3 months pending 2026 EPVs per facility
 
-# Export all tables to Excel files (saved to server/exports/)
+# Export all tables to Excel files (saved to server/exports/ — gitignored)
 node export-tables.js
+
+# Snapshot the current DB into server/seed-data/snapshot.xlsx (tracked in git)
+# so the team can see what the seed scripts produce without having to run them.
+node scripts/exportSeedSnapshot.js
 ```
 
 Admin users created by seed script:
