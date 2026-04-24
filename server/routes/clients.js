@@ -226,11 +226,32 @@ router.delete('/:id', async (req, res) => {
         .query('DELETE FROM Invitations WHERE ClientRecordId = @id');
     } catch (e) { /* table may not exist */ }
 
+    // Clean up EPV child rows before the EPVs themselves (FK chain).
+    try {
+      await pool.request().input('id', sql.Int, parseInt(id))
+        .query(`DELETE FROM EPVAuditLog WHERE VerificationId IN
+                (SELECT Id FROM EggProductionVerifications WHERE ClientRecordId = @id)`);
+    } catch (e) { /* table may not exist */ }
+    try {
+      await pool.request().input('id', sql.Int, parseInt(id))
+        .query(`DELETE FROM EPVInvoices WHERE VerificationId IN
+                (SELECT Id FROM EggProductionVerifications WHERE ClientRecordId = @id)`);
+    } catch (e) { /* table may not exist */ }
+    try {
+      await pool.request().input('id', sql.Int, parseInt(id))
+        .query(`DELETE FROM EPVAttachments WHERE VerificationId IN
+                (SELECT Id FROM EggProductionVerifications WHERE ClientRecordId = @id)`);
+    } catch (e) { /* table may not exist */ }
+
     // Clean up EPVs referencing this client
     try {
       await pool.request().input('id', sql.Int, parseInt(id))
         .query('DELETE FROM EggProductionVerifications WHERE ClientRecordId = @id');
-    } catch (e) { /* table may not exist */ }
+    } catch (e) {
+      // Real FK errors should surface, not be swallowed.
+      console.error('EPV delete error:', e.message);
+      return res.status(500).json({ message: 'Could not delete this facility: historical EPV data is blocking the delete. ' + e.message });
+    }
 
     // Nullify support tickets referencing this client (don't delete tickets)
     try {
