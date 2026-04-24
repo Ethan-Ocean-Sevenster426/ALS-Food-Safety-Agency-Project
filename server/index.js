@@ -11,6 +11,8 @@ const supportRoutes = require('./routes/support');
 const dashboardRoutes = require('./routes/dashboard');
 const invoiceRoutes = require('./routes/invoices');
 const adminRoutes = require('./routes/admin');
+const manualRoutes = require('./routes/manuals');
+const { startEPVScheduler } = require('./jobs/epvScheduler');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -29,6 +31,7 @@ app.use('/api/support', supportRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/manuals', manualRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -37,4 +40,5 @@ app.get('/api/health', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
+  startEPVScheduler();
 });

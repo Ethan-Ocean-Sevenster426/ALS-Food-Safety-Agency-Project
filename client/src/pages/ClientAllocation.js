@@ -576,10 +576,13 @@ function ClientAllocation() {
                             )}
                           </td>
                           <td className="ca-status-cell">
-                            {c.VerifiedAt ? (
-                              <span className="ca-verified-badge" title={`Verified by ${c.VerifiedBy || 'Unknown'} on ${new Date(c.VerifiedAt).toLocaleDateString()}`}>Verified</span>
-                            ) : (
-                              <span className="ca-unverified-badge">Pending</span>
+                            {c.OnboardedAt && (
+                              <span
+                                className="ca-verified-badge"
+                                title={`Onboarding completed by ${c.OnboardedBy || 'Unknown'} on ${new Date(c.OnboardedAt).toLocaleDateString()}`}
+                              >
+                                Verified
+                              </span>
                             )}
                             {c.EPVCycleStatus && (
                               <span className="ca-epv-cycle-badge" title="Client is on monthly EPV cycle">{c.EPVCycleStatus}</span>

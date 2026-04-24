@@ -2,3 +2,29 @@ node_modules/
 client/build/
 server/.env
 .env
+
+# Claude Code local config
+.claude/
+
+# Local-only data dumps and OCR artifacts
+Scanned_Client_Database.xlsx
+server/data_batch1.json
+server/eng.traineddata
+server/parse-scanned-db.js
+
+# Exports and backup snapshots (generated, not source)
+server/exports/
+
+# Runtime uploads (POPs, generated invoices)
+server/uploads/pop/
+server/uploads/purchases/
+server/uploads/invoices/
+
+# Local maintenance + debug helpers (not deployment artefacts)
+server/backup-clients.js
+server/backup-epv-invoices.js
+server/check-cycle.js
+server/check-epvs.js
+server/list-fks.js
+server/reset-to-fictional.js
+server/verify-counts.js

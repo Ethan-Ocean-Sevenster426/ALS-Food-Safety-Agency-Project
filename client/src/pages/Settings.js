@@ -34,6 +34,35 @@ function Settings() {
   const [companiesLoading, setCompaniesLoading] = useState(false);
   const [userSearch, setUserSearch] = useState('');
   const [userRoleFilter, setUserRoleFilter] = useState('');
+  const [loginLogOpen, setLoginLogOpen] = useState(false);
+  const [loginLog, setLoginLog] = useState([]);
+  const [loginLogLoading, setLoginLogLoading] = useState(false);
+  const [loginLogSearch, setLoginLogSearch] = useState('');
+  const [loginLogSuccessFilter, setLoginLogSuccessFilter] = useState('');
+
+  const fetchLoginLog = useCallback(async () => {
+    setLoginLogLoading(true);
+    try {
+      const params = { limit: 200 };
+      if (loginLogSearch) params.search = loginLogSearch;
+      if (loginLogSuccessFilter) params.success = loginLogSuccessFilter;
+      const res = await axios.get('/api/auth/login-log', { params });
+      setLoginLog(res.data.data || []);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to load login log.');
+    } finally {
+      setLoginLogLoading(false);
+    }
+  }, [loginLogSearch, loginLogSuccessFilter]);
+
+  const openLoginLog = () => {
+    setLoginLogOpen(true);
+    fetchLoginLog();
+  };
+
+  useEffect(() => {
+    if (loginLogOpen) fetchLoginLog();
+  }, [loginLogOpen, loginLogSearch, loginLogSuccessFilter, fetchLoginLog]);
 
   const fetchUsers = useCallback(async () => {
     if (!isAdmin) return;
@@ -551,6 +580,11 @@ function Settings() {
             {(userSearch || userRoleFilter) && (
               <button className="settings-search-clear" onClick={() => { setUserSearch(''); setUserRoleFilter(''); }}>Clear</button>
             )}
+            {isAdmin && (
+              <button className="settings-search-clear" onClick={openLoginLog} title="View login attempts" style={{ background: '#0E7C7B', color: '#fff' }}>
+                Login History
+              </button>
+            )}
             <span className="settings-user-count">{users.filter(u => {
               const s = userSearch.toLowerCase();
               const matchesSearch = !s || `${u.FirstName} ${u.LastName}`.toLowerCase().includes(s) || (u.Email || '').toLowerCase().includes(s) || (u.AllocatedClient || '').toLowerCase().includes(s);
@@ -666,6 +700,82 @@ function Settings() {
                 })()}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {loginLogOpen && (
+        <div className="settings-modal-overlay" onClick={() => setLoginLogOpen(false)}>
+          <div
+            className="settings-modal"
+            onClick={e => e.stopPropagation()}
+            style={{ maxWidth: 1100, width: '90%', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}
+          >
+            <h3 style={{ marginTop: 0, color: '#0E7C7B' }}>Login History</h3>
+            <p style={{ color: '#666', marginTop: 0 }}>
+              Every login attempt is recorded here (successful and failed).
+            </p>
+
+            <div style={{ display: 'flex', gap: 8, margin: '10px 0', alignItems: 'center' }}>
+              <input
+                className="settings-search-input"
+                placeholder="Search by name or email..."
+                value={loginLogSearch}
+                onChange={e => setLoginLogSearch(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <select
+                className="settings-role-filter"
+                value={loginLogSuccessFilter}
+                onChange={e => setLoginLogSuccessFilter(e.target.value)}
+              >
+                <option value="">All attempts</option>
+                <option value="true">Successful only</option>
+                <option value="false">Failed only</option>
+              </select>
+              <button className="settings-search-clear" onClick={() => { setLoginLogSearch(''); setLoginLogSuccessFilter(''); }}>
+                Clear
+              </button>
+            </div>
+
+            <div style={{ overflow: 'auto', flex: 1, border: '1px solid #e5e7eb', borderRadius: 6 }}>
+              <table className="settings-table" style={{ width: '100%' }}>
+                <thead>
+                  <tr>
+                    <th>When</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Outcome</th>
+                    <th>IP</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loginLogLoading ? (
+                    <tr><td colSpan="6" style={{ padding: 20, textAlign: 'center' }}>Loading...</td></tr>
+                  ) : loginLog.length === 0 ? (
+                    <tr><td colSpan="6" style={{ padding: 20, textAlign: 'center', color: '#888' }}>No matching login attempts.</td></tr>
+                  ) : loginLog.map(row => (
+                    <tr key={row.Id}>
+                      <td style={{ whiteSpace: 'nowrap' }}>{new Date(row.LoggedInAt).toLocaleString()}</td>
+                      <td>{row.FirstName ? `${row.FirstName} ${row.LastName}` : <span style={{ color: '#888' }}>(unknown)</span>}</td>
+                      <td>{row.Email}</td>
+                      <td>{row.Role || '—'}</td>
+                      <td>
+                        {row.Success
+                          ? <span style={{ color: '#15803d', fontWeight: 600 }}>Success</span>
+                          : <span style={{ color: '#dc2626', fontWeight: 600 }} title={row.Reason || ''}>Failed{row.Reason ? ` — ${row.Reason}` : ''}</span>}
+                      </td>
+                      <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{row.IPAddress || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+              <button className="settings-cancel-btn" onClick={() => setLoginLogOpen(false)}>Close</button>
+            </div>
           </div>
         </div>
       )}

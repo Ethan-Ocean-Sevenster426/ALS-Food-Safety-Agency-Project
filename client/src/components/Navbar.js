@@ -18,6 +18,36 @@ function Navbar() {
 
   const closeMenu = () => setMenuOpen(false);
 
+  const canDownloadManual = ['Super Admin', 'Admin', 'Inspector', 'Company Admin', 'User'].includes(user.role);
+
+  const downloadManual = async () => {
+    try {
+      const url = `/api/manuals?role=${encodeURIComponent(user.role || '')}&format=pdf`;
+      const res = await fetch(url);
+      if (!res.ok) {
+        const msg = res.headers.get('content-type')?.includes('application/json')
+          ? (await res.json()).message
+          : `Failed to download manual (HTTP ${res.status}).`;
+        alert(msg);
+        return;
+      }
+      const disposition = res.headers.get('content-disposition') || '';
+      const fileNameMatch = disposition.match(/filename="?([^"]+)"?/i);
+      const fileName = fileNameMatch ? fileNameMatch[1] : `${user.role} User Manual.pdf`;
+      const blob = await res.blob();
+      const href = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = href;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(href);
+    } catch (err) {
+      alert('Could not download your manual. ' + (err.message || ''));
+    }
+  };
+
   return (
     <header className="navbar">
       <div className="navbar-top">
@@ -55,12 +85,18 @@ function Navbar() {
           <div className="navbar-user-mobile">
             <span className="navbar-username">{user.firstName || 'User'}</span>
             <span className="navbar-role">{user.role || 'User'}</span>
+            {canDownloadManual && (
+              <button type="button" onClick={downloadManual} className="navbar-manual-btn" title="Download your user manual (PDF)">User Manual</button>
+            )}
             <button onClick={handleLogout} className="navbar-logout">Sign Out</button>
           </div>
         </nav>
         <div className="navbar-user navbar-user-desktop">
           <span className="navbar-username">{user.firstName || 'User'}</span>
           <span className="navbar-role">{user.role || 'User'}</span>
+          {canDownloadManual && (
+            <button type="button" onClick={downloadManual} className="navbar-manual-btn" title="Download your user manual (PDF)">User Manual</button>
+          )}
           <button onClick={handleLogout} className="navbar-logout">Sign Out</button>
         </div>
       </div>

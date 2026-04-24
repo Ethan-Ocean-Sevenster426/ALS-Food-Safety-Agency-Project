@@ -244,7 +244,7 @@ function AcceptInvite() {
                     id={f.key}
                     value={wizardData[f.key] || ''}
                     onChange={(e) => handleWizardFieldChange(f.key, e.target.value)}
-                    className={wizardErrors[f.key] ? 'input-error' : ''}
+                    className={`auth-select ${wizardErrors[f.key] ? 'input-error' : ''}`}
                   >
                     <option value="">Select {f.label}...</option>
                     {f.options.filter(o => o).map(o => (
@@ -258,7 +258,7 @@ function AcceptInvite() {
                     value={wizardData[f.key] || ''}
                     onChange={(e) => handleWizardFieldChange(f.key, e.target.value)}
                     placeholder={f.label}
-                    className={wizardErrors[f.key] ? 'input-error' : ''}
+                    className={`auth-input ${wizardErrors[f.key] ? 'input-error' : ''}`}
                   />
                 )}
                 {wizardErrors[f.key] && <span className="field-error">{wizardErrors[f.key]}</span>}

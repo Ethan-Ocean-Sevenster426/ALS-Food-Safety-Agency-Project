@@ -21,16 +21,18 @@ router.get('/', async (req, res) => {
     const search = req.query.search || '';
     const offset = (page - 1) * limit;
 
-    let whereClause = '';
+    let whereClauseUnqualified = '';
+    let whereClauseQualified = '';
     const request = pool.request();
 
     if (search) {
-      whereClause = `WHERE BusinessName LIKE @search OR AccountCode LIKE @search OR Email LIKE @search OR Town LIKE @search OR FacilityProvince LIKE @search`;
+      whereClauseUnqualified = `WHERE BusinessName LIKE @search OR AccountCode LIKE @search OR Email LIKE @search OR Town LIKE @search OR FacilityProvince LIKE @search`;
+      whereClauseQualified =   `WHERE c.BusinessName LIKE @search OR c.AccountCode LIKE @search OR c.Email LIKE @search OR c.Town LIKE @search OR c.FacilityProvince LIKE @search`;
       request.input('search', sql.NVarChar, `%${search}%`);
     }
 
     const countResult = await request.query(
-      `SELECT COUNT(*) AS total FROM ConsolidatedMasterAbattoirDatabase ${whereClause}`
+      `SELECT COUNT(*) AS total FROM ConsolidatedMasterAbattoirDatabase ${whereClauseUnqualified}`
     );
     const total = countResult.recordset[0].total;
 
@@ -42,15 +44,25 @@ router.get('/', async (req, res) => {
     dataRequest.input('limit', sql.Int, limit);
 
     const result = await dataRequest.query(
-      `SELECT Id, BusinessName, AccountCode, Email, Town, FacilityType, FacilityProvince,
-              CompanyRegNumber, PhysicalAddress, VATNumber,
-              AbattoirOwnerName, AbattoirOwnerCell, AbattoirOwnerEmail,
-              AccountsContactName, AccountsTelephone, AccountsEmail,
-              AbattoirManagerName, AbattoirManagerCell, AbattoirManagerEmail,
-              VerifiedAt, VerifiedBy, EPVCycleStatus
-       FROM ConsolidatedMasterAbattoirDatabase
-       ${whereClause}
-       ORDER BY Id
+      `SELECT c.Id, c.BusinessName, c.AccountCode, c.Email, c.Town, c.FacilityType, c.FacilityProvince,
+              c.CompanyRegNumber, c.PhysicalAddress, c.VATNumber,
+              c.AbattoirOwnerName, c.AbattoirOwnerCell, c.AbattoirOwnerEmail,
+              c.AccountsContactName, c.AccountsTelephone, c.AccountsEmail,
+              c.AbattoirManagerName, c.AbattoirManagerCell, c.AbattoirManagerEmail,
+              c.EPVCycleStatus,
+              onboarding.AcceptedAt    AS OnboardedAt,
+              onboarding.Email         AS OnboardedBy
+       FROM ConsolidatedMasterAbattoirDatabase c
+       OUTER APPLY (
+         SELECT TOP 1 AcceptedAt, Email
+         FROM Invitations
+         WHERE ClientRecordId = c.Id
+           AND Role = 'Company Admin'
+           AND Status = 'Accepted'
+         ORDER BY AcceptedAt ASC
+       ) onboarding
+       ${whereClauseQualified}
+       ORDER BY c.Id
        OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`
     );
 

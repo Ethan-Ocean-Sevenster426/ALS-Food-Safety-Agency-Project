@@ -219,6 +219,7 @@ function CompanyOverview() {
   const [epvComments, setEpvComments] = useState({}); // { epvId: commentText }
   const [reconciledAmounts, setReconciledAmounts] = useState({}); // { epvId: amountString }
   const [expandedEpvId, setExpandedEpvId] = useState(null); // EPV Id with progress tracker open
+  const [resendingEpvId, setResendingEpvId] = useState(null);
   const [popComments, setPopComments] = useState({}); // { epvId: commentText }
 
   // Invoice state
@@ -422,7 +423,7 @@ function CompanyOverview() {
 
     setSaving(true);
     try {
-      await axios.put(`/api/company/${activeCompanyId}/update`, {
+      await axios.put(`/api/company/${activeCompanyId}`, {
         updates: changes,
         changedBy: userLabel,
       });
@@ -503,9 +504,11 @@ function CompanyOverview() {
 
   // ===== CREATE MANUAL EPV (company users for old months) =====
   const openAddEpvModal = () => {
+    // Default to the previous calendar month — the current month is not yet complete.
     const now = new Date();
-    setAddEpvMonth(String(now.getMonth() + 1));
-    setAddEpvYear(String(now.getFullYear()));
+    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    setAddEpvMonth(String(prev.getMonth() + 1));
+    setAddEpvYear(String(prev.getFullYear()));
     setShowAddEpvModal(true);
   };
 
@@ -579,6 +582,25 @@ function CompanyOverview() {
       refreshAll();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to update reconciliation.');
+    }
+  };
+
+  // ===== RESEND EPV EMAIL (Pending EPVs only) =====
+  const resendEpvEmail = async (epv) => {
+    if (!epv?.Id) return;
+    if (!window.confirm(`Resend the EPV email for ${epv.ReferenceNumber || 'this verification'} to all facility addresses on file?`)) return;
+    setResendingEpvId(epv.Id);
+    setError('');
+    try {
+      const res = await axios.post(`/api/epv/${epv.Id}/resend`, {
+        resentBy: userLabel,
+        userRole: user.role,
+      });
+      setSuccessMsg(res.data?.message || 'Email resent.');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to resend email.');
+    } finally {
+      setResendingEpvId(null);
     }
   };
 
@@ -1021,9 +1043,15 @@ function CompanyOverview() {
             <p>Select the month and year for the verification you want to submit.</p>
             <div style={{ display: 'flex', gap: '12px', margin: '16px 0' }}>
               <select value={addEpvMonth} onChange={(e) => setAddEpvMonth(e.target.value)} className="co-input" style={{ flex: 1 }}>
-                {MONTH_NAMES.map((m, i) => (
-                  <option key={i} value={i + 1}>{m}</option>
-                ))}
+                {MONTH_NAMES.map((m, i) => {
+                  const monthNum = i + 1;
+                  const now = new Date();
+                  const isCurrentOrFuture =
+                    parseInt(addEpvYear) > now.getFullYear() ||
+                    (parseInt(addEpvYear) === now.getFullYear() && monthNum >= now.getMonth() + 1);
+                  if (isCurrentOrFuture) return null;
+                  return <option key={i} value={monthNum}>{m}</option>;
+                })}
               </select>
               <select value={addEpvYear} onChange={(e) => setAddEpvYear(e.target.value)} className="co-input" style={{ width: '120px' }}>
                 {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(y => (
@@ -1369,9 +1397,20 @@ function CompanyOverview() {
                   <td className="co-date">{epv.CompletedAt ? formatDate(epv.CompletedAt) : '—'}</td>
                   <td className="co-epv-actions" onClick={e => e.stopPropagation()}>
                     {epv.Status === 'Pending' ? (
-                      <button className="co-epv-complete-btn" onClick={() => navigate(`/epv/${epv.Token}`)}>
-                        Complete
-                      </button>
+                      <>
+                        <button className="co-epv-complete-btn" onClick={() => navigate(`/epv/${epv.Token}`)}>
+                          Complete
+                        </button>
+                        <button
+                          className="co-epv-resend-btn"
+                          style={{ marginLeft: 6 }}
+                          disabled={resendingEpvId === epv.Id}
+                          onClick={() => resendEpvEmail(epv)}
+                          title="Re-send the original EPV email to all facility addresses on file"
+                        >
+                          {resendingEpvId === epv.Id ? 'Sending…' : 'Resend Email'}
+                        </button>
+                      </>
                     ) : isAdmin ? (
                       <button className="co-epv-edit-btn" onClick={() => navigate(`/epv/${epv.Token}`)}>
                         Edit

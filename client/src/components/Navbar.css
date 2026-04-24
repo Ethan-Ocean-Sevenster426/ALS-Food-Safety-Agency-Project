@@ -103,6 +103,28 @@
   background: rgba(255, 255, 255, 0.28);
 }
 
+.navbar-manual-btn {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  padding: 7px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  text-decoration: none;
+  margin-right: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+  display: inline-block;
+}
+
+.navbar-manual-btn:hover {
+  background: rgba(255, 255, 255, 0.28);
+  color: #fff;
+  text-decoration: none;
+}
+
 /* Hamburger button - hidden on desktop */
 .navbar-hamburger {
   display: none;

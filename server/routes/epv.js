@@ -48,6 +48,29 @@ const upload = multer({
   },
 });
 
+// Multer setup for purchase attachments (egg/pulp purchase proofs).
+// 15MB limit; PDF + common image formats only.
+const purchaseDir = path.join(__dirname, '..', 'uploads', 'purchases');
+require('fs').mkdirSync(purchaseDir, { recursive: true });
+const purchaseStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, purchaseDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const safeBase = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40);
+    cb(null, `pur-${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeBase}${ext}`);
+  },
+});
+const purchaseUpload = multer({
+  storage: purchaseStorage,
+  limits: { fileSize: 15 * 1024 * 1024 }, // 15MB
+  fileFilter: (req, file, cb) => {
+    const allowed = ['.pdf', '.png', '.jpg', '.jpeg'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowed.includes(ext)) cb(null, true);
+    else cb(new Error('Only PDF, PNG, and JPG files are allowed.'));
+  },
+});
+
 // Generate unique reference number: EPV-YYYY-MM-XXXX
 async function generateReferenceNumber(pool, month, year) {
   const prefix = `EPV-${year}-${String(month).padStart(2, '0')}`;
@@ -61,11 +84,11 @@ async function generateReferenceNumber(pool, month, year) {
 // All numeric fields that can be submitted
 const NUMERIC_FIELDS = [
   'OpeningStock', 'GradedEggsPurchased', 'UngradedEggsPurchased',
-  'MarketReturns', 'MachineLoss', 'SentToPulp', 'Destroyed',
+  'MarketReturns', 'MachineLoss', 'SentToPulp', 'Destroyed', 'Exported',
   'SoldToTrade', 'SoldToStaff', 'SoldThroughFarmStall',
   'TransferredToOtherProducers',
   'PulpOpeningStock', 'PulpPurchased', 'PulpConverted',
-  'PulpSoldToTrade', 'PulpSoldToProducers',
+  'PulpSoldToTrade', 'PulpSoldToProducers', 'PulpConversionLoss',
 ];
 
 // All text fields that can be submitted
@@ -74,6 +97,7 @@ const TEXT_FIELDS = [
   'AuthorizedPersonName', 'PositionInCompany',
   'TelephoneNumber', 'CellPhoneNumber', 'EmailAddress',
   'VarianceReason',
+  'EggPurchaseComment', 'PulpPurchaseComment',
 ];
 
 const ALL_FIELDS = [...TEXT_FIELDS, ...NUMERIC_FIELDS];
@@ -92,7 +116,8 @@ function calculateTotals(data) {
   const machineLoss = parseFloat(data.MachineLoss) || 0;
   const sentToPulp = parseFloat(data.SentToPulp) || 0;
   const destroyed = parseFloat(data.Destroyed) || 0;
-  const totalC = marketReturns + machineLoss + sentToPulp + destroyed;
+  const exported = parseFloat(data.Exported) || 0;
+  const totalC = marketReturns + machineLoss + sentToPulp + destroyed + exported;
 
   // D = Sales
   const soldToTrade = parseFloat(data.SoldToTrade) || 0;
@@ -116,6 +141,135 @@ function calculateTotals(data) {
   return { TotalB: totalB, TotalC: totalC, TotalD: totalD, TotalE: totalE, LevyAmount: levyAmount, ClosingStock: closingStock, ActualClosingStock: actualClosingStock, LossGain: lossGain };
 }
 
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'];
+
+// Period currently expected when prompting: previous calendar month.
+function previousMonthPeriod(now = new Date()) {
+  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  return { month: prev.getMonth() + 1, year: prev.getFullYear() };
+}
+
+// Shared core: create an EPV for the given period and email the facility.
+// Used by both POST /send (manual) and the monthly scheduler.
+async function sendEPVForFacility({ pool, client, periodMonth, periodYear, sentBy, userRole }) {
+  const month = parseInt(periodMonth);
+  const year = parseInt(periodYear);
+  const monthLabel = `${MONTH_NAMES[month - 1]} ${year}`;
+
+  const existing = await pool.request()
+    .input('crid', sql.Int, client.Id)
+    .input('month', sql.Int, month)
+    .input('year', sql.Int, year)
+    .query(
+      `SELECT Id, Status FROM EggProductionVerifications
+       WHERE ClientRecordId = @crid AND PeriodMonth = @month AND PeriodYear = @year
+       AND (EPVType = 'Client' OR EPVType IS NULL)`
+    );
+  if (existing.recordset.length > 0) {
+    return { ok: true, alreadyExists: true, status: existing.recordset[0].Status, monthLabel };
+  }
+
+  // Carry forward closing stock from the prior period
+  const prevMonth = month === 1 ? 12 : month - 1;
+  const prevYear = month === 1 ? year - 1 : year;
+  let prevClosingStock = 0;
+  const prevResult = await pool.request()
+    .input('crid', sql.Int, client.Id)
+    .input('pm', sql.Int, prevMonth)
+    .input('py', sql.Int, prevYear)
+    .query(
+      `SELECT ClosingStock FROM EggProductionVerifications
+       WHERE ClientRecordId = @crid AND PeriodMonth = @pm AND PeriodYear = @py AND Status = 'Completed'`
+    );
+  if (prevResult.recordset.length > 0) {
+    prevClosingStock = prevResult.recordset[0].ClosingStock || 0;
+  }
+
+  const token = crypto.randomBytes(32).toString('hex');
+  const referenceNumber = await generateReferenceNumber(pool, month, year);
+
+  await pool.request()
+    .input('crid', sql.Int, client.Id)
+    .input('month', sql.Int, month)
+    .input('year', sql.Int, year)
+    .input('token', sql.NVarChar, token)
+    .input('refNumber', sql.NVarChar, referenceNumber)
+    .input('businessName', sql.NVarChar, client.BusinessName || '')
+    .input('facilityType', sql.NVarChar, client.FacilityType || '')
+    .input('email', sql.NVarChar, client.Email || '')
+    .input('ownerName', sql.NVarChar, client.AbattoirOwnerName || '')
+    .input('openingStock', sql.Decimal(18, 2), prevClosingStock)
+    .query(
+      `INSERT INTO EggProductionVerifications
+       (ClientRecordId, PeriodMonth, PeriodYear, Token, ReferenceNumber, Status,
+        BusinessName, FacilityType, EmailAddress, AuthorizedPersonName, OpeningStock)
+       VALUES (@crid, @month, @year, @token, @refNumber, 'Pending',
+               @businessName, @facilityType, @email, @ownerName, @openingStock)`
+    );
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const allEmails = [client.Email, client.AbattoirOwnerEmail, client.AccountsEmail, client.AbattoirManagerEmail, client.ManualEmail]
+    .filter(e => e && String(e).trim() && emailRegex.test(String(e).trim()));
+  const uniqueEmails = [...new Set(allEmails.map(e => String(e).trim().toLowerCase()))];
+
+  const formUrl = `http://localhost:3000/epv/${token}`;
+  const emailSubject = `EPVS - Egg Production Verification Due: ${monthLabel}`;
+  const emailHtml = buildEPVEmail({
+    businessName: client.BusinessName,
+    month: MONTH_NAMES[month - 1],
+    year,
+    formUrl,
+    openingStock: prevClosingStock,
+  });
+
+  const { succeeded, failed } = await sendEmailToEach({
+    recipients: uniqueEmails,
+    subject: emailSubject,
+    html: emailHtml,
+  });
+
+  await pool.request().query(`
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='EmailSendLog' AND xtype='U')
+    BEGIN
+      CREATE TABLE EmailSendLog (
+        Id INT IDENTITY(1,1) PRIMARY KEY,
+        ClientRecordId INT NOT NULL,
+        EmailAddress NVARCHAR(255) NOT NULL,
+        EmailType NVARCHAR(50) NOT NULL,
+        Subject NVARCHAR(500) NULL,
+        Status NVARCHAR(20) NOT NULL,
+        ErrorMessage NVARCHAR(MAX) NULL,
+        SentAt DATETIME DEFAULT GETDATE(),
+        SentBy NVARCHAR(255) NULL
+      )
+    END
+  `);
+  const logSend = (addr, status) => pool.request()
+    .input('crid', sql.Int, client.Id)
+    .input('addr', sql.NVarChar, addr)
+    .input('type', sql.NVarChar, 'EPV')
+    .input('subj', sql.NVarChar, emailSubject)
+    .input('status', sql.NVarChar, status)
+    .input('by', sql.NVarChar, sentBy)
+    .query(`INSERT INTO EmailSendLog (ClientRecordId, EmailAddress, EmailType, Subject, Status, SentBy)
+            VALUES (@crid, @addr, @type, @subj, @status, @by)`);
+  for (const e of succeeded) await logSend(e, 'Sent');
+  for (const e of failed)    await logSend(e, 'Failed');
+
+  if (succeeded.length === 0) {
+    return { ok: false, alreadyExists: false, error: 'All emails failed to send.', succeeded, failed, referenceNumber, monthLabel };
+  }
+
+  await pool.request()
+    .input('clientId', sql.Int, client.Id)
+    .query(`UPDATE ConsolidatedMasterAbattoirDatabase SET EPVCycleStatus = 'On EPV Cycle' WHERE Id = @clientId`);
+
+  await logCompanyAudit(pool, client.Id, 'EPV Sent', null, `${referenceNumber} for ${monthLabel}`, sentBy, userRole);
+
+  return { ok: true, alreadyExists: false, succeeded, failed, referenceNumber, monthLabel };
+}
+
 // POST /api/epv/send - Send EPV for a specific client (Super Admin / from Clients page)
 router.post('/send', async (req, res) => {
   const { clientRecordId, sentBy } = req.body;
@@ -127,7 +281,6 @@ router.post('/send', async (req, res) => {
   try {
     const pool = await getPool();
 
-    // Get client details
     const clientResult = await pool.request()
       .input('id', sql.Int, parseInt(clientRecordId))
       .query('SELECT * FROM ConsolidatedMasterAbattoirDatabase WHERE Id = @id');
@@ -137,146 +290,111 @@ router.post('/send', async (req, res) => {
     }
 
     const client = clientResult.recordset[0];
-    const now = new Date();
-    const month = now.getMonth() + 1;
-    const year = now.getFullYear();
+    const { month, year } = previousMonthPeriod();
 
-    // Check if EPV already exists for this month
-    const existingResult = await pool.request()
-      .input('clientRecordId', sql.Int, parseInt(clientRecordId))
-      .input('month', sql.Int, month)
-      .input('year', sql.Int, year)
-      .query(
-        `SELECT Id, Status FROM EggProductionVerifications
-         WHERE ClientRecordId = @clientRecordId AND PeriodMonth = @month AND PeriodYear = @year
-         AND (EPVType = 'Client' OR EPVType IS NULL)`
-      );
-
-    if (existingResult.recordset.length > 0) {
-      return res.status(409).json({
-        message: `An EPV for ${year}-${String(month).padStart(2, '0')} already exists (${existingResult.recordset[0].Status}).`,
-      });
-    }
-
-    // Get previous month's closing stock
-    let prevClosingStock = 0;
-    const prevMonth = month === 1 ? 12 : month - 1;
-    const prevYear = month === 1 ? year - 1 : year;
-    const prevResult = await pool.request()
-      .input('clientRecordId', sql.Int, parseInt(clientRecordId))
-      .input('prevMonth', sql.Int, prevMonth)
-      .input('prevYear', sql.Int, prevYear)
-      .query(
-        `SELECT ClosingStock FROM EggProductionVerifications
-         WHERE ClientRecordId = @clientRecordId AND PeriodMonth = @prevMonth AND PeriodYear = @prevYear AND Status = 'Completed'`
-      );
-    if (prevResult.recordset.length > 0) {
-      prevClosingStock = prevResult.recordset[0].ClosingStock || 0;
-    }
-
-    const token = crypto.randomBytes(32).toString('hex');
-    const referenceNumber = await generateReferenceNumber(pool, month, year);
-
-    // Create the EPV record with pre-filled data from client
-    await pool.request()
-      .input('clientRecordId', sql.Int, parseInt(clientRecordId))
-      .input('month', sql.Int, month)
-      .input('year', sql.Int, year)
-      .input('token', sql.NVarChar, token)
-      .input('refNumber', sql.NVarChar, referenceNumber)
-      .input('businessName', sql.NVarChar, client.BusinessName || '')
-      .input('facilityType', sql.NVarChar, client.FacilityType || '')
-      .input('email', sql.NVarChar, client.Email || '')
-      .input('ownerName', sql.NVarChar, client.AbattoirOwnerName || '')
-      .input('openingStock', sql.Decimal(18, 2), prevClosingStock)
-      .query(
-        `INSERT INTO EggProductionVerifications
-         (ClientRecordId, PeriodMonth, PeriodYear, Token, ReferenceNumber, Status,
-          BusinessName, FacilityType, EmailAddress, AuthorizedPersonName, OpeningStock)
-         VALUES (@clientRecordId, @month, @year, @token, @refNumber, 'Pending',
-                 @businessName, @facilityType, @email, @ownerName, @openingStock)`
-      );
-
-    // Collect all valid facility emails
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const allEmails = [client.Email, client.AbattoirOwnerEmail, client.AccountsEmail, client.AbattoirManagerEmail, client.ManualEmail]
-      .filter(e => e && e.trim() && emailRegex.test(e.trim()));
-    const uniqueEmails = [...new Set(allEmails.map(e => e.trim().toLowerCase()))];
-
-    const formUrl = `http://localhost:3000/epv/${token}`;
-    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
-    const emailSubject = `EPVS - Egg Production Verification Due: ${monthNames[month - 1]} ${year}`;
-    const emailHtml = buildEPVEmail({
-      businessName: client.BusinessName,
-      month: monthNames[month - 1],
-      year,
-      formUrl,
-      openingStock: prevClosingStock,
+    const result = await sendEPVForFacility({
+      pool, client,
+      periodMonth: month, periodYear: year,
+      sentBy, userRole: req.body.userRole,
     });
 
-    // Send to each recipient individually to track failures
+    if (result.alreadyExists) {
+      return res.status(409).json({
+        message: `An EPV for ${result.monthLabel} already exists (${result.status}).`,
+      });
+    }
+    if (!result.ok) {
+      return res.status(500).json({ message: result.error || 'Failed to send EPV.' });
+    }
+
+    res.json({ message: `EPV sent to ${client.Email} for ${result.monthLabel}.` });
+  } catch (err) {
+    console.error('EPV send error:', err);
+    res.status(500).json({ message: 'Failed to send EPV.' });
+  }
+});
+
+// POST /api/epv/:id/resend - Re-email an existing EPV (no new record created).
+// Use case: the client says they never received the original email.
+router.post('/:id/resend', async (req, res) => {
+  const { id } = req.params;
+  const { resentBy } = req.body || {};
+  if (!resentBy) {
+    return res.status(400).json({ message: 'resentBy is required.' });
+  }
+  try {
+    const pool = await getPool();
+    const epvResult = await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .query(`SELECT * FROM EggProductionVerifications WHERE Id = @id`);
+    if (epvResult.recordset.length === 0) {
+      return res.status(404).json({ message: 'EPV not found.' });
+    }
+    const epv = epvResult.recordset[0];
+    if (epv.EPVType === 'Inspector') {
+      return res.status(400).json({ message: 'Inspector EPVs cannot be resent.' });
+    }
+
+    const clientResult = await pool.request()
+      .input('cid', sql.Int, epv.ClientRecordId)
+      .query('SELECT * FROM ConsolidatedMasterAbattoirDatabase WHERE Id = @cid');
+    if (clientResult.recordset.length === 0) {
+      return res.status(404).json({ message: 'Linked facility not found.' });
+    }
+    const client = clientResult.recordset[0];
+
+    const monthLabel = `${MONTH_NAMES[(epv.PeriodMonth || 1) - 1]} ${epv.PeriodYear}`;
+    const formUrl = `http://localhost:3000/epv/${epv.Token}`;
+    const emailSubject = `EPVS - Egg Production Verification Reminder: ${monthLabel}`;
+    const emailHtml = buildEPVEmail({
+      businessName: client.BusinessName,
+      month: MONTH_NAMES[(epv.PeriodMonth || 1) - 1],
+      year: epv.PeriodYear,
+      formUrl,
+      openingStock: parseFloat(epv.OpeningStock) || 0,
+    });
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const allEmails = [client.Email, client.AbattoirOwnerEmail, client.AccountsEmail, client.AbattoirManagerEmail, client.ManualEmail]
+      .filter(e => e && String(e).trim() && emailRegex.test(String(e).trim()));
+    const uniqueEmails = [...new Set(allEmails.map(e => String(e).trim().toLowerCase()))];
+    if (uniqueEmails.length === 0) {
+      return res.status(400).json({ message: 'No valid email addresses on file for this facility.' });
+    }
+
     const { succeeded, failed } = await sendEmailToEach({
       recipients: uniqueEmails,
       subject: emailSubject,
       html: emailHtml,
     });
 
-    // Log results to EmailSendLog
-    const pool2 = await getPool();
-    await pool2.request().query(`
-      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='EmailSendLog' AND xtype='U')
-      BEGIN
-        CREATE TABLE EmailSendLog (
-          Id INT IDENTITY(1,1) PRIMARY KEY,
-          ClientRecordId INT NOT NULL,
-          EmailAddress NVARCHAR(255) NOT NULL,
-          EmailType NVARCHAR(50) NOT NULL,
-          Subject NVARCHAR(500) NULL,
-          Status NVARCHAR(20) NOT NULL,
-          ErrorMessage NVARCHAR(MAX) NULL,
-          SentAt DATETIME DEFAULT GETDATE(),
-          SentBy NVARCHAR(255) NULL
-        )
-      END
-    `);
-    for (const email of succeeded) {
-      await pool2.request()
-        .input('crid', sql.Int, parseInt(clientRecordId))
-        .input('addr', sql.NVarChar, email)
-        .input('type', sql.NVarChar, 'EPV')
-        .input('subj', sql.NVarChar, emailSubject)
-        .input('status', sql.NVarChar, 'Sent')
-        .input('by', sql.NVarChar, sentBy)
-        .query(`INSERT INTO EmailSendLog (ClientRecordId, EmailAddress, EmailType, Subject, Status, SentBy)
-                VALUES (@crid, @addr, @type, @subj, @status, @by)`);
-    }
-    for (const email of failed) {
-      await pool2.request()
-        .input('crid', sql.Int, parseInt(clientRecordId))
-        .input('addr', sql.NVarChar, email)
-        .input('type', sql.NVarChar, 'EPV')
-        .input('subj', sql.NVarChar, emailSubject)
-        .input('status', sql.NVarChar, 'Failed')
-        .input('by', sql.NVarChar, sentBy)
-        .query(`INSERT INTO EmailSendLog (ClientRecordId, EmailAddress, EmailType, Subject, Status, SentBy)
-                VALUES (@crid, @addr, @type, @subj, @status, @by)`);
-    }
+    const logSend = (addr, status) => pool.request()
+      .input('crid', sql.Int, client.Id)
+      .input('addr', sql.NVarChar, addr)
+      .input('type', sql.NVarChar, 'EPV-Resend')
+      .input('subj', sql.NVarChar, emailSubject)
+      .input('status', sql.NVarChar, status)
+      .input('by', sql.NVarChar, resentBy)
+      .query(`INSERT INTO EmailSendLog (ClientRecordId, EmailAddress, EmailType, Subject, Status, SentBy)
+              VALUES (@crid, @addr, @type, @subj, @status, @by)`);
+    for (const e of succeeded) await logSend(e, 'Sent');
+    for (const e of failed)    await logSend(e, 'Failed');
 
     if (succeeded.length === 0) {
-      return res.status(500).json({ message: 'All emails failed to send.' });
+      return res.status(500).json({ message: 'All resend attempts failed.' });
     }
 
-    // Mark client as "On EPV Cycle"
-    await pool.request()
-      .input('clientId', sql.Int, parseInt(clientRecordId))
-      .query(`UPDATE ConsolidatedMasterAbattoirDatabase SET EPVCycleStatus = 'On EPV Cycle' WHERE Id = @clientId`);
+    await logCompanyAudit(pool, client.Id, 'EPV Resent', null,
+      `${epv.ReferenceNumber || ''} for ${monthLabel} → ${succeeded.length} recipient(s)`,
+      resentBy, req.body.userRole);
 
-    await logCompanyAudit(pool, parseInt(clientRecordId), 'EPV Sent', null, `${referenceNumber} for ${monthNames[month - 1]} ${year}`, sentBy, req.body.userRole);
-    res.json({ message: `EPV sent to ${client.Email} for ${monthNames[month - 1]} ${year}.` });
+    res.json({
+      message: `Reminder resent to ${succeeded.length} recipient${succeeded.length === 1 ? '' : 's'}${failed.length ? ` (${failed.length} failed)` : ''}.`,
+      succeeded, failed,
+    });
   } catch (err) {
-    console.error('EPV send error:', err);
-    res.status(500).json({ message: 'Failed to send EPV.' });
+    console.error('EPV resend error:', err);
+    res.status(500).json({ message: 'Failed to resend EPV.' });
   }
 });
 
@@ -295,12 +413,12 @@ router.post('/create-manual', async (req, res) => {
     return res.status(400).json({ message: 'Invalid month.' });
   }
 
-  // Don't allow future months
+  // Verifications may only be captured for months that have ended.
   const now = new Date();
   const currentMonth = now.getMonth() + 1;
   const currentYear = now.getFullYear();
-  if (year > currentYear || (year === currentYear && month > currentMonth)) {
-    return res.status(400).json({ message: 'Cannot create a verification for a future month.' });
+  if (year > currentYear || (year === currentYear && month >= currentMonth)) {
+    return res.status(400).json({ message: 'Verifications may only be captured for the previous month or earlier — the current month is not yet complete.' });
   }
 
   try {
@@ -403,10 +521,102 @@ router.get('/token/:token', async (req, res) => {
       return res.status(404).json({ message: 'Verification form not found.' });
     }
 
-    res.json({ verification: result.recordset[0] });
+    const verification = result.recordset[0];
+    const attachments = (await pool.request()
+      .input('vid', sql.Int, verification.Id)
+      .query(`SELECT Id, Category, FileName, OriginalName, FileSize, MimeType, UploadedAt, UploadedBy
+              FROM EPVAttachments WHERE VerificationId = @vid ORDER BY UploadedAt DESC`)).recordset;
+
+    res.json({ verification, attachments });
   } catch (err) {
     console.error('EPV fetch error:', err);
     res.status(500).json({ message: 'Server error.' });
+  }
+});
+
+// POST /api/epv/token/:token/attachment?category=egg|pulp - upload purchase attachment
+router.post('/token/:token/attachment', purchaseUpload.single('file'), async (req, res) => {
+  const { token } = req.params;
+  const category = (req.query.category || '').toLowerCase();
+  const uploadedBy = (req.body && req.body.uploadedBy) || 'Unknown';
+
+  if (!['egg', 'pulp'].includes(category)) {
+    return res.status(400).json({ message: 'category must be "egg" or "pulp".' });
+  }
+  if (!req.file) {
+    return res.status(400).json({ message: 'No file uploaded.' });
+  }
+
+  try {
+    const pool = await getPool();
+    const epv = (await pool.request()
+      .input('token', sql.NVarChar, token)
+      .query('SELECT Id FROM EggProductionVerifications WHERE Token = @token')).recordset[0];
+    if (!epv) {
+      // remove orphan file
+      try { require('fs').unlinkSync(req.file.path); } catch (_) {}
+      return res.status(404).json({ message: 'Verification not found.' });
+    }
+
+    const inserted = await pool.request()
+      .input('vid', sql.Int, epv.Id)
+      .input('cat', sql.NVarChar, category === 'egg' ? 'EggPurchase' : 'PulpPurchase')
+      .input('fn', sql.NVarChar, req.file.filename)
+      .input('orig', sql.NVarChar, req.file.originalname)
+      .input('size', sql.Int, req.file.size)
+      .input('mime', sql.NVarChar, req.file.mimetype)
+      .input('by', sql.NVarChar, uploadedBy)
+      .query(`INSERT INTO EPVAttachments (VerificationId, Category, FileName, OriginalName, FileSize, MimeType, UploadedBy)
+              OUTPUT INSERTED.Id, INSERTED.Category, INSERTED.FileName, INSERTED.OriginalName, INSERTED.FileSize, INSERTED.MimeType, INSERTED.UploadedAt, INSERTED.UploadedBy
+              VALUES (@vid, @cat, @fn, @orig, @size, @mime, @by)`);
+    res.status(201).json({ attachment: inserted.recordset[0] });
+  } catch (err) {
+    console.error('Purchase attachment upload error:', err);
+    try { require('fs').unlinkSync(req.file.path); } catch (_) {}
+    res.status(500).json({ message: 'Failed to upload attachment.' });
+  }
+});
+
+// GET /api/epv/attachment/:id - download/view a purchase attachment
+router.get('/attachment/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const pool = await getPool();
+    const r = (await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .query('SELECT FileName, OriginalName, MimeType FROM EPVAttachments WHERE Id = @id')).recordset[0];
+    if (!r) return res.status(404).json({ message: 'Attachment not found.' });
+
+    const filePath = path.join(purchaseDir, r.FileName);
+    if (!require('fs').existsSync(filePath)) return res.status(404).json({ message: 'File missing on disk.' });
+
+    res.setHeader('Content-Type', r.MimeType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `inline; filename="${r.OriginalName}"`);
+    res.sendFile(filePath);
+  } catch (err) {
+    console.error('Attachment download error:', err);
+    res.status(500).json({ message: 'Failed to fetch attachment.' });
+  }
+});
+
+// DELETE /api/epv/attachment/:id - remove a purchase attachment
+router.delete('/attachment/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const pool = await getPool();
+    const r = (await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .query('SELECT FileName FROM EPVAttachments WHERE Id = @id')).recordset[0];
+    if (!r) return res.status(404).json({ message: 'Attachment not found.' });
+
+    await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .query('DELETE FROM EPVAttachments WHERE Id = @id');
+    try { require('fs').unlinkSync(path.join(purchaseDir, r.FileName)); } catch (_) {}
+    res.json({ message: 'Attachment deleted.' });
+  } catch (err) {
+    console.error('Attachment delete error:', err);
+    res.status(500).json({ message: 'Failed to delete attachment.' });
   }
 });
 
@@ -1724,3 +1934,5 @@ router.get('/inspector/stats', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.sendEPVForFacility = sendEPVForFacility;
+module.exports.previousMonthPeriod = previousMonthPeriod;

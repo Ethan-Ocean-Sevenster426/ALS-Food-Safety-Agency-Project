@@ -183,6 +183,7 @@ async function createEPVTables() {
     const pulpSalesCols = [
       { name: 'PulpSoldToTrade', type: 'INT DEFAULT 0' },
       { name: 'PulpSoldToProducers', type: 'INT DEFAULT 0' },
+      { name: 'PulpConversionLoss', type: 'INT DEFAULT 0' },
     ];
 
     for (const col of pulpSalesCols) {
@@ -274,6 +275,37 @@ async function createEPVTables() {
     `);
 
     console.log('EPVAuditLog table ensured.');
+
+    // Purchase comment columns + attachments table
+    for (const col of ['EggPurchaseComment', 'PulpPurchaseComment']) {
+      await pool.request().query(`
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = '${col}')
+        BEGIN
+          ALTER TABLE EggProductionVerifications ADD ${col} NVARCHAR(MAX) NULL
+        END
+      `);
+    }
+
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='EPVAttachments' AND xtype='U')
+      BEGIN
+        CREATE TABLE EPVAttachments (
+          Id INT IDENTITY(1,1) PRIMARY KEY,
+          VerificationId INT NOT NULL,
+          Category NVARCHAR(20) NOT NULL,
+          FileName NVARCHAR(255) NOT NULL,
+          OriginalName NVARCHAR(500) NOT NULL,
+          FileSize INT NOT NULL,
+          MimeType NVARCHAR(100) NOT NULL,
+          UploadedAt DATETIME DEFAULT GETDATE(),
+          UploadedBy NVARCHAR(255) NULL,
+          CONSTRAINT FK_EPVAttach_Verification FOREIGN KEY (VerificationId)
+            REFERENCES EggProductionVerifications(Id) ON DELETE CASCADE
+        )
+      END
+    `);
+    console.log('Purchase comments + EPVAttachments ensured.');
+
     console.log('EPV tables created successfully!');
   } catch (err) {
     console.error('Failed to create EPV tables:', err.message);

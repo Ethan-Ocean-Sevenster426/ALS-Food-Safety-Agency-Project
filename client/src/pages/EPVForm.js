@@ -23,6 +23,8 @@ function EPVForm() {
   const [error, setError] = useState('');
   const [, setSuccessMsg] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [attachments, setAttachments] = useState([]);
+  const [uploadingCategory, setUploadingCategory] = useState(null); // 'egg' | 'pulp' | null
   const [step, setStep] = useState(1); // Wizard steps: 1=Business Details, 2=Calculation, 3=Review
   const [validationErrors, setValidationErrors] = useState({});
 
@@ -32,12 +34,13 @@ function EPVForm() {
     AuthorizedPersonName: '', PositionInCompany: '',
     TelephoneNumber: '', CellPhoneNumber: '', EmailAddress: '',
     OpeningStock: 0, EggsProducedDuringMonth: 0, GradedEggsPurchased: 0, UngradedEggsPurchased: 0,
-    MarketReturns: 0, MachineLoss: 0, SentToPulp: 0, Destroyed: 0,
+    MarketReturns: 0, MachineLoss: 0, SentToPulp: 0, Destroyed: 0, Exported: 0,
     SoldToTrade: 0, SoldToStaff: 0, SoldThroughFarmStall: 0,
     TransferredToOtherProducers: 0, ActualClosingStock: 0,
     PulpOpeningStock: 0, PulpPurchased: 0, PulpConverted: 0,
-    PulpSoldToTrade: 0, PulpSoldToProducers: 0,
+    PulpSoldToTrade: 0, PulpSoldToProducers: 0, PulpConversionLoss: 0,
     VarianceReason: '',
+    EggPurchaseComment: '', PulpPurchaseComment: '',
   });
 
   const fetchVerification = useCallback(async () => {
@@ -65,6 +68,7 @@ function EPVForm() {
         MachineLoss: parseFloat(v.MachineLoss) || 0,
         SentToPulp: parseFloat(v.SentToPulp) || 0,
         Destroyed: parseFloat(v.Destroyed) || 0,
+        Exported: parseFloat(v.Exported) || 0,
         SoldToTrade: parseFloat(v.SoldToTrade) || 0,
         SoldToStaff: parseFloat(v.SoldToStaff) || 0,
         SoldThroughFarmStall: parseFloat(v.SoldThroughFarmStall) || 0,
@@ -75,8 +79,12 @@ function EPVForm() {
         PulpConverted: parseInt(v.PulpConverted) || 0,
         PulpSoldToTrade: parseInt(v.PulpSoldToTrade) || 0,
         PulpSoldToProducers: parseInt(v.PulpSoldToProducers) || 0,
+        PulpConversionLoss: parseInt(v.PulpConversionLoss) || 0,
         VarianceReason: v.VarianceReason || '',
+        EggPurchaseComment: v.EggPurchaseComment || '',
+        PulpPurchaseComment: v.PulpPurchaseComment || '',
       });
+      setAttachments(res.data.attachments || []);
     } catch (err) {
       setError('Verification form not found or has expired.');
     } finally {
@@ -103,7 +111,8 @@ function EPVForm() {
     const machineLoss = parseFloat(form.MachineLoss) || 0;
     const sentToPulp = parseFloat(form.SentToPulp) || 0;
     const destroyed = parseFloat(form.Destroyed) || 0;
-    const totalC = machineLoss + sentToPulp + destroyed;
+    const exported = parseFloat(form.Exported) || 0;
+    const totalC = machineLoss + sentToPulp + destroyed + exported;
 
     // D = Sales
     const soldToTrade = parseFloat(form.SoldToTrade) || 0;
@@ -139,15 +148,18 @@ function EPVForm() {
     // Pulp Sales & Transfers
     const pulpSoldToTrade = parseInt(form.PulpSoldToTrade) || 0;
     const pulpSoldToProducers = parseInt(form.PulpSoldToProducers) || 0;
+    const pulpConversionLoss = parseInt(form.PulpConversionLoss) || 0;
     const pulpSoldToTradeDozens = Math.round(pulpSoldToTrade * 1.7);
     const pulpSoldToProducersDozens = Math.round(pulpSoldToProducers * 1.7);
+    const pulpConversionLossDozens = Math.round(pulpConversionLoss * 1.7);
+    // Conversion loss does not contribute to the levy.
     const pulpLevyAmount = pulpSoldToTradeDozens * LEVY_RATE;
 
-    // Closing Stock = Stock on Hand - Sales - Sold to Producers
-    const pulpClosingStock = pulpStockOnHand - pulpSoldToTrade - pulpSoldToProducers;
+    // Closing Stock = Stock on Hand - Sales - Sold to Producers - Conversion Loss
+    const pulpClosingStock = pulpStockOnHand - pulpSoldToTrade - pulpSoldToProducers - pulpConversionLoss;
     const pulpClosingStockDozens = Math.round(pulpClosingStock * 1.7);
 
-    return { totalA, totalB, totalC, totalD, totalE, levyAmount, closingStock, actualClosingStock, lossGain, pulpA, pulpB, pulpC, pulpADozens, pulpBDozens, pulpCDozens, pulpStockOnHand, pulpStockOnHandDozens, pulpSoldToTrade, pulpSoldToProducers, pulpSoldToTradeDozens, pulpSoldToProducersDozens, pulpLevyAmount, pulpClosingStock, pulpClosingStockDozens };
+    return { totalA, totalB, totalC, totalD, totalE, levyAmount, closingStock, actualClosingStock, lossGain, pulpA, pulpB, pulpC, pulpADozens, pulpBDozens, pulpCDozens, pulpStockOnHand, pulpStockOnHandDozens, pulpSoldToTrade, pulpSoldToProducers, pulpConversionLoss, pulpSoldToTradeDozens, pulpSoldToProducersDozens, pulpConversionLossDozens, pulpLevyAmount, pulpClosingStock, pulpClosingStockDozens };
   }, [form]);
 
   const REQUIRED_FIELDS = [
@@ -190,6 +202,115 @@ function EPVForm() {
     const raw = value.replace(/[^0-9-]/g, '');
     const num = raw === '' || raw === '-' ? 0 : parseInt(raw, 10);
     setForm(prev => ({ ...prev, [key]: isNaN(num) ? 0 : num }));
+  };
+
+  const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
+  const ATTACHMENT_ACCEPT = '.pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg';
+
+  const handleAttachmentUpload = async (category, file) => {
+    if (!file) return;
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setError('File is larger than 15MB. Please choose a smaller file.');
+      return;
+    }
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (!['pdf', 'png', 'jpg', 'jpeg'].includes(ext)) {
+      setError('Only PDF, PNG, and JPG files are allowed.');
+      return;
+    }
+    setUploadingCategory(category);
+    setError('');
+    try {
+      const uploadedBy = user.firstName
+        ? `${user.firstName} ${user.lastName} (${user.email})`
+        : form.AuthorizedPersonName || form.EmailAddress || 'Unknown';
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('uploadedBy', uploadedBy);
+      const res = await axios.post(
+        `/api/epv/token/${token}/attachment?category=${category}`,
+        fd,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      );
+      setAttachments(prev => [res.data.attachment, ...prev]);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to upload attachment.');
+    } finally {
+      setUploadingCategory(null);
+    }
+  };
+
+  const handleAttachmentDelete = async (attachmentId) => {
+    if (!window.confirm('Delete this attachment?')) return;
+    try {
+      await axios.delete(`/api/epv/attachment/${attachmentId}`);
+      setAttachments(prev => prev.filter(a => a.Id !== attachmentId));
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to delete attachment.');
+    }
+  };
+
+  const formatBytes = (bytes) => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+  };
+
+  const renderPurchaseEvidence = (category, commentKey, label) => {
+    const apiCategory = category === 'EggPurchase' ? 'egg' : 'pulp';
+    const items = attachments.filter(a => a.Category === category);
+    return (
+      <div className="epv-purchase-evidence" style={{ marginTop: 12, padding: 12, background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8 }}>
+        <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>
+          {label} — Source &amp; Supplier Detail
+        </label>
+        <textarea
+          value={form[commentKey]}
+          onChange={(e) => handleChange(commentKey, e.target.value)}
+          disabled={isReadOnly}
+          rows={3}
+          placeholder="Where and from whom was the purchase made?"
+          style={{ width: '100%', padding: 8, border: '1px solid #d1d5db', borderRadius: 6, fontFamily: 'inherit' }}
+        />
+        <div style={{ marginTop: 10 }}>
+          <label style={{ display: 'block', fontWeight: 600, marginBottom: 6, fontSize: 13 }}>
+            Supporting Documents (PDF / PNG / JPG, max 15MB each)
+          </label>
+          {!isReadOnly && (
+            <input
+              type="file"
+              accept={ATTACHMENT_ACCEPT}
+              disabled={uploadingCategory === apiCategory}
+              onChange={(e) => {
+                const f = e.target.files && e.target.files[0];
+                if (f) handleAttachmentUpload(apiCategory, f);
+                e.target.value = '';
+              }}
+              style={{ marginBottom: 8 }}
+            />
+          )}
+          {uploadingCategory === apiCategory && <div style={{ fontSize: 13, color: '#666' }}>Uploading...</div>}
+          {items.length === 0 && <div style={{ fontSize: 13, color: '#888' }}>No documents uploaded yet.</div>}
+          {items.length > 0 && (
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+              {items.map(a => (
+                <li key={a.Id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px dashed #e5e7eb' }}>
+                  <a href={`/api/epv/attachment/${a.Id}`} target="_blank" rel="noopener noreferrer" style={{ color: '#4f46e5', flex: 1 }}>
+                    {a.OriginalName}
+                  </a>
+                  <span style={{ fontSize: 12, color: '#888' }}>{formatBytes(a.FileSize)}</span>
+                  {!isReadOnly && (
+                    <button type="button" onClick={() => handleAttachmentDelete(a.Id)} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 13 }}>
+                      Remove
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    );
   };
 
   const formatNumber = (val) => {
@@ -500,6 +621,8 @@ function EPVForm() {
                   <label>Total B (Purchases):</label>
                   <span className="epv-calc-total">{totals.totalB.toLocaleString()}</span>
                 </div>
+                {((parseFloat(form.GradedEggsPurchased) || 0) + (parseFloat(form.UngradedEggsPurchased) || 0)) > 0 &&
+                  renderPurchaseEvidence('EggPurchase', 'EggPurchaseComment', 'Egg Purchases')}
               </div>
             </div>
 
@@ -518,6 +641,10 @@ function EPVForm() {
                 <div className="epv-calc-row epv-deduction-row">
                   <label>- Destroyed (other e.g., full bloods):</label>
                   <input type="text" value={formatNumber(form.Destroyed)} onChange={(e) => handleNumberChange('Destroyed', e.target.value)} disabled={isReadOnly} placeholder="0" />
+                </div>
+                <div className="epv-calc-row epv-deduction-row">
+                  <label>- Eggs Exported:</label>
+                  <input type="text" value={formatNumber(form.Exported)} onChange={(e) => handleNumberChange('Exported', e.target.value)} disabled={isReadOnly} placeholder="0" />
                 </div>
                 <div className="epv-calc-row epv-total-row epv-deduction-total">
                   <label>Total C (Deductions):</label>
@@ -660,6 +787,8 @@ function EPVForm() {
                   <span className="epv-calc-total">{totals.pulpStockOnHand.toLocaleString()}</span>
                   <span className="epv-calc-total">{totals.pulpStockOnHandDozens.toLocaleString()}</span>
                 </div>
+                {(parseInt(form.PulpPurchased) || 0) > 0 &&
+                  renderPurchaseEvidence('PulpPurchase', 'PulpPurchaseComment', 'Pulp Purchased from Others')}
               </div>
             </div>
 
@@ -685,6 +814,11 @@ function EPVForm() {
                   <label>- Sold to Other Producers:</label>
                   <input type="text" value={formatNumber(form.PulpSoldToProducers)} onChange={(e) => handleNumberChange('PulpSoldToProducers', e.target.value)} disabled={isReadOnly} placeholder="0" />
                   <span className="epv-pulp-dozens epv-deduction-value">{totals.pulpSoldToProducersDozens.toLocaleString()}</span>
+                </div>
+                <div className="epv-calc-row epv-pulp-row epv-deduction-row">
+                  <label>- Conversion Loss:</label>
+                  <input type="text" value={formatNumber(form.PulpConversionLoss)} onChange={(e) => handleNumberChange('PulpConversionLoss', e.target.value)} disabled={isReadOnly} placeholder="0" />
+                  <span className="epv-pulp-dozens epv-deduction-value">{totals.pulpConversionLossDozens.toLocaleString()}</span>
                 </div>
               </div>
             </div>
@@ -748,11 +882,25 @@ function EPVForm() {
                   <tr><td>+ Ungraded Eggs Purchased</td><td className="epv-num">{(parseFloat(form.UngradedEggsPurchased) || 0).toLocaleString()}</td></tr>
                   <tr><td>+ Market Returns</td><td className="epv-num">{(parseFloat(form.MarketReturns) || 0).toLocaleString()}</td></tr>
                   <tr className="epv-review-total"><td>Total B (Purchases)</td><td className="epv-num">{totals.totalB.toLocaleString()}</td></tr>
+                  {(form.EggPurchaseComment || attachments.some(a => a.Category === 'EggPurchase')) && (
+                    <tr><td colSpan="2" style={{ background: '#fafafa', padding: 8 }}>
+                      {form.EggPurchaseComment && (
+                        <div style={{ marginBottom: 6 }}><strong>Source &amp; Supplier:</strong> {form.EggPurchaseComment}</div>
+                      )}
+                      {attachments.filter(a => a.Category === 'EggPurchase').map(a => (
+                        <div key={a.Id} style={{ fontSize: 13 }}>
+                          <a href={`/api/epv/attachment/${a.Id}`} target="_blank" rel="noopener noreferrer">{a.OriginalName}</a>
+                          <span style={{ color: '#888', marginLeft: 6 }}>({formatBytes(a.FileSize)})</span>
+                        </div>
+                      ))}
+                    </td></tr>
+                  )}
 
                   <tr className="epv-review-section-header"><td colSpan="2">C. Deductions</td></tr>
                   <tr><td>- Machine Loss</td><td className="epv-num">{(parseFloat(form.MachineLoss) || 0).toLocaleString()}</td></tr>
                   <tr><td>- Sent to Pulp</td><td className="epv-num">{(parseFloat(form.SentToPulp) || 0).toLocaleString()}</td></tr>
                   <tr><td>- Destroyed</td><td className="epv-num">{(parseFloat(form.Destroyed) || 0).toLocaleString()}</td></tr>
+                  <tr><td>- Eggs Exported</td><td className="epv-num">{(parseFloat(form.Exported) || 0).toLocaleString()}</td></tr>
                   <tr className="epv-review-total"><td>Total C (Deductions)</td><td className="epv-num">{totals.totalC.toLocaleString()}</td></tr>
 
                   <tr className="epv-review-section-header"><td colSpan="2">D. Sales</td></tr>
@@ -815,6 +963,19 @@ function EPVForm() {
                     <td className="epv-num">{totals.pulpStockOnHand.toLocaleString()}</td>
                     <td className="epv-num">{totals.pulpStockOnHandDozens.toLocaleString()}</td>
                   </tr>
+                  {(form.PulpPurchaseComment || attachments.some(a => a.Category === 'PulpPurchase')) && (
+                    <tr><td colSpan="3" style={{ background: '#fafafa', padding: 8 }}>
+                      {form.PulpPurchaseComment && (
+                        <div style={{ marginBottom: 6 }}><strong>Pulp Source &amp; Supplier:</strong> {form.PulpPurchaseComment}</div>
+                      )}
+                      {attachments.filter(a => a.Category === 'PulpPurchase').map(a => (
+                        <div key={a.Id} style={{ fontSize: 13 }}>
+                          <a href={`/api/epv/attachment/${a.Id}`} target="_blank" rel="noopener noreferrer">{a.OriginalName}</a>
+                          <span style={{ color: '#888', marginLeft: 6 }}>({formatBytes(a.FileSize)})</span>
+                        </div>
+                      ))}
+                    </td></tr>
+                  )}
                   <tr className="epv-review-deduction">
                     <td>- Sales to Trade</td>
                     <td className="epv-num">{totals.pulpSoldToTrade.toLocaleString()}</td>
@@ -828,6 +989,11 @@ function EPVForm() {
                     <td>- Sold to Other Producers</td>
                     <td className="epv-num">{totals.pulpSoldToProducers.toLocaleString()}</td>
                     <td className="epv-num">{totals.pulpSoldToProducersDozens.toLocaleString()}</td>
+                  </tr>
+                  <tr className="epv-review-deduction">
+                    <td>- Conversion Loss</td>
+                    <td className="epv-num">{totals.pulpConversionLoss.toLocaleString()}</td>
+                    <td className="epv-num">{totals.pulpConversionLossDozens.toLocaleString()}</td>
                   </tr>
                   <tr className="epv-review-total">
                     <td>= Closing Stock Carried Forward</td>

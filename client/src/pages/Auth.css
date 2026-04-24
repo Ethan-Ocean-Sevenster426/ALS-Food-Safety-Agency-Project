@@ -94,6 +94,21 @@
   box-shadow: 0 0 0 3px rgba(14, 124, 123, 0.15);
 }
 
+.auth-input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1.5px solid #ddd;
+  border-radius: 8px;
+  font-size: 15px;
+  transition: border-color 0.2s;
+  outline: none;
+}
+
+.auth-input:focus {
+  border-color: #0E7C7B;
+  box-shadow: 0 0 0 3px rgba(14, 124, 123, 0.15);
+}
+
 .auth-form select,
 .auth-select {
   width: 100%;

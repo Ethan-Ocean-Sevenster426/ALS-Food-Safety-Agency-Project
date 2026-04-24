@@ -68,6 +68,25 @@ router.post('/signup', async (req, res) => {
   }
 });
 
+async function logLoginAttempt(pool, { userId, email, success, reason, req }) {
+  try {
+    const ip = (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').toString().slice(0, 63);
+    const ua = (req.headers['user-agent'] || '').toString().slice(0, 499);
+    await pool.request()
+      .input('userId', sql.Int, userId || null)
+      .input('email', sql.NVarChar, email || '')
+      .input('success', sql.Bit, success ? 1 : 0)
+      .input('reason', sql.NVarChar, reason || null)
+      .input('ip', sql.NVarChar, ip)
+      .input('ua', sql.NVarChar, ua)
+      .query(`INSERT INTO LoginLog (UserId, Email, Success, Reason, IPAddress, UserAgent)
+              VALUES (@userId, @email, @success, @reason, @ip, @ua)`);
+  } catch (e) {
+    // Logging must never break authentication
+    console.error('LoginLog insert failed:', e.message);
+  }
+}
+
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
@@ -92,18 +111,21 @@ router.post('/login', async (req, res) => {
       );
 
     if (result.recordset.length === 0) {
+      await logLoginAttempt(pool, { userId: null, email, success: false, reason: 'Unknown email', req });
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
     const user = result.recordset[0];
 
     if (user.IsActive === false || user.IsActive === 0) {
+      await logLoginAttempt(pool, { userId: user.Id, email: user.Email, success: false, reason: 'Account deactivated', req });
       return res.status(403).json({ message: 'Your account has been deactivated. Please contact an administrator.' });
     }
 
     const isMatch = await bcrypt.compare(password, user.PasswordHash);
 
     if (!isMatch) {
+      await logLoginAttempt(pool, { userId: user.Id, email: user.Email, success: false, reason: 'Wrong password', req });
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
@@ -112,6 +134,8 @@ router.post('/login', async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
+
+    await logLoginAttempt(pool, { userId: user.Id, email: user.Email, success: true, reason: null, req });
 
     res.json({
       message: 'Login successful.',
@@ -129,6 +153,56 @@ router.post('/login', async (req, res) => {
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ message: 'Server error. Please try again.' });
+  }
+});
+
+// GET /api/auth/login-log - list login attempts (paginated)
+router.get('/login-log', async (req, res) => {
+  try {
+    const pool = await getPool();
+    const page = parseInt(req.query.page) || 1;
+    const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+    const offset = (page - 1) * limit;
+    const search = (req.query.search || '').trim();
+    const successFilter = req.query.success; // 'true', 'false', or undefined
+
+    const request = pool.request();
+    const filters = [];
+    if (search) {
+      filters.push(`(l.Email LIKE @search OR u.FirstName LIKE @search OR u.LastName LIKE @search)`);
+      request.input('search', sql.NVarChar, `%${search}%`);
+    }
+    if (successFilter === 'true')  filters.push('l.Success = 1');
+    if (successFilter === 'false') filters.push('l.Success = 0');
+    const whereSql = filters.length ? 'WHERE ' + filters.join(' AND ') : '';
+
+    const countRes = await request.query(
+      `SELECT COUNT(*) AS total
+       FROM LoginLog l
+       LEFT JOIN Users u ON l.UserId = u.Id
+       ${whereSql}`
+    );
+    const total = countRes.recordset[0].total;
+
+    const dataReq = pool.request();
+    if (search) dataReq.input('search', sql.NVarChar, `%${search}%`);
+    dataReq.input('offset', sql.Int, offset);
+    dataReq.input('limit', sql.Int, limit);
+
+    const dataRes = await dataReq.query(
+      `SELECT l.Id, l.UserId, l.Email, l.Success, l.Reason, l.IPAddress, l.UserAgent, l.LoggedInAt,
+              u.FirstName, u.LastName, u.Role
+       FROM LoginLog l
+       LEFT JOIN Users u ON l.UserId = u.Id
+       ${whereSql}
+       ORDER BY l.LoggedInAt DESC
+       OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`
+    );
+
+    res.json({ data: dataRes.recordset, page, limit, total, totalPages: Math.ceil(total / limit) });
+  } catch (err) {
+    console.error('login-log fetch error:', err);
+    res.status(500).json({ message: 'Failed to fetch login log.' });
   }
 });
 

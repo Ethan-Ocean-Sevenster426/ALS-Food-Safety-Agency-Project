@@ -51,34 +51,43 @@ A full-stack web application for managing egg production facilities, client allo
 │           └── *.css               # Page-specific CSS files
 │
 ├── server/                         # Express backend
-│   ├── index.js                    # App entry — middleware + route mounting
+│   ├── index.js                    # App entry — middleware + route mounting + EPV scheduler
 │   ├── initDb.js                   # One-time DB + table creation script
 │   ├── seed-all.js                 # Full seed script — imports facilities, users, EPVs, tickets
 │   ├── seed-demo.js                # Demo seed script — populates EPVs for Jan 2025 – Mar 2026
 │   ├── seed-users.js               # Seed script — creates inspectors, company admins, users
 │   ├── seed-tickets.js             # Seed script — creates resolved/closed support tickets
 │   ├── seed-admins.js              # Seed script — creates 3 Admin users
+│   ├── seed-history.js             # Seed 2025 (verified) + 2026 Q1 (unverified) EPVs per facility
+│   ├── seed-inspector-facilities.js # Seed one fictional facility per inspector
 │   ├── export-tables.js            # Export all DB tables to Excel files (server/exports/)
 │   ├── config/
 │   │   └── db.js                   # MSSQL connection pool (singleton, 60s request timeout)
 │   ├── routes/
-│   │   ├── auth.js                 # Signup, login, password reset, user CRUD, edit, deactivate
-│   │   ├── clients.js              # Client allocation CRUD + audit log
+│   │   ├── auth.js                 # Signup, login, password reset, user CRUD + login log endpoint
+│   │   ├── clients.js              # Client allocation CRUD + audit log (+ OnboardedAt aggregate)
 │   │   ├── invites.js              # Invitation send/accept flow (with FacilityProvince)
 │   │   ├── company.js              # Company overview + per-company user/invite mgmt
-│   │   ├── epv.js                  # EPV send/submit/edit/list + POP upload + reconciliation + inspector endpoints
+│   │   ├── epv.js                  # EPV send/resend/submit/edit/list + POP + purchase attachments + scheduler helper
 │   │   ├── admin.js                # Admin reconciliation endpoints — stats, list, batch reconcile
 │   │   ├── support.js              # Support tickets CRUD, comments, email notifications
 │   │   ├── dashboard.js            # Dashboard analytics + EPV overview + KPI targets
-│   │   └── invoices.js             # Invoice generation (feature under development)
+│   │   ├── invoices.js             # Invoice generation (feature under development)
+│   │   └── manuals.js              # Role-aware user-manual download (PDF/DOCX)
 │   ├── services/
 │   │   └── emailService.js         # Microsoft 365 Graph API email (OAuth2 client credentials)
+│   ├── jobs/
+│   │   └── epvScheduler.js         # Daily scheduler — auto-sends monthly EPVs to facilities on cycle
 │   ├── uploads/
 │   │   ├── pop/                    # Uploaded Proof of Payment files
+│   │   ├── purchases/               # Egg/pulp purchase supporting documents (≤ 15 MB, PDF/PNG/JPG)
 │   │   └── invoices/               # Generated invoice PDFs
 │   └── scripts/
 │       ├── createAuditLog.js       # Creates ClientAllocationAuditLog table
 │       ├── createEPVTables.js      # Creates EggProductionVerifications table + migration columns
+│       ├── addPulpConversionLoss.js          # Migration: PulpConversionLoss column
+│       ├── addPurchaseCommentsAndAttachments.js # Migration: EggPurchaseComment, PulpPurchaseComment, EPVAttachments table
+│       ├── createLoginLog.js                  # Migration: LoginLog table for audit of login attempts
 │       └── importClientAllocation.js # Imports client data from Excel
 ```
 
@@ -136,11 +145,14 @@ This creates the database and all core tables (Users, SupportTicketCategories, S
 - **Email:** `anthony@epvs.com`
 - **Password:** `StrongPassword123!`
 
-Then run the additional table scripts:
+Then run the additional table scripts (run each once, they're idempotent):
 
 ```bash
 node scripts/createAuditLog.js
 node scripts/createEPVTables.js
+node scripts/addPulpConversionLoss.js            # April 2026: Pulp conversion loss column
+node scripts/addPurchaseCommentsAndAttachments.js # April 2026: purchase comments + attachments table
+node scripts/createLoginLog.js                    # April 2026: login attempt audit log
 ```
 
 ### 4. Seed Demo Data (Optional)
@@ -150,10 +162,12 @@ node scripts/createEPVTables.js
 node seed-all.js
 
 # Or run individual seed scripts:
-node seed-admins.js       # Creates 3 Admin users
-node seed-users.js        # Creates inspectors, company admins, users
-node seed-demo.js         # Populates EPVs for Jan 2025 – Mar 2026
-node seed-tickets.js      # Creates resolved/closed support tickets
+node seed-admins.js               # Creates 3 Admin users
+node seed-users.js                # Creates inspectors, company admins, users
+node seed-demo.js                 # Populates EPVs for Jan 2025 – Mar 2026
+node seed-tickets.js              # Creates resolved/closed support tickets
+node seed-inspector-facilities.js # One fictional facility per inspector (dev/demo)
+node seed-history.js              # 12 months of verified 2025 + 3 months pending 2026 EPVs per facility
 
 # Export all tables to Excel files (saved to server/exports/)
 node export-tables.js
@@ -181,6 +195,73 @@ npm start
 ```
 
 The frontend runs on `http://localhost:3000` and calls the API at `http://localhost:5000`.
+
+The Create React App dev server proxies `/api/*` to the URL in `client/package.json` → `proxy`. **Default is the hosted production backend** — this is what local developers want 99% of the time. If you need to point the frontend at your own local backend, change `proxy` to `http://localhost:5000` in `client/package.json`, but **do not commit that change**.
+
+---
+
+## April 2026 Feature Additions — backend summary
+
+New features added in this iteration that affect backend developers:
+
+### Monthly EPV auto-send scheduler
+
+- `server/jobs/epvScheduler.js` runs 30s after server startup and every 24h after that.
+- For every facility with `EPVCycleStatus = 'On EPV Cycle'` it checks whether an EPV exists for the **previous calendar month**. If none does, it creates one and emails the four facility addresses.
+- Idempotent — daily ticks are safe; duplicates are rejected at the DB level.
+- Triggered automatically by `app.listen(...)` → `startEPVScheduler()` in `server/index.js`. No cron required.
+- Facilities are placed on the cycle via the first `POST /api/epv/send`; clear `ConsolidatedMasterAbattoirDatabase.EPVCycleStatus` to remove a facility.
+
+### EPV period semantics
+
+- Manual and automated EPV issuance now always use the **previous calendar month** (an EPV issued in March captures February data).
+- Backend guard: `POST /api/epv/create-manual` rejects the current or future months (HTTP 400).
+
+### Resend EPV email
+
+- `POST /api/epv/:id/resend` — re-emails an existing Pending EPV without creating a new record. Writes to `EmailSendLog` as type `EPV-Resend` and to `ClientAuditLog`.
+- Called from the "Resend Email" button in the Company Overview EPV list.
+
+### Purchase evidence (comments + attachments)
+
+- New columns on `EggProductionVerifications`: `EggPurchaseComment`, `PulpPurchaseComment` (both `NVARCHAR(MAX)`).
+- New table `EPVAttachments`:
+  ```
+  Id | VerificationId (FK cascade) | Category ('EggPurchase' | 'PulpPurchase')
+    | FileName | OriginalName | FileSize | MimeType | UploadedAt | UploadedBy
+  ```
+- Multer endpoints, 15MB limit, `.pdf .png .jpg .jpeg` only:
+  - `POST /api/epv/token/:token/attachment?category=egg|pulp` — multipart, field `file`.
+  - `GET  /api/epv/attachment/:id` — inline download with original filename.
+  - `DELETE /api/epv/attachment/:id` — removes row + file on disk.
+- `GET /api/epv/token/:token` now returns `{ verification, attachments }`.
+- Files live under `server/uploads/purchases/` (gitignored).
+
+### Form field additions
+
+- `Exported` (eggs) — wired in as a deduction (Total C); does not affect the egg levy.
+- `PulpConversionLoss` — pulp-side deduction; does not affect the pulp levy but reduces closing pulp stock.
+- Both added to `NUMERIC_FIELDS` in `server/routes/epv.js` so they flow through `/submit` and `/edit`.
+
+### Facility verified indicator
+
+- `GET /api/clients` now uses `OUTER APPLY` to attach the earliest accepted Company Admin invitation per facility, surfaced as `OnboardedAt` and `OnboardedBy`.
+- The Consolidated Master Facility Database page shows a **Verified** badge when `OnboardedAt` is set, plus the existing **On EPV Cycle** tag.
+
+### User manual download
+
+- `GET /api/manuals?role=<role>&format=pdf|docx` — streams the correct manual for the given role from the repo root.
+- Default format is `pdf`; fallback is `docx`.
+- Manuals are regenerated by the Python tooling in the repo root:
+  - `update-manuals.py` — appends the "Recent Updates" section to the originals (idempotent).
+  - `rewrite-manuals.py` — full-rewrite fallback (not the default workflow).
+  - `convert-manuals-to-pdf.py` — requires MS Word + `docx2pdf` (`pip install docx2pdf`). Rerun after any `.docx` change.
+
+### Login audit log
+
+- New table `LoginLog` (`Id`, `UserId`, `Email`, `Success`, `Reason`, `IPAddress`, `UserAgent`, `LoggedInAt`).
+- `POST /api/auth/login` writes one row per attempt (success or failure). Logging errors never break authentication.
+- `GET /api/auth/login-log?search=&success=true|false&page=&limit=` — paginated, newest first. Exposed via the "Login History" button on the User Management page.
 
 ---
 
