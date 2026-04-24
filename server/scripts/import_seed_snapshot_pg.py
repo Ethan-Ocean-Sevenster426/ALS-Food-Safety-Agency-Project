@@ -276,11 +276,13 @@ def wipe(cur, table: str):
 def reset_sequence(cur, table: str):
     """If the table has an `id` sequence, jump it past max(id)."""
     cur.execute(
-        """
-        SELECT pg_get_serial_sequence(%s, 'id')
-        """,
+        "SELECT 1 FROM information_schema.tables "
+        "WHERE table_schema = 'public' AND table_name = %s",
         (table,),
     )
+    if not cur.fetchone():
+        return
+    cur.execute("SELECT pg_get_serial_sequence(%s, 'id')", (table,))
     seq = cur.fetchone()[0]
     if not seq:
         return
