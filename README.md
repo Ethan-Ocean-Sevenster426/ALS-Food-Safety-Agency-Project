@@ -53,14 +53,10 @@ A full-stack web application for managing egg production facilities, client allo
 ├── server/                         # Express backend
 │   ├── index.js                    # App entry — middleware + route mounting + EPV scheduler
 │   ├── initDb.js                   # One-time DB + table creation script
-│   ├── seed-all.js                 # Full seed script — imports facilities, users, EPVs, tickets
-│   ├── seed-demo.js                # Demo seed script — populates EPVs for Jan 2025 – Mar 2026
-│   ├── seed-users.js               # Seed script — creates inspectors, company admins, users
-│   ├── seed-tickets.js             # Seed script — creates resolved/closed support tickets
-│   ├── seed-admins.js              # Seed script — creates 3 Admin users
-│   ├── seed-history.js             # Seed 2025 (verified) + 2026 Q1 (unverified) EPVs per facility
-│   ├── seed-inspector-facilities.js # Seed one fictional facility per inspector
 │   ├── export-tables.js            # Export all DB tables to Excel files (server/exports/)
+│   ├── seed-data/                  # Data snapshot (source of truth for dev data)
+│   │   ├── snapshot.xlsx           # One workbook per table — current DB state
+│   │   └── README.md               # Regenerate + restore instructions
 │   ├── config/
 │   │   └── db.js                   # MSSQL connection pool (singleton, 60s request timeout)
 │   ├── routes/
@@ -88,6 +84,8 @@ A full-stack web application for managing egg production facilities, client allo
 │       ├── addPulpConversionLoss.js          # Migration: PulpConversionLoss column
 │       ├── addPurchaseCommentsAndAttachments.js # Migration: EggPurchaseComment, PulpPurchaseComment, EPVAttachments table
 │       ├── createLoginLog.js                  # Migration: LoginLog table for audit of login attempts
+│       ├── exportSeedSnapshot.js              # Dump DB to seed-data/snapshot.xlsx (PasswordHash redacted)
+│       ├── importSeedSnapshot.js              # Replay seed-data/snapshot.xlsx into a fresh DB
 │       └── importClientAllocation.js # Imports client data from Excel
 ```
 
@@ -155,36 +153,34 @@ node scripts/addPurchaseCommentsAndAttachments.js # April 2026: purchase comment
 node scripts/createLoginLog.js                    # April 2026: login attempt audit log
 ```
 
-### 4. Seed Demo Data (Optional)
+### 4. Seed demo data (optional)
+
+The repo ships with a DB snapshot at [`server/seed-data/snapshot.xlsx`](server/seed-data/snapshot.xlsx) — that's the source of truth for development data (14 facilities, 378 EPVs, support tickets, etc.). To replay it into your local DB:
 
 ```bash
-# Full seed — imports facilities from Test.xlsx, creates users, EPVs, and tickets
-node seed-all.js
-
-# Or run individual seed scripts:
-node seed-admins.js               # Creates 3 Admin users
-node seed-users.js                # Creates inspectors, company admins, users
-node seed-demo.js                 # Populates EPVs for Jan 2025 – Mar 2026
-node seed-tickets.js              # Creates resolved/closed support tickets
-node seed-inspector-facilities.js # One fictional facility per inspector (dev/demo)
-node seed-history.js              # 12 months of verified 2025 + 3 months pending 2026 EPVs per facility
-
-# Export all tables to Excel files (saved to server/exports/ — gitignored)
-node export-tables.js
-
-# Snapshot the current DB into server/seed-data/snapshot.xlsx (tracked in git)
-# so the team can see what the seed scripts produce without having to run them.
-node scripts/exportSeedSnapshot.js
+cd server
+node scripts/importSeedSnapshot.js
 ```
 
-Admin users created by seed script:
-| Name | Email | Password |
-|------|-------|----------|
-| Sarah van der Merwe | sarah.admin@fsa.co.za | Admin@123 |
-| James Nkosi | james.admin@fsa.co.za | Admin@123 |
-| Lindiwe Dlamini | lindiwe.admin@fsa.co.za | Admin@123 |
+This wipes every table present in the snapshot and re-inserts every row (IDs preserved). Password hashes are regenerated because the snapshot scrubs them:
 
-Default password for all seeded Company Admins/Users: `Password@123`
+| User | Password |
+|------|----------|
+| `anthony@epvs.com` | `StrongPassword123!` |
+| every other seeded account | `Password@123` |
+
+To refresh the snapshot after local changes so the team sees up-to-date data:
+
+```bash
+node scripts/exportSeedSnapshot.js
+# commit server/seed-data/snapshot.xlsx
+```
+
+Other one-shot exports:
+
+```bash
+node export-tables.js   # every table to its own .xlsx under server/exports/ (gitignored)
+```
 
 ### 5. Run the App
 

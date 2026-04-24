@@ -29,24 +29,24 @@ cd server
 node scripts/exportSeedSnapshot.js
 ```
 
-## Reproducing this data on a fresh DB
+## Restoring the snapshot into your DB
 
-The snapshot is **read-only**. To get the same data on your own machine,
-run the seed scripts documented in the top-level README:
+After initialising a fresh database (`npm run init-db` + every migration
+under `server/scripts/`), replay the snapshot:
 
 ```bash
 cd server
-npm run init-db
-node scripts/createAuditLog.js
-node scripts/createEPVTables.js
-node scripts/addPulpConversionLoss.js
-node scripts/addPurchaseCommentsAndAttachments.js
-node scripts/createLoginLog.js
-node seed-admins.js
-node seed-users.js
-node seed-inspector-facilities.js
-node seed-history.js
+node scripts/importSeedSnapshot.js
 ```
 
-The snapshot only reflects the *current* state - verify against it if you
-hit schema drift or mismatched figures.
+This wipes every table contained in the snapshot and re-inserts every
+row with IDs preserved. Password hashes are regenerated on the fly
+(snapshot scrubs them):
+
+| User | Password |
+|------|----------|
+| `anthony@epvs.com` | `StrongPassword123!` |
+| every other seeded account | `Password@123` |
+
+The snapshot is the **only** seed data shipped with the repo - the
+earlier hard-coded `seed-*.js` scripts have been removed.
