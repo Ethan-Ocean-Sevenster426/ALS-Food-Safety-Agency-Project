@@ -1,0 +1,265 @@
+/**
+ * Postgres translator shim — emulates the mssql API used throughout the
+ * codebase against a real Postgres backend.
+ *
+ * This file is the prod-only adapter. The codebase is written in T-SQL
+ * (PascalCase tables/columns, NVARCHAR types, SET IDENTITY_INSERT, etc.)
+ * but production runs Postgres, so every query is rewritten on the fly:
+ *
+ *   - PascalCase identifiers        -> snake_case
+ *   - GETDATE() / ISNULL / TOP / OUTER APPLY / OFFSET..FETCH NEXT
+ *   - Boolean = 1/0 comparisons     -> = true/false
+ *   - @param placeholders           -> $1 $2 …
+ *
+ * Result rows are mapped back so callers can still read PascalCase keys
+ * (`row.PasswordHash`, `row.Id`) AND the underlying snake_case keys.
+ *
+ * NOTE: this is intentionally a shim, not a full T-SQL parser. New
+ *       T-SQL constructs may need patches added below as they surface.
+ */
+
+const { Pool } = require('pg');
+require('dotenv').config();
+
+const pool = new Pool({
+  host: process.env.DB_HOST,
+  port: parseInt(process.env.DB_PORT, 10) || 5432,
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+});
+
+pool.on('error', (err) => {
+  console.error('PG pool error:', err.message);
+});
+
+// -----------------------------------------------------------------------------
+// Identifier maps
+// -----------------------------------------------------------------------------
+
+// PascalCase table -> snake_case table.
+const TABLE_MAP = {
+  Users: 'users',
+  Invitations: 'invitations',
+  ConsolidatedMasterAbattoirDatabase: 'client_records',
+  ClientRecords: 'client_records',
+  EggProductionVerifications: 'egg_production_verifications',
+  EPVAuditLog: 'epv_audit_log',
+  EPVAttachments: 'epv_attachments',
+  EPVInvoices: 'epv_invoices',
+  ClientAuditLog: 'client_audit_log',
+  LoginLog: 'login_log',
+  EmailSendLog: 'email_send_log',
+  KPITargets: 'kpi_targets',
+  SupportTicketCategories: 'support_ticket_categories',
+  SupportTickets: 'support_tickets',
+  SupportTicketComments: 'support_ticket_comments',
+};
+
+// Explicit overrides where the heuristic snake_case isn't right.
+// (Add entries here as new mismatches surface.)
+const COLUMN_OVERRIDES = {
+  POPFilePath: 'pop_file_path',
+  POPUploadedAt: 'pop_uploaded_at',
+  POPUploadedBy: 'pop_uploaded_by',
+  POPComment: 'pop_comment',
+  EPVType: 'epv_type',
+  EPVCycleStatus: 'epv_cycle_status',
+  VATNumber: 'vat_number',
+  IPAddress: 'ipaddress',
+  ClientRecordId: 'client_record_id',
+  LinkedEPVId: 'linked_epv_id',
+  InspEPVId: 'insp_epv_id',
+  InspEPVToken: 'insp_epv_token',
+  InspEPVStatus: 'insp_epv_status',
+  InspEPVRef: 'insp_epv_ref',
+  KPI: 'kpi',
+};
+
+// snake_case -> PascalCase for result mapping.
+const REVERSE_COL = {};
+for (const [pascal, snake] of Object.entries({ ...TABLE_MAP, ...COLUMN_OVERRIDES })) {
+  REVERSE_COL[snake] = pascal;
+}
+
+// Generic PascalCase -> snake_case converter.
+function pascalToSnake(name) {
+  if (COLUMN_OVERRIDES[name]) return COLUMN_OVERRIDES[name];
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
+    .toLowerCase();
+}
+
+// Boolean columns we coerce 0/1 comparisons against.
+const BOOLEAN_COLS = [
+  'is_active', 'is_reconciled', 'is_verified', 'is_paid', 'is_manual',
+  'manual_inspection', 'completed', 'success',
+];
+
+// -----------------------------------------------------------------------------
+// Query rewriter
+// -----------------------------------------------------------------------------
+
+function convertQuery(sqlStr) {
+  let q = sqlStr;
+
+  // Strip leading semicolons.
+  q = q.replace(/^\s*;\s*/, '');
+
+  // Datetime helpers.
+  q = q.replace(/GETDATE\(\)/gi, 'NOW()');
+  q = q.replace(/ISNULL\s*\(/gi, 'COALESCE(');
+
+  // Bracket-quoted identifiers [Name] -> "Name". Postgres lowercases bare
+  // identifiers, so we strip brackets and trust later snake-casing.
+  q = q.replace(/\[([A-Za-z_][A-Za-z0-9_]*)\]/g, '$1');
+
+  // Table renames (do this BEFORE column renames so qualified columns work).
+  for (const [pascal, snake] of Object.entries(TABLE_MAP)) {
+    q = q.replace(new RegExp('\\b' + pascal + '\\b', 'g'), snake);
+  }
+
+  // Apply explicit column overrides.
+  for (const [pascal, snake] of Object.entries(COLUMN_OVERRIDES)) {
+    q = q.replace(new RegExp('\\b' + pascal + '\\b', 'g'), snake);
+  }
+
+  // Generic PascalCase identifier conversion - matches "alias.PascalIdent" or
+  // bare "PascalIdent" not already lowered. Skip identifiers entirely inside
+  // double-quoted strings (preserved aliases) or single-quoted literals.
+  q = q.replace(
+    /(\b[a-z_][a-z0-9_]*\.)?\b([A-Z][A-Za-z0-9]*)\b(?=\s*(?:[,)\s]|$|=|<|>|\+|-|\/|\*|AS\b|FROM\b|WHERE\b|ON\b|AND\b|OR\b|GROUP\b|ORDER\b|LIMIT\b|OFFSET\b|JOIN\b|HAVING\b|\.))/g,
+    (match, alias, ident) => {
+      // Skip SQL keywords that happen to be all caps or capitalized.
+      const KEYWORDS = new Set([
+        'SELECT', 'FROM', 'WHERE', 'AND', 'OR', 'NOT', 'NULL', 'IS', 'IN',
+        'JOIN', 'INNER', 'LEFT', 'RIGHT', 'OUTER', 'FULL', 'CROSS', 'ON',
+        'AS', 'BY', 'GROUP', 'ORDER', 'HAVING', 'LIMIT', 'OFFSET', 'ASC',
+        'DESC', 'INSERT', 'UPDATE', 'DELETE', 'INTO', 'VALUES', 'SET',
+        'CREATE', 'ALTER', 'DROP', 'TABLE', 'COLUMN', 'INDEX', 'CONSTRAINT',
+        'PRIMARY', 'KEY', 'FOREIGN', 'REFERENCES', 'CHECK', 'DEFAULT',
+        'TRUE', 'FALSE', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END', 'IF',
+        'EXISTS', 'BETWEEN', 'LIKE', 'ILIKE', 'UNION', 'ALL', 'DISTINCT',
+        'WITH', 'RETURNING', 'BEGIN', 'COMMIT', 'ROLLBACK', 'TRANSACTION',
+        'COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'COALESCE', 'NULLIF', 'CAST',
+        'TOP', 'FETCH', 'NEXT', 'ROWS', 'ONLY', 'NOW', 'LATERAL', 'TRUE',
+        'FALSE', 'INT', 'INTEGER', 'BIGINT', 'BOOLEAN', 'TEXT', 'VARCHAR',
+        'NVARCHAR', 'DATETIME', 'TIMESTAMP', 'DECIMAL', 'NUMERIC',
+      ]);
+      if (KEYWORDS.has(ident.toUpperCase())) return match;
+      const snake = pascalToSnake(ident);
+      return (alias || '') + snake;
+    },
+  );
+
+  // SELECT TOP N -> append LIMIT N at end (best-effort; works for queries
+  // without an existing LIMIT). Removes the TOP clause too.
+  const topMatch = q.match(/\bSELECT\s+TOP\s+(\d+)\b/i);
+  if (topMatch) {
+    q = q.replace(/\bSELECT\s+TOP\s+\d+\b/i, 'SELECT');
+    if (!/\bLIMIT\s+\d+/i.test(q)) {
+      q = q.trim().replace(/;?\s*$/, '') + ` LIMIT ${topMatch[1]}`;
+    }
+  }
+
+  // OFFSET N ROWS FETCH NEXT M ROWS ONLY  ->  LIMIT M OFFSET N
+  q = q.replace(
+    /OFFSET\s+(@?\$?\w+|\d+)\s+ROWS\s+FETCH\s+NEXT\s+(@?\$?\w+|\d+)\s+ROWS\s+ONLY/gi,
+    'LIMIT $2 OFFSET $1',
+  );
+
+  // OUTER APPLY (...) alias  ->  LEFT JOIN LATERAL (...) alias ON true
+  q = q.replace(/\bOUTER\s+APPLY\b/gi, 'LEFT JOIN LATERAL');
+  q = q.replace(/\bCROSS\s+APPLY\b/gi, 'JOIN LATERAL');
+  // For LATERAL joins to be valid we need ON true after the alias. Append
+  // it heuristically to the closing paren+alias of LATERAL subqueries.
+  q = q.replace(
+    /(LEFT JOIN LATERAL[\s\S]*?\)\s*[A-Za-z_][A-Za-z0-9_]*)/g,
+    '$1 ON true',
+  );
+
+  // Boolean column comparisons against 0/1.
+  for (const col of BOOLEAN_COLS) {
+    q = q.replace(new RegExp(`\\b${col}\\s*=\\s*1\\b`, 'gi'), `${col} = true`);
+    q = q.replace(new RegExp(`\\b${col}\\s*=\\s*0\\b`, 'gi'), `${col} = false`);
+    q = q.replace(
+      new RegExp(`COALESCE\\(([^)]*\\.?${col}[^,]*),\\s*1\\)`, 'gi'),
+      'COALESCE($1, true)',
+    );
+    q = q.replace(
+      new RegExp(`COALESCE\\(([^)]*\\.?${col}[^,]*),\\s*0\\)`, 'gi'),
+      'COALESCE($1, false)',
+    );
+  }
+
+  return q;
+}
+
+// -----------------------------------------------------------------------------
+// mssql-compatible Request shim
+// -----------------------------------------------------------------------------
+
+class Request {
+  constructor() {
+    this.params = {};
+    this.paramOrder = [];
+  }
+
+  input(name, typeOrValue, value) {
+    if (value === undefined) value = typeOrValue;
+    this.params[name] = value;
+    if (!this.paramOrder.includes(name)) this.paramOrder.push(name);
+    return this;
+  }
+
+  async query(sqlStr) {
+    let converted = convertQuery(sqlStr);
+    const usedParams = [];
+    converted = converted.replace(/@(\w+)/g, (m, name) => {
+      let idx = usedParams.indexOf(name);
+      if (idx === -1) {
+        usedParams.push(name);
+        idx = usedParams.length - 1;
+      }
+      return '$' + (idx + 1);
+    });
+    const values = usedParams.map((n) => this.params[n]);
+
+    try {
+      const result = await pool.query(converted, values);
+      const mappedRows = result.rows.map((row) => {
+        const mapped = {};
+        for (const [key, val] of Object.entries(row)) {
+          const pascalKey = REVERSE_COL[key] || key;
+          mapped[pascalKey] = val;
+          mapped[key] = val;
+        }
+        return mapped;
+      });
+      return { recordset: mappedRows, rowsAffected: [result.rowCount] };
+    } catch (err) {
+      console.error('PG Query Error:', err.message);
+      console.error('Converted SQL:', converted);
+      console.error('Values:', values);
+      throw err;
+    }
+  }
+}
+
+// mssql `sql` type stub - only the names we actually call into.
+const sql = {
+  NVarChar: 'NVarChar', Int: 'Int', Bit: 'Bit', DateTime: 'DateTime',
+  Float: 'Float', Decimal: 'Decimal', VarChar: 'VarChar', Text: 'Text',
+  Date: 'Date', NText: 'NText', BigInt: 'BigInt', SmallInt: 'SmallInt',
+  Money: 'Money', Real: 'Real', UniqueIdentifier: 'UniqueIdentifier',
+};
+
+async function getPool() {
+  return { request: () => new Request() };
+}
+
+module.exports = { sql, getPool, pool, config: {} };
