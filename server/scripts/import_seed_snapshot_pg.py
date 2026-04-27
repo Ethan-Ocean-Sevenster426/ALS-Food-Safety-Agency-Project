@@ -148,16 +148,32 @@ def coerce_value(col: str, value):
     return value
 
 
+def resolve_sheet_name(wanted: str, available: list[str]) -> str | None:
+    """Excel truncates sheet names at 31 chars - match exact or by prefix."""
+    if wanted in available:
+        return wanted
+    truncated = wanted[:31]
+    if truncated in available:
+        return truncated
+    for name in available:
+        if wanted.startswith(name) and len(name) >= 28:
+            return name
+    return None
+
+
 def load_snapshot(path: Path) -> dict[str, list[dict]]:
     if not path.exists():
         raise SystemExit(f"snapshot not found at {path}")
     wb = openpyxl.load_workbook(filename=str(path), data_only=True, read_only=True)
     out: dict[str, list[dict]] = {}
     for sheet_name in INSERT_ORDER:
-        if sheet_name not in wb.sheetnames:
+        actual = resolve_sheet_name(sheet_name, wb.sheetnames)
+        if actual is None:
             out[sheet_name] = []
             continue
-        ws = wb[sheet_name]
+        if actual != sheet_name:
+            print(f"  (sheet alias) {sheet_name} -> {actual}")
+        ws = wb[actual]
         rows_iter = ws.iter_rows(values_only=True)
         try:
             header = next(rows_iter)
