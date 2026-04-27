@@ -104,60 +104,66 @@ const BOOLEAN_COLS = [
 // Query rewriter
 // -----------------------------------------------------------------------------
 
-function convertQuery(sqlStr) {
-  let q = sqlStr;
+// Run `transformFn` on every code segment of the SQL while leaving single-
+// quoted string literals untouched. Without this, identifier rewrites
+// trash literal values like 'Company Admin' -> 'company_admin'.
+function withQuotedStringsPreserved(sqlStr, transformFn) {
+  const out = [];
+  let i = 0;
+  while (i < sqlStr.length) {
+    if (sqlStr[i] === "'") {
+      let j = i + 1;
+      while (j < sqlStr.length) {
+        if (sqlStr[j] === "'") {
+          if (sqlStr[j + 1] === "'") { j += 2; continue; }
+          j++;
+          break;
+        }
+        j++;
+      }
+      out.push(sqlStr.slice(i, j));
+      i = j;
+    } else {
+      let j = i;
+      while (j < sqlStr.length && sqlStr[j] !== "'") j++;
+      out.push(transformFn(sqlStr.slice(i, j)));
+      i = j;
+    }
+  }
+  return out.join('');
+}
 
-  // Strip leading semicolons.
-  q = q.replace(/^\s*;\s*/, '');
-
+function convertCodeSegment(q) {
   // Datetime helpers.
   q = q.replace(/GETDATE\(\)/gi, 'NOW()');
   q = q.replace(/ISNULL\s*\(/gi, 'COALESCE(');
 
-  // Bracket-quoted identifiers [Name] -> "Name". Postgres lowercases bare
-  // identifiers, so we strip brackets and trust later snake-casing.
+  // [Bracketed] identifiers -> bare; later snake-casing handles them.
   q = q.replace(/\[([A-Za-z_][A-Za-z0-9_]*)\]/g, '$1');
 
-  // Table renames (do this BEFORE column renames so qualified columns work).
+  // Table renames (BEFORE column renames so qualified columns still work).
   for (const [pascal, snake] of Object.entries(TABLE_MAP)) {
     q = q.replace(new RegExp('\\b' + pascal + '\\b', 'g'), snake);
   }
 
-  // Apply explicit column overrides.
+  // Explicit column overrides for things the heuristic gets wrong.
   for (const [pascal, snake] of Object.entries(COLUMN_OVERRIDES)) {
     q = q.replace(new RegExp('\\b' + pascal + '\\b', 'g'), snake);
   }
 
   // Generic PascalCase identifier conversion - matches "alias.PascalIdent" or
-  // bare "PascalIdent" not already lowered. Skip identifiers entirely inside
-  // double-quoted strings (preserved aliases) or single-quoted literals.
+  // bare "PascalIdent". String literals are already excluded by the outer
+  // tokeniser, so we don't need to worry about them here.
   q = q.replace(
-    /(\b[a-z_][a-z0-9_]*\.)?\b([A-Z][A-Za-z0-9]*)\b(?=\s*(?:[,)\s]|$|=|<|>|\+|-|\/|\*|AS\b|FROM\b|WHERE\b|ON\b|AND\b|OR\b|GROUP\b|ORDER\b|LIMIT\b|OFFSET\b|JOIN\b|HAVING\b|\.))/g,
+    /(\b[a-z_][a-z0-9_]*\.)?\b([A-Z][A-Za-z0-9]*)\b/g,
     (match, alias, ident) => {
-      // Skip SQL keywords that happen to be all caps or capitalized.
-      const KEYWORDS = new Set([
-        'SELECT', 'FROM', 'WHERE', 'AND', 'OR', 'NOT', 'NULL', 'IS', 'IN',
-        'JOIN', 'INNER', 'LEFT', 'RIGHT', 'OUTER', 'FULL', 'CROSS', 'ON',
-        'AS', 'BY', 'GROUP', 'ORDER', 'HAVING', 'LIMIT', 'OFFSET', 'ASC',
-        'DESC', 'INSERT', 'UPDATE', 'DELETE', 'INTO', 'VALUES', 'SET',
-        'CREATE', 'ALTER', 'DROP', 'TABLE', 'COLUMN', 'INDEX', 'CONSTRAINT',
-        'PRIMARY', 'KEY', 'FOREIGN', 'REFERENCES', 'CHECK', 'DEFAULT',
-        'TRUE', 'FALSE', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END', 'IF',
-        'EXISTS', 'BETWEEN', 'LIKE', 'ILIKE', 'UNION', 'ALL', 'DISTINCT',
-        'WITH', 'RETURNING', 'BEGIN', 'COMMIT', 'ROLLBACK', 'TRANSACTION',
-        'COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'COALESCE', 'NULLIF', 'CAST',
-        'TOP', 'FETCH', 'NEXT', 'ROWS', 'ONLY', 'NOW', 'LATERAL', 'TRUE',
-        'FALSE', 'INT', 'INTEGER', 'BIGINT', 'BOOLEAN', 'TEXT', 'VARCHAR',
-        'NVARCHAR', 'DATETIME', 'TIMESTAMP', 'DECIMAL', 'NUMERIC',
-      ]);
       if (KEYWORDS.has(ident.toUpperCase())) return match;
       const snake = pascalToSnake(ident);
       return (alias || '') + snake;
     },
   );
 
-  // SELECT TOP N -> append LIMIT N at end (best-effort; works for queries
-  // without an existing LIMIT). Removes the TOP clause too.
+  // SELECT TOP N -> drop, add LIMIT N at end if no LIMIT already.
   const topMatch = q.match(/\bSELECT\s+TOP\s+(\d+)\b/i);
   if (topMatch) {
     q = q.replace(/\bSELECT\s+TOP\s+\d+\b/i, 'SELECT');
@@ -166,19 +172,22 @@ function convertQuery(sqlStr) {
     }
   }
 
-  // OFFSET N ROWS FETCH NEXT M ROWS ONLY  ->  LIMIT M OFFSET N
+  // OFFSET N ROWS FETCH NEXT M ROWS ONLY -> LIMIT M OFFSET N.
   q = q.replace(
     /OFFSET\s+(@?\$?\w+|\d+)\s+ROWS\s+FETCH\s+NEXT\s+(@?\$?\w+|\d+)\s+ROWS\s+ONLY/gi,
     'LIMIT $2 OFFSET $1',
   );
 
-  // OUTER APPLY (...) alias  ->  LEFT JOIN LATERAL (...) alias ON true
+  // OUTER/CROSS APPLY -> LATERAL joins.
   q = q.replace(/\bOUTER\s+APPLY\b/gi, 'LEFT JOIN LATERAL');
   q = q.replace(/\bCROSS\s+APPLY\b/gi, 'JOIN LATERAL');
-  // For LATERAL joins to be valid we need ON true after the alias. Append
-  // it heuristically to the closing paren+alias of LATERAL subqueries.
+  // Add `ON true` after a LATERAL subquery's alias only if not already there.
   q = q.replace(
-    /(LEFT JOIN LATERAL[\s\S]*?\)\s*[A-Za-z_][A-Za-z0-9_]*)/g,
+    /(LEFT JOIN LATERAL[\s\S]*?\)\s*[A-Za-z_][A-Za-z0-9_]*)(?!\s+ON\s+)/g,
+    '$1 ON true',
+  );
+  q = q.replace(
+    /(JOIN LATERAL[\s\S]*?\)\s*[A-Za-z_][A-Za-z0-9_]*)(?!\s+ON\s+)/g,
     '$1 ON true',
   );
 
@@ -197,6 +206,28 @@ function convertQuery(sqlStr) {
   }
 
   return q;
+}
+
+const KEYWORDS = new Set([
+  'SELECT', 'FROM', 'WHERE', 'AND', 'OR', 'NOT', 'NULL', 'IS', 'IN',
+  'JOIN', 'INNER', 'LEFT', 'RIGHT', 'OUTER', 'FULL', 'CROSS', 'ON',
+  'AS', 'BY', 'GROUP', 'ORDER', 'HAVING', 'LIMIT', 'OFFSET', 'ASC',
+  'DESC', 'INSERT', 'UPDATE', 'DELETE', 'INTO', 'VALUES', 'SET',
+  'CREATE', 'ALTER', 'DROP', 'TABLE', 'COLUMN', 'INDEX', 'CONSTRAINT',
+  'PRIMARY', 'KEY', 'FOREIGN', 'REFERENCES', 'CHECK', 'DEFAULT',
+  'TRUE', 'FALSE', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END', 'IF',
+  'EXISTS', 'BETWEEN', 'LIKE', 'ILIKE', 'UNION', 'ALL', 'DISTINCT',
+  'WITH', 'RETURNING', 'BEGIN', 'COMMIT', 'ROLLBACK', 'TRANSACTION',
+  'COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'COALESCE', 'NULLIF', 'CAST',
+  'TOP', 'FETCH', 'NEXT', 'ROWS', 'ONLY', 'NOW', 'LATERAL',
+  'INT', 'INTEGER', 'BIGINT', 'BOOLEAN', 'TEXT', 'VARCHAR',
+  'NVARCHAR', 'DATETIME', 'TIMESTAMP', 'DECIMAL', 'NUMERIC',
+  'OVER', 'PARTITION', 'WINDOW', 'ROW_NUMBER', 'RANK',
+]);
+
+function convertQuery(sqlStr) {
+  let q = sqlStr.replace(/^\s*;\s*/, '');
+  return withQuotedStringsPreserved(q, convertCodeSegment);
 }
 
 // -----------------------------------------------------------------------------
