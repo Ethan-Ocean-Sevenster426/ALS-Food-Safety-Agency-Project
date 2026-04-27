@@ -241,7 +241,19 @@ const KEYWORDS = new Set([
 
 function convertQuery(sqlStr) {
   let q = sqlStr.replace(/^\s*;\s*/, '');
-  return withQuotedStringsPreserved(q, convertCodeSegment);
+  q = withQuotedStringsPreserved(q, convertCodeSegment);
+
+  // T-SQL uses `+` for string concat, Postgres uses `||`. Whenever a `+` is
+  // adjacent to a string literal we know it's string concat, not arithmetic.
+  // Iterate until no more matches so chains like `a + ' ' + b` fully convert.
+  let prev;
+  do {
+    prev = q;
+    q = q.replace(/('[^']*')\s*\+\s*/g, '$1 || ');
+    q = q.replace(/\s*\+\s*('[^']*')/g, ' || $1');
+  } while (q !== prev);
+
+  return q;
 }
 
 // -----------------------------------------------------------------------------
