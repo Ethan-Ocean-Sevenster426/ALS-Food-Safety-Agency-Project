@@ -1713,7 +1713,7 @@ router.get('/inspector/pending-approvals', async (req, res) => {
         e.Token, e.ReferenceNumber, e.LevyAmount, e.PulpSoldToTrade, e.SoldToTrade,
         e.IsVerified, e.VerifiedBy, e.VerifiedAt, e.InspectorComment,
         e.ManualInspection, e.ManualInspectionBy, e.ManualInspectionAt,
-        e.POPFilePath, e.POPUploadedAt, e.IsReconciled, e.ReconciledAmount,
+        e.pop_file_path AS "POPFilePath", e.pop_uploaded_at AS "POPUploadedAt", e.IsReconciled, e.ReconciledAmount,
         c.BusinessName, c.FacilityProvince, c.FacilityType, c.Town,
         ie.Id AS InspEPVId, ie.Token AS InspEPVToken, ie.Status AS InspEPVStatus,
         ie.ReferenceNumber AS InspEPVRef, ie.LevyAmount AS InspLevyAmount,
