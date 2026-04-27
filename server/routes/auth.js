@@ -102,12 +102,13 @@ router.post('/login', async (req, res) => {
       .request()
       .input('email', sql.NVarChar, email)
       .query(
-        `SELECT TOP 1 u.Id, u.FirstName, u.LastName, u.Email, u.PasswordHash, u.Role, ISNULL(u.IsActive, 1) AS IsActive,
+        `SELECT u.Id, u.FirstName, u.LastName, u.Email, u.PasswordHash, u.Role, COALESCE(u.IsActive, true) AS IsActive,
                 u.InspectorProvince, i.ClientRecordId
          FROM Users u
          LEFT JOIN Invitations i ON LOWER(u.Email) = LOWER(i.Email) AND i.Status = 'Accepted'
          WHERE LOWER(u.Email) = LOWER(@email)
-         ORDER BY i.AcceptedAt DESC`
+         ORDER BY i.AcceptedAt DESC
+         LIMIT 1`
       );
 
     if (result.recordset.length === 0) {
