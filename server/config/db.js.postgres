@@ -18,8 +18,15 @@
  *       T-SQL constructs may need patches added below as they surface.
  */
 
-const { Pool } = require('pg');
+const { Pool, types } = require('pg');
 require('dotenv').config();
+
+// pg returns NUMERIC/DECIMAL and BIGINT as strings by default (to preserve
+// precision past JS's Number range). The codebase was written against the
+// mssql driver which returns these as native numbers, and many React pages
+// call .toFixed() on them. Coerce back to Number to match mssql semantics.
+types.setTypeParser(1700, (v) => v === null ? null : parseFloat(v)); // NUMERIC / DECIMAL
+types.setTypeParser(20,   (v) => v === null ? null : parseInt(v, 10)); // INT8 / BIGINT
 
 const pool = new Pool({
   host: process.env.DB_HOST,
