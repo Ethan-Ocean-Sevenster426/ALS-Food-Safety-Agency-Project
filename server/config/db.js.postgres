@@ -94,6 +94,13 @@ function pascalToSnake(name) {
     .toLowerCase();
 }
 
+// snake_case -> PascalCase. Used to expose result rows as both snake_case
+// (the actual Postgres column) AND PascalCase (what the route handlers
+// destructure: `user.PasswordHash`, `row.BusinessName`).
+function snakeToPascal(name) {
+  return name.replace(/(^|_)([a-z])/g, (_, _u, c) => c.toUpperCase());
+}
+
 // Boolean columns we coerce 0/1 comparisons against.
 const BOOLEAN_COLS = [
   'is_active', 'is_reconciled', 'is_verified', 'is_paid', 'is_manual',
@@ -265,7 +272,7 @@ class Request {
       const mappedRows = result.rows.map((row) => {
         const mapped = {};
         for (const [key, val] of Object.entries(row)) {
-          const pascalKey = REVERSE_COL[key] || key;
+          const pascalKey = REVERSE_COL[key] || snakeToPascal(key);
           mapped[pascalKey] = val;
           mapped[key] = val;
         }
