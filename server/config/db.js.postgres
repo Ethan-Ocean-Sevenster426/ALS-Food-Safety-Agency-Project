@@ -147,6 +147,8 @@ function withQuotedStringsPreserved(sqlStr, transformFn) {
   return out.join('');
 }
 
+// Per-segment transforms — these are safe to run on each non-string-literal
+// chunk of the tokenized query (identifier renames, simple replacements).
 function convertCodeSegment(q) {
   // Datetime helpers.
   q = q.replace(/GETDATE\(\)/gi, 'NOW()');
@@ -177,6 +179,29 @@ function convertCodeSegment(q) {
     },
   );
 
+  // Boolean column comparisons against 0/1 — safe per-segment because no
+  // string literal can appear between `col = ` and the boolean number.
+  for (const col of BOOLEAN_COLS) {
+    q = q.replace(new RegExp(`\\b${col}\\s*=\\s*1\\b`, 'gi'), `${col} = true`);
+    q = q.replace(new RegExp(`\\b${col}\\s*=\\s*0\\b`, 'gi'), `${col} = false`);
+    q = q.replace(
+      new RegExp(`COALESCE\\(([^)]*\\.?${col}[^,]*),\\s*1\\)`, 'gi'),
+      'COALESCE($1, true)',
+    );
+    q = q.replace(
+      new RegExp(`COALESCE\\(([^)]*\\.?${col}[^,]*),\\s*0\\)`, 'gi'),
+      'COALESCE($1, false)',
+    );
+  }
+
+  return q;
+}
+
+// Whole-query transforms — these MUST run on the full reassembled SQL,
+// not per-segment, because they cross string-literal boundaries (TOP N at
+// the start with later LIMIT; OFFSET/FETCH spanning subqueries; APPLY
+// constructs containing string literals).
+function applyWholeQueryTransforms(q) {
   // SELECT TOP N -> drop, add LIMIT N at end if no LIMIT already.
   const topMatch = q.match(/\bSELECT\s+TOP\s+(\d+)\b/i);
   if (topMatch) {
@@ -205,20 +230,6 @@ function convertCodeSegment(q) {
     '$1 ON true',
   );
 
-  // Boolean column comparisons against 0/1.
-  for (const col of BOOLEAN_COLS) {
-    q = q.replace(new RegExp(`\\b${col}\\s*=\\s*1\\b`, 'gi'), `${col} = true`);
-    q = q.replace(new RegExp(`\\b${col}\\s*=\\s*0\\b`, 'gi'), `${col} = false`);
-    q = q.replace(
-      new RegExp(`COALESCE\\(([^)]*\\.?${col}[^,]*),\\s*1\\)`, 'gi'),
-      'COALESCE($1, true)',
-    );
-    q = q.replace(
-      new RegExp(`COALESCE\\(([^)]*\\.?${col}[^,]*),\\s*0\\)`, 'gi'),
-      'COALESCE($1, false)',
-    );
-  }
-
   return q;
 }
 
@@ -241,11 +252,20 @@ const KEYWORDS = new Set([
 
 function convertQuery(sqlStr) {
   let q = sqlStr.replace(/^\s*;\s*/, '');
+
+  // 1. Per-segment transforms (identifier rewrites etc), preserving string
+  //    literals so we don't munge values like 'Company Admin'.
   q = withQuotedStringsPreserved(q, convertCodeSegment);
 
-  // T-SQL uses `+` for string concat, Postgres uses `||`. Whenever a `+` is
-  // adjacent to a string literal we know it's string concat, not arithmetic.
-  // Iterate until no more matches so chains like `a + ' ' + b` fully convert.
+  // 2. Whole-query transforms (TOP/OFFSET-FETCH/APPLY) — these must run on
+  //    the reassembled query, not per-segment, otherwise `LIMIT N` ends up
+  //    appended at the end of a code chunk in the middle of the query.
+  q = applyWholeQueryTransforms(q);
+
+  // 3. T-SQL `+` -> Postgres `||` for string concatenation. Whenever a `+`
+  //    is adjacent to a string literal we know it's concat, not arithmetic.
+  //    Iterate until no more matches so chains like `a + ' ' + b` fully
+  //    convert.
   let prev;
   do {
     prev = q;
