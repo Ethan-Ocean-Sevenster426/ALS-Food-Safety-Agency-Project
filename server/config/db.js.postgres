@@ -220,14 +220,25 @@ function applyWholeQueryTransforms(q) {
   // OUTER/CROSS APPLY -> LATERAL joins.
   q = q.replace(/\bOUTER\s+APPLY\b/gi, 'LEFT JOIN LATERAL');
   q = q.replace(/\bCROSS\s+APPLY\b/gi, 'JOIN LATERAL');
-  // Add `ON true` after a LATERAL subquery's alias only if not already there.
+  // Add `ON true` after a LATERAL subquery's alias when missing. Use a
+  // callback + (?!\w) word-end anchor to prevent regex backtracking from
+  // chopping the alias into prefixes (which produced things like
+  // "onboardi ON true n ON true g ON true").
   q = q.replace(
-    /(LEFT JOIN LATERAL[\s\S]*?\)\s*[A-Za-z_][A-Za-z0-9_]*)(?!\s+ON\s+)/g,
-    '$1 ON true',
+    /(\bLEFT JOIN LATERAL[\s\S]*?\)\s+)([A-Za-z_]\w*)(?!\w)/g,
+    (m, prefix, alias, offset) => {
+      const after = q.slice(offset + m.length);
+      if (/^\s+ON\b/i.test(after)) return m;
+      return m + ' ON true';
+    },
   );
   q = q.replace(
-    /(JOIN LATERAL[\s\S]*?\)\s*[A-Za-z_][A-Za-z0-9_]*)(?!\s+ON\s+)/g,
-    '$1 ON true',
+    /(\b(?<!LEFT )JOIN LATERAL[\s\S]*?\)\s+)([A-Za-z_]\w*)(?!\w)/g,
+    (m, prefix, alias, offset) => {
+      const after = q.slice(offset + m.length);
+      if (/^\s+ON\b/i.test(after)) return m;
+      return m + ' ON true';
+    },
   );
 
   return q;
