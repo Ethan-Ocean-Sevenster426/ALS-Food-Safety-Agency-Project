@@ -338,13 +338,20 @@ class Request {
   }
 }
 
-// mssql `sql` type stub - only the names we actually call into.
-const sql = {
-  NVarChar: 'NVarChar', Int: 'Int', Bit: 'Bit', DateTime: 'DateTime',
-  Float: 'Float', Decimal: 'Decimal', VarChar: 'VarChar', Text: 'Text',
-  Date: 'Date', NText: 'NText', BigInt: 'BigInt', SmallInt: 'SmallInt',
-  Money: 'Money', Real: 'Real', UniqueIdentifier: 'UniqueIdentifier',
-};
+// mssql `sql` type stub. Routes use these in two ways:
+//   request.input('x', sql.NVarChar, value)   // type as identifier
+//   request.input('x', sql.Decimal(18, 2), v) // type as constructor
+// Our Request.input ignores the type entirely, so we just need every
+// access to return something that's both a string-like and callable.
+// A Proxy handles any future additions without us enumerating them.
+const sql = new Proxy({}, {
+  get: (_, name) => {
+    if (typeof name !== 'string') return undefined;
+    const fn = () => name;
+    fn.toString = () => name;
+    return fn;
+  },
+});
 
 async function getPool() {
   return { request: () => new Request() };
