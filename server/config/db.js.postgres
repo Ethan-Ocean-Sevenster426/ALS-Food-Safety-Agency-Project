@@ -217,6 +217,17 @@ function applyWholeQueryTransforms(q) {
     'LIMIT $2 OFFSET $1',
   );
 
+  // T-SQL `OUTPUT INSERTED.col` (between column list and VALUES) ->
+  // Postgres `RETURNING col` (appended at end). Handles a single column
+  // which is the common case (`OUTPUT INSERTED.Id`).
+  const outputMatch = q.match(/\bOUTPUT\s+INSERTED\.(\w+)/i);
+  if (outputMatch) {
+    q = q.replace(/\bOUTPUT\s+INSERTED\.\w+\s*/gi, '');
+    if (!/\bRETURNING\b/i.test(q)) {
+      q = q.replace(/;?\s*$/, ` RETURNING ${outputMatch[1].toLowerCase()}`);
+    }
+  }
+
   // OUTER/CROSS APPLY -> LATERAL joins.
   q = q.replace(/\bOUTER\s+APPLY\b/gi, 'LEFT JOIN LATERAL');
   q = q.replace(/\bCROSS\s+APPLY\b/gi, 'JOIN LATERAL');
