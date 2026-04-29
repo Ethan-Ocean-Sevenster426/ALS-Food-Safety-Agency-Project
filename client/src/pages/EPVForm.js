@@ -167,9 +167,6 @@ function EPVForm() {
     { key: 'FacilityType', label: 'Facility Type' },
     { key: 'FacilityProvince', label: 'Facility Province' },
     { key: 'AuthorizedPersonName', label: 'Name of Owner, Manager or Authorized Person' },
-    { key: 'PositionInCompany', label: 'Position in the Company' },
-    { key: 'TelephoneNumber', label: 'Telephone Number' },
-    { key: 'CellPhoneNumber', label: 'Cell Phone Number' },
     { key: 'EmailAddress', label: 'Email Address' },
   ];
 
@@ -548,20 +545,17 @@ function EPVForm() {
                 <input type="text" value={form.AuthorizedPersonName} onChange={(e) => handleChange('AuthorizedPersonName', e.target.value)} disabled={isReadOnly} />
                 {validationErrors.AuthorizedPersonName && <span className="epv-error-msg">{validationErrors.AuthorizedPersonName}</span>}
               </div>
-              <div className={`epv-field ${validationErrors.PositionInCompany ? 'epv-field-error' : ''}`}>
-                <label>Position in the Company <span className="epv-required-star">*</span></label>
+              <div className="epv-field">
+                <label>Position in the Company</label>
                 <input type="text" value={form.PositionInCompany} onChange={(e) => handleChange('PositionInCompany', e.target.value)} disabled={isReadOnly} />
-                {validationErrors.PositionInCompany && <span className="epv-error-msg">{validationErrors.PositionInCompany}</span>}
               </div>
-              <div className={`epv-field ${validationErrors.TelephoneNumber ? 'epv-field-error' : ''}`}>
-                <label>Telephone Number <span className="epv-required-star">*</span></label>
+              <div className="epv-field">
+                <label>Telephone Number</label>
                 <input type="tel" value={form.TelephoneNumber} onChange={(e) => handleChange('TelephoneNumber', e.target.value)} disabled={isReadOnly} />
-                {validationErrors.TelephoneNumber && <span className="epv-error-msg">{validationErrors.TelephoneNumber}</span>}
               </div>
-              <div className={`epv-field ${validationErrors.CellPhoneNumber ? 'epv-field-error' : ''}`}>
-                <label>Cell Phone Number <span className="epv-required-star">*</span></label>
+              <div className="epv-field">
+                <label>Cell Phone Number</label>
                 <input type="tel" value={form.CellPhoneNumber} onChange={(e) => handleChange('CellPhoneNumber', e.target.value)} disabled={isReadOnly} />
-                {validationErrors.CellPhoneNumber && <span className="epv-error-msg">{validationErrors.CellPhoneNumber}</span>}
               </div>
               <div className={`epv-field ${validationErrors.EmailAddress ? 'epv-field-error' : ''}`}>
                 <label>Email Address <span className="epv-required-star">*</span></label>
