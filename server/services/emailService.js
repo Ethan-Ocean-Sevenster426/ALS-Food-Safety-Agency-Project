@@ -85,10 +85,6 @@ function buildInviteEmail({ businessName, role, inviteUrl }) {
               <!--[if mso]><i style="mso-font-width:150%">&nbsp;</i><![endif]-->
             </a>
           </div>
-          <p style="color: #999; font-size: 12px; text-align: center;">
-            If the button doesn't work, copy and paste this link into your browser:<br>
-            <a href="${inviteUrl}" style="color: #667eea;">${inviteUrl}</a>
-          </p>
         </div>
         <p style="color: #aaa; font-size: 11px; text-align: center; margin-top: 20px;">
           This invitation was sent by the EPVS administration team. If you did not expect this email, you can safely ignore it.
