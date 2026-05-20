@@ -4,7 +4,7 @@ require('dotenv').config();
 const TENANT_ID = process.env.MS_TENANT_ID;
 const CLIENT_ID = process.env.MS_CLIENT_ID;
 const CLIENT_SECRET = process.env.MS_CLIENT_SECRET;
-const FROM_EMAIL = process.env.MS_FROM_EMAIL || 'automaticmails@afsq.co.za';
+const FROM_EMAIL = process.env.MS_FROM_EMAIL || 'epvs@afsq.co.za';
 
 let cachedToken = null;
 let tokenExpiry = 0;

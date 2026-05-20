@@ -97,7 +97,7 @@ MEDIA_URL = '/uploads/'
 MS_TENANT_ID = os.getenv('MS_TENANT_ID', '')
 MS_CLIENT_ID = os.getenv('MS_CLIENT_ID', '')
 MS_CLIENT_SECRET = os.getenv('MS_CLIENT_SECRET', '')
-MS_FROM_EMAIL = os.getenv('MS_FROM_EMAIL', 'automaticmails@afsq.co.za')
+MS_FROM_EMAIL = os.getenv('MS_FROM_EMAIL', 'epvs@afsq.co.za')
 
 # Security headers
 SECURE_BROWSER_XSS_FILTER = True
