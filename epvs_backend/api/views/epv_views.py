@@ -221,7 +221,7 @@ def send_epv(request):
         all_emails = [e.strip() for e in raw_emails if e and e.strip() and email_regex.match(e.strip())]
         unique_emails = list(set(e.lower() for e in all_emails))
 
-        form_url = f"http://localhost:3000/epv/{token}"
+        form_url = f"https://egg-production-verification.fsa-pty.co.za/epv/{token}"
         month_name = MONTH_NAMES[month - 1]
         email_subject = f"EPVS - Egg Production Verification Due: {month_name} {year}"
         email_html = _build_epv_email(

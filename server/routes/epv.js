@@ -213,7 +213,7 @@ async function sendEPVForFacility({ pool, client, periodMonth, periodYear, sentB
     .filter(e => e && String(e).trim() && emailRegex.test(String(e).trim()));
   const uniqueEmails = [...new Set(allEmails.map(e => String(e).trim().toLowerCase()))];
 
-  const formUrl = `http://localhost:3000/epv/${token}`;
+  const formUrl = `https://egg-production-verification.fsa-pty.co.za/epv/${token}`;
   const emailSubject = `EPVS - Egg Production Verification Due: ${monthLabel}`;
   const emailHtml = buildEPVEmail({
     businessName: client.BusinessName,
@@ -344,7 +344,7 @@ router.post('/:id/resend', async (req, res) => {
     const client = clientResult.recordset[0];
 
     const monthLabel = `${MONTH_NAMES[(epv.PeriodMonth || 1) - 1]} ${epv.PeriodYear}`;
-    const formUrl = `http://localhost:3000/epv/${epv.Token}`;
+    const formUrl = `https://egg-production-verification.fsa-pty.co.za/epv/${epv.Token}`;
     const emailSubject = `EPVS - Egg Production Verification Reminder: ${monthLabel}`;
     const emailHtml = buildEPVEmail({
       businessName: client.BusinessName,

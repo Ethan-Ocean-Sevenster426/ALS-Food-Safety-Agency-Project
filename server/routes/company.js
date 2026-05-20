@@ -193,7 +193,7 @@ router.post('/:clientRecordId/invite', async (req, res) => {
          VALUES (@clientRecordId, @email, @role, @token, @invitedBy)`
       );
 
-    const inviteUrl = `http://localhost:3000/accept-invite/${token}`;
+    const inviteUrl = `https://egg-production-verification.fsa-pty.co.za/accept-invite/${token}`;
     const emailContent = buildInviteEmail({
       businessName: record.BusinessName,
       role,

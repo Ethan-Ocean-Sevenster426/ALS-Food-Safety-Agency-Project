@@ -432,7 +432,7 @@ def send_invoice(request, id):
               and upload your Proof of Payment (POP) to the EPVS system.
             </p>
             <div style="text-align: center; margin: 25px 0;">
-              <a href="http://localhost:3000/company" style="display: inline-block; background-color: #4f46e5; color: #ffffff; padding: 14px 40px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: 600;">
+              <a href="https://egg-production-verification.fsa-pty.co.za/company" style="display: inline-block; background-color: #4f46e5; color: #ffffff; padding: 14px 40px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: 600;">
                 Go to EPVS Portal
               </a>
             </div>

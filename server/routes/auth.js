@@ -437,7 +437,7 @@ router.post('/forgot-password', async (req, res) => {
       { expiresIn: '1h' }
     );
 
-    const resetUrl = `http://localhost:3000/reset-password/${resetToken}`;
+    const resetUrl = `https://egg-production-verification.fsa-pty.co.za/reset-password/${resetToken}`;
 
     await sendEmail({
       to: user.Email,
