@@ -172,7 +172,7 @@ router.post('/:token/accept', async (req, res) => {
       .input('passwordHash', sql.NVarChar, passwordHash)
       .input('role', sql.NVarChar, invite.Role)
       .query(
-        'INSERT INTO Users (FirstName, LastName, Email, PasswordHash, Role, IsActive) VALUES (@firstName, @lastName, @email, @passwordHash, @role, 1)'
+        'INSERT INTO Users (FirstName, LastName, Email, PasswordHash, Role, IsActive) VALUES (@firstName, @lastName, @email, @passwordHash, @role, TRUE)'
       );
 
     // Mark invite as accepted
