@@ -42,7 +42,7 @@ router.post('/signup', async (req, res) => {
       .input('role', sql.NVarChar, assignedRole)
       .input('inspectorProvince', sql.NVarChar, assignedRole === 'Inspector' ? (inspectorProvince || null) : null)
       .query(
-        'INSERT INTO Users (FirstName, LastName, Email, PasswordHash, Role, InspectorProvince) VALUES (@firstName, @lastName, @email, @passwordHash, @role, @inspectorProvince)'
+        'INSERT INTO Users (FirstName, LastName, Email, PasswordHash, Role, InspectorProvince, IsActive) VALUES (@firstName, @lastName, @email, @passwordHash, @role, @inspectorProvince, 1)'
       );
 
     // If a clientRecordId is provided for Company Admin or User, create an accepted invitation link
