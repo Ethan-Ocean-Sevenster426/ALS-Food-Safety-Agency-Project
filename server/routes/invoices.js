@@ -10,50 +10,9 @@ const router = express.Router();
 const LEVY_RATE = 0.018;
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
-// Ensure EPVInvoices table exists
-async function ensureInvoicesTable(pool) {
-  await pool.request().query(`
-    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='EPVInvoices' AND xtype='U')
-    BEGIN
-      CREATE TABLE EPVInvoices (
-        Id INT IDENTITY(1,1) PRIMARY KEY,
-        VerificationId INT NOT NULL,
-        ClientRecordId INT NOT NULL,
-        InvoiceNumber NVARCHAR(50) NOT NULL,
-        ReferenceNumber NVARCHAR(50) NULL,
-        Amount DECIMAL(18,2) NOT NULL,
-        FilePath NVARCHAR(500) NOT NULL,
-        GeneratedBy NVARCHAR(255) NOT NULL,
-        GeneratedAt DATETIME DEFAULT GETDATE(),
-        SentAt DATETIME NULL,
-        SentTo NVARCHAR(MAX) NULL,
-        SentBy NVARCHAR(255) NULL,
-        CONSTRAINT FK_Invoice_EPV FOREIGN KEY (VerificationId)
-          REFERENCES EggProductionVerifications(Id)
-      )
-    END
-  `);
-}
-
-// Ensure EmailSendLog table exists for tracking per-recipient email results
-async function ensureEmailSendLog(pool) {
-  await pool.request().query(`
-    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='EmailSendLog' AND xtype='U')
-    BEGIN
-      CREATE TABLE EmailSendLog (
-        Id INT IDENTITY(1,1) PRIMARY KEY,
-        ClientRecordId INT NOT NULL,
-        EmailAddress NVARCHAR(255) NOT NULL,
-        EmailType NVARCHAR(50) NOT NULL,
-        Subject NVARCHAR(500) NULL,
-        Status NVARCHAR(20) NOT NULL,
-        ErrorMessage NVARCHAR(MAX) NULL,
-        SentAt DATETIME DEFAULT GETDATE(),
-        SentBy NVARCHAR(255) NULL
-      )
-    END
-  `);
-}
+// Tables already exist in PostgreSQL — no-op
+async function ensureInvoicesTable(pool) {}
+async function ensureEmailSendLog(pool) {}
 
 async function logCompanyAudit(pool, recordId, fieldName, oldValue, newValue, changedBy, userRole) {
   await pool.request()

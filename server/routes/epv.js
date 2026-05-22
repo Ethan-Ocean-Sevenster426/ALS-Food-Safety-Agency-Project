@@ -224,22 +224,6 @@ async function sendEPVForFacility({ pool, client, periodMonth, periodYear, sentB
     html: emailHtml,
   });
 
-  await pool.request().query(`
-    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='EmailSendLog' AND xtype='U')
-    BEGIN
-      CREATE TABLE EmailSendLog (
-        Id INT IDENTITY(1,1) PRIMARY KEY,
-        ClientRecordId INT NOT NULL,
-        EmailAddress NVARCHAR(255) NOT NULL,
-        EmailType NVARCHAR(50) NOT NULL,
-        Subject NVARCHAR(500) NULL,
-        Status NVARCHAR(20) NOT NULL,
-        ErrorMessage NVARCHAR(MAX) NULL,
-        SentAt DATETIME DEFAULT GETDATE(),
-        SentBy NVARCHAR(255) NULL
-      )
-    END
-  `);
   const logSend = (addr, status) => pool.request()
     .input('crid', sql.Int, client.Id)
     .input('addr', sql.NVarChar, addr)
