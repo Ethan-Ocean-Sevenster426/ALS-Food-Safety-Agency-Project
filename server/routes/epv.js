@@ -11,11 +11,6 @@ const LEVY_RATE = 0.018;
 
 // Helper: log to ClientAuditLog for company-level change log
 async function logCompanyAudit(pool, recordId, fieldName, oldValue, newValue, changedBy, userRole) {
-  // Ensure UserRole column exists
-  await pool.request().query(
-    `IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ClientAuditLog') AND name = 'UserRole')
-     BEGIN ALTER TABLE ClientAuditLog ADD UserRole NVARCHAR(50) NULL END`
-  );
   await pool.request()
     .input('recordId', sql.Int, recordId)
     .input('fieldName', sql.NVarChar, fieldName)
@@ -818,22 +813,6 @@ router.get('/company/:clientRecordId', async (req, res) => {
   try {
     const pool = await getPool();
 
-    // Ensure verification columns exist
-    for (const col of [
-      { name: 'IsVerified', type: 'BIT NOT NULL DEFAULT 0' },
-      { name: 'VerifiedBy', type: 'NVARCHAR(255) NULL' },
-      { name: 'VerifiedAt', type: 'DATETIME NULL' },
-      { name: 'InspectorComment', type: 'NVARCHAR(MAX) NULL' },
-      { name: 'ReconciledAmount', type: 'DECIMAL(18,2) NULL' },
-      { name: 'POPComment', type: 'NVARCHAR(MAX) NULL' },
-      { name: 'ClientPaymentStatus', type: 'NVARCHAR(50) NULL' },
-    ]) {
-      await pool.request().query(
-        `IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = '${col.name}')
-         BEGIN ALTER TABLE EggProductionVerifications ADD ${col.name} ${col.type} END`
-      );
-    }
-
     // Get client EPVs
     const result = await pool.request()
       .input('clientRecordId', sql.Int, parseInt(clientRecordId))
@@ -1040,19 +1019,6 @@ router.put('/:id/verify', async (req, res) => {
   try {
     const pool = await getPool();
 
-    // Ensure verification columns exist
-    const verifyCols = [
-      { name: 'IsVerified', type: 'BIT NOT NULL DEFAULT 0' },
-      { name: 'VerifiedBy', type: 'NVARCHAR(255) NULL' },
-      { name: 'VerifiedAt', type: 'DATETIME NULL' },
-    ];
-    for (const col of verifyCols) {
-      await pool.request().query(
-        `IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = '${col.name}')
-         BEGIN ALTER TABLE EggProductionVerifications ADD ${col.name} ${col.type} END`
-      );
-    }
-
     const existing = await pool.request()
       .input('id', sql.Int, parseInt(id))
       .query('SELECT Id, ClientRecordId, ReferenceNumber, Status, IsVerified FROM EggProductionVerifications WHERE Id = @id');
@@ -1093,19 +1059,6 @@ router.put('/:id/manual-inspection', async (req, res) => {
   try {
     const pool = await getPool();
 
-    // Ensure columns exist
-    const cols = [
-      { name: 'ManualInspection', type: 'BIT NOT NULL DEFAULT 0' },
-      { name: 'ManualInspectionBy', type: 'NVARCHAR(255) NULL' },
-      { name: 'ManualInspectionAt', type: 'DATETIME NULL' },
-    ];
-    for (const col of cols) {
-      await pool.request().query(
-        `IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = '${col.name}')
-         BEGIN ALTER TABLE EggProductionVerifications ADD ${col.name} ${col.type} END`
-      );
-    }
-
     const existing = await pool.request()
       .input('id', sql.Int, parseInt(id))
       .query('SELECT Id, ClientRecordId, ReferenceNumber, ManualInspection FROM EggProductionVerifications WHERE Id = @id');
@@ -1143,12 +1096,6 @@ router.put('/:id/reconciled-amount', async (req, res) => {
   try {
     const pool = await getPool();
 
-    // Ensure column exists
-    await pool.request().query(
-      `IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = 'ReconciledAmount')
-       BEGIN ALTER TABLE EggProductionVerifications ADD ReconciledAmount DECIMAL(18,2) NULL END`
-    );
-
     // Get old value and ClientRecordId for audit
     const prev = await pool.request()
       .input('id', sql.Int, parseInt(id))
@@ -1183,12 +1130,6 @@ router.put('/:id/comment', async (req, res) => {
   try {
     const pool = await getPool();
 
-    // Ensure column exists
-    await pool.request().query(
-      `IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = 'InspectorComment')
-       BEGIN ALTER TABLE EggProductionVerifications ADD InspectorComment NVARCHAR(MAX) NULL END`
-    );
-
     // Get old value and ClientRecordId for audit
     const prev = await pool.request()
       .input('id', sql.Int, parseInt(id))
@@ -1221,12 +1162,6 @@ router.put('/:id/pop-comment', async (req, res) => {
   try {
     const pool = await getPool();
 
-    // Ensure column exists
-    await pool.request().query(
-      `IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = 'POPComment')
-       BEGIN ALTER TABLE EggProductionVerifications ADD POPComment NVARCHAR(MAX) NULL END`
-    );
-
     // Get old value and ClientRecordId for audit
     const prev = await pool.request()
       .input('id', sql.Int, parseInt(id))
@@ -1258,12 +1193,6 @@ router.put('/:id/payment-status', async (req, res) => {
 
   try {
     const pool = await getPool();
-
-    // Ensure column exists
-    await pool.request().query(
-      `IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = 'ClientPaymentStatus')
-       BEGIN ALTER TABLE EggProductionVerifications ADD ClientPaymentStatus NVARCHAR(50) NULL END`
-    );
 
     // Get old value and ClientRecordId for audit
     const prev = await pool.request()

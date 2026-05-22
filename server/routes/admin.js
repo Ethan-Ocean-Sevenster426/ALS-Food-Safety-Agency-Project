@@ -242,14 +242,8 @@ router.put('/reconcile-batch', async (req, res) => {
           .input('newValue', sql.NVarChar, `R ${parsedAmount}`)
           .input('changedBy', sql.NVarChar, reconciledBy || 'Unknown')
           .input('userRole', sql.NVarChar, userRole || null)
-          .query(`
-            IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ClientAuditLog') AND name = 'UserRole')
-              INSERT INTO ClientAuditLog (RecordId, FieldName, OldValue, NewValue, ChangedBy, UserRole)
-              VALUES (@recordId, @fieldName, @oldValue, @newValue, @changedBy, @userRole)
-            ELSE
-              INSERT INTO ClientAuditLog (RecordId, FieldName, OldValue, NewValue, ChangedBy)
-              VALUES (@recordId, @fieldName, @oldValue, @newValue, @changedBy)
-          `);
+          .query(`INSERT INTO ClientAuditLog (RecordId, FieldName, OldValue, NewValue, ChangedBy, UserRole)
+              VALUES (@recordId, @fieldName, @oldValue, @newValue, @changedBy, @userRole)`);
       }
 
       updated++;

@@ -55,12 +55,7 @@ async function ensureEmailSendLog(pool) {
   `);
 }
 
-// Ensure ClientAuditLog has UserRole column for audit logging
 async function logCompanyAudit(pool, recordId, fieldName, oldValue, newValue, changedBy, userRole) {
-  await pool.request().query(
-    `IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ClientAuditLog') AND name = 'UserRole')
-     BEGIN ALTER TABLE ClientAuditLog ADD UserRole NVARCHAR(50) NULL END`
-  );
   await pool.request()
     .input('recordId', sql.Int, recordId)
     .input('fieldName', sql.NVarChar, fieldName)
