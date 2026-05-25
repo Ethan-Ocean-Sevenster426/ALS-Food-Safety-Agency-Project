@@ -287,17 +287,20 @@ function EPVForm() {
             Supporting Documents (PDF / PNG / JPG, max 15MB each)
           </label>
           {!isReadOnly && (
-            <input
-              type="file"
-              accept={ATTACHMENT_ACCEPT}
-              disabled={uploadingCategory === apiCategory}
-              onChange={(e) => {
-                const f = e.target.files && e.target.files[0];
-                if (f) handleAttachmentUpload(apiCategory, f);
-                e.target.value = '';
-              }}
-              style={{ marginBottom: 8 }}
-            />
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: '#0E7C7B', color: '#fff', borderRadius: 6, cursor: uploadingCategory === apiCategory ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 600, opacity: uploadingCategory === apiCategory ? 0.6 : 1, marginBottom: 8 }}>
+              <span style={{ fontSize: 16 }}>&#8593;</span> Choose File
+              <input
+                type="file"
+                accept={ATTACHMENT_ACCEPT}
+                disabled={uploadingCategory === apiCategory}
+                onChange={(e) => {
+                  const f = e.target.files && e.target.files[0];
+                  if (f) handleAttachmentUpload(apiCategory, f);
+                  e.target.value = '';
+                }}
+                style={{ display: 'none' }}
+              />
+            </label>
           )}
           {uploadingCategory === apiCategory && <div style={{ fontSize: 13, color: '#666' }}>Uploading...</div>}
           {items.length === 0 && <div style={{ fontSize: 13, color: '#888' }}>No documents uploaded yet.</div>}
