@@ -104,11 +104,10 @@ function calculateTotals(data) {
   const eggsProduced = parseFloat(data.EggsProducedDuringMonth) || 0;
   const totalA = openingStock + eggsProduced;
 
-  // B = Purchases (Graded + Ungraded + Transferred/Purchased from Other Producers)
+  // B = Purchases (Graded + Ungraded)
   const graded = parseFloat(data.GradedEggsPurchased) || 0;
   const ungraded = parseFloat(data.UngradedEggsPurchased) || 0;
-  const transferredOrPurchased = parseFloat(data.TransferredOrPurchasedFromProducers) || 0;
-  const totalB = graded + ungraded + transferredOrPurchased;
+  const totalB = graded + ungraded;
 
   // C = Deductions
   const marketReturns = parseFloat(data.MarketReturns) || 0;
@@ -125,8 +124,10 @@ function calculateTotals(data) {
   const totalD = soldToTrade + soldToStaff + soldThroughFarmStall;
   const levyAmount = totalD * LEVY_RATE;
 
-  // E = Transfers
-  const totalE = parseFloat(data.TransferredToOtherProducers) || 0;
+  // E = Transfers (out minus in)
+  const transferredTo = parseFloat(data.TransferredToOtherProducers) || 0;
+  const transferredFrom = parseFloat(data.TransferredOrPurchasedFromProducers) || 0;
+  const totalE = transferredTo - transferredFrom;
 
   // Closing Stock (Theoretical) = A + B - C - D - E
   const closingStock = totalA + totalB - totalC - totalD - totalE;

@@ -104,11 +104,10 @@ function EPVForm() {
     const eggsProduced = parseFloat(form.EggsProducedDuringMonth) || 0;
     const totalA = openingStock + eggsProduced;
 
-    // B = Purchases (Graded + Ungraded + Transferred/Purchased from Producers)
+    // B = Purchases (Graded + Ungraded)
     const graded = parseFloat(form.GradedEggsPurchased) || 0;
     const ungraded = parseFloat(form.UngradedEggsPurchased) || 0;
-    const transferredOrPurchased = parseFloat(form.TransferredOrPurchasedFromProducers) || 0;
-    const totalB = graded + ungraded + transferredOrPurchased;
+    const totalB = graded + ungraded;
 
     // C = Deductions (incl. Market Returns)
     const marketReturns = parseFloat(form.MarketReturns) || 0;
@@ -125,8 +124,10 @@ function EPVForm() {
     const totalD = soldToTrade + soldToStaff + soldThroughFarmStall;
     const levyAmount = totalD * LEVY_RATE;
 
-    // E = Transfers
-    const totalE = parseFloat(form.TransferredToOtherProducers) || 0;
+    // E = Transfers (out minus in)
+    const transferredTo = parseFloat(form.TransferredToOtherProducers) || 0;
+    const transferredFrom = parseFloat(form.TransferredOrPurchasedFromProducers) || 0;
+    const totalE = transferredTo - transferredFrom;
 
     // Closing Stock (Theoretical) = A + B - C - D - E
     const closingStock = totalA + totalB - totalC - totalD - totalE;
@@ -619,10 +620,6 @@ function EPVForm() {
                   <label>+ Ungraded Eggs Purchased:</label>
                   <input type="text" value={formatNumber(form.UngradedEggsPurchased)} onChange={(e) => handleNumberChange('UngradedEggsPurchased', e.target.value)} disabled={isReadOnly} placeholder="0" />
                 </div>
-                <div className="epv-calc-row">
-                  <label>+ Transferred or Purchased from Other Producers:</label>
-                  <input type="text" value={formatNumber(form.TransferredOrPurchasedFromProducers)} onChange={(e) => handleNumberChange('TransferredOrPurchasedFromProducers', e.target.value)} disabled={isReadOnly} placeholder="0" />
-                </div>
                 <div className="epv-calc-row epv-total-row">
                   <label>Total B (Purchases):</label>
                   <span className="epv-calc-total">{totals.totalB.toLocaleString()}</span>
@@ -698,9 +695,13 @@ function EPVForm() {
                   <label>- Transferred or Sold to Other Producers:</label>
                   <input type="text" value={formatNumber(form.TransferredToOtherProducers)} onChange={(e) => handleNumberChange('TransferredToOtherProducers', e.target.value)} disabled={isReadOnly} placeholder="0" />
                 </div>
+                <div className="epv-calc-row">
+                  <label>+ Transferred or Purchased from Other Producers:</label>
+                  <input type="text" value={formatNumber(form.TransferredOrPurchasedFromProducers)} onChange={(e) => handleNumberChange('TransferredOrPurchasedFromProducers', e.target.value)} disabled={isReadOnly} placeholder="0" />
+                </div>
                 <div className="epv-calc-row epv-total-row epv-deduction-total">
                   <label>Total E (Transfers):</label>
-                  <span className="epv-calc-total">- {totals.totalE.toLocaleString()}</span>
+                  <span className="epv-calc-total">{totals.totalE < 0 ? '+ ' : '- '}{Math.abs(totals.totalE).toLocaleString()}</span>
                 </div>
                 {renderPurchaseEvidence('TransferPurchase', 'TransferPurchaseComment', 'Transfers to Other Producers')}
               </div>
@@ -891,7 +892,6 @@ function EPVForm() {
                   <tr className="epv-review-section-header"><td colSpan="2">B. Purchases</td></tr>
                   <tr><td>+ Graded Eggs Purchased</td><td className="epv-num">{(parseFloat(form.GradedEggsPurchased) || 0).toLocaleString()}</td></tr>
                   <tr><td>+ Ungraded Eggs Purchased</td><td className="epv-num">{(parseFloat(form.UngradedEggsPurchased) || 0).toLocaleString()}</td></tr>
-                  <tr><td>+ Transferred or Purchased from Other Producers</td><td className="epv-num">{(parseFloat(form.TransferredOrPurchasedFromProducers) || 0).toLocaleString()}</td></tr>
                   <tr className="epv-review-total"><td>Total B (Purchases)</td><td className="epv-num">{totals.totalB.toLocaleString()}</td></tr>
                   {(form.EggPurchaseComment || attachments.some(a => a.Category === 'EggPurchase')) && (
                     <tr><td colSpan="2" style={{ background: '#fafafa', padding: 8 }}>
@@ -923,8 +923,9 @@ function EPVForm() {
                   <tr className="epv-review-levy"><td>Egg Levy Amount (D &times; R{LEVY_RATE})</td><td className="epv-num">R {totals.levyAmount.toFixed(2)}</td></tr>
 
                   <tr className="epv-review-section-header"><td colSpan="2">E. Transfers</td></tr>
-                  <tr><td>Transferred to Other Producers</td><td className="epv-num">{(parseFloat(form.TransferredToOtherProducers) || 0).toLocaleString()}</td></tr>
-                  <tr className="epv-review-total"><td>Total E (Transfers)</td><td className="epv-num">{totals.totalE.toLocaleString()}</td></tr>
+                  <tr><td>- Transferred or Sold to Other Producers</td><td className="epv-num">{(parseFloat(form.TransferredToOtherProducers) || 0).toLocaleString()}</td></tr>
+                  <tr><td>+ Transferred or Purchased from Other Producers</td><td className="epv-num">{(parseFloat(form.TransferredOrPurchasedFromProducers) || 0).toLocaleString()}</td></tr>
+                  <tr className="epv-review-total"><td>Total E (Transfers)</td><td className="epv-num">{totals.totalE < 0 ? `+ ${Math.abs(totals.totalE).toLocaleString()}` : totals.totalE.toLocaleString()}</td></tr>
                   {(form.TransferPurchaseComment || attachments.some(a => a.Category === 'TransferPurchase')) && (
                     <tr><td colSpan="2" style={{ background: '#fafafa', padding: 8 }}>
                       {form.TransferPurchaseComment && (
