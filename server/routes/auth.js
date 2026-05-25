@@ -476,7 +476,7 @@ router.post('/send-otp', async (req, res) => {
       subject: 'EPVS - Email Verification Code',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+          <div style="background: linear-gradient(135deg, #0E7C7B 0%, #065f5e 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
             <h1 style="color: #fff; margin: 0; font-size: 28px;">EPVS</h1>
             <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">Egg Production Verification System</p>
           </div>
@@ -486,7 +486,7 @@ router.post('/send-otp', async (req, res) => {
               Your verification code for company registration is:
             </p>
             <div style="text-align: center; margin: 24px 0;">
-              <span style="display: inline-block; background: #f3f4f6; border: 2px solid #4f46e5; border-radius: 12px; padding: 16px 32px; font-size: 32px; font-weight: 700; letter-spacing: 8px; color: #4f46e5;">${code}</span>
+              <span style="display: inline-block; background: #f3f4f6; border: 2px solid #0E7C7B; border-radius: 12px; padding: 16px 32px; font-size: 32px; font-weight: 700; letter-spacing: 8px; color: #0E7C7B;">${code}</span>
             </div>
             <p style="color: #999; font-size: 13px; text-align: center;">
               This code expires in <strong>10 minutes</strong>. Do not share it with anyone.
@@ -696,7 +696,7 @@ router.post('/forgot-password', async (req, res) => {
       subject: 'EPVS - Password Reset Request',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+          <div style="background: linear-gradient(135deg, #0E7C7B 0%, #065f5e 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
             <h1 style="color: #fff; margin: 0; font-size: 28px;">EPVS</h1>
             <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">Egg Production Verification System</p>
           </div>
@@ -709,13 +709,13 @@ router.post('/forgot-password', async (req, res) => {
               Click the button below to set a new password. This link expires in <strong>1 hour</strong>.
             </p>
             <div style="text-align: center; margin: 30px 0;">
-              <a href="${resetUrl}" style="display: inline-block; background-color: #4f46e5; color: #ffffff; padding: 14px 40px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: 600;">
+              <a href="${resetUrl}" style="display: inline-block; background-color: #0E7C7B; color: #ffffff; padding: 14px 40px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: 600;">
                 Reset Password
               </a>
             </div>
             <p style="color: #999; font-size: 12px; text-align: center;">
               If you didn't request this, you can safely ignore this email.<br>
-              <a href="${resetUrl}" style="color: #667eea;">${resetUrl}</a>
+              <a href="${resetUrl}" style="color: #0E7C7B;">${resetUrl}</a>
             </p>
           </div>
         </div>

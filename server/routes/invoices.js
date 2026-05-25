@@ -343,7 +343,7 @@ router.post('/send/:id', async (req, res) => {
 
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+        <div style="background: linear-gradient(135deg, #0E7C7B 0%, #065f5e 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
           <h1 style="color: #fff; margin: 0; font-size: 28px;">EPVS</h1>
           <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">Egg Production Verification System</p>
         </div>
@@ -354,7 +354,7 @@ router.post('/send/:id', async (req, res) => {
           </p>
           <p style="color: #555; font-size: 15px; line-height: 1.6;">
             Please find attached the Pro Forma Invoice for the Egg Production Levy for
-            <strong style="color: #4f46e5;">${period}</strong>.
+            <strong style="color: #0E7C7B;">${period}</strong>.
           </p>
           <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px; margin: 20px 0;">
             <table style="width: 100%; font-size: 14px; color: #555;">
@@ -368,7 +368,7 @@ router.post('/send/:id', async (req, res) => {
             and upload your Proof of Payment (POP) to the EPVS system.
           </p>
           <div style="text-align: center; margin: 25px 0;">
-            <a href="https://egg-production-verification.fsa-pty.co.za/company" style="display: inline-block; background-color: #4f46e5; color: #ffffff; padding: 14px 40px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: 600;">
+            <a href="https://egg-production-verification.fsa-pty.co.za/company" style="display: inline-block; background-color: #0E7C7B; color: #ffffff; padding: 14px 40px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: 600;">
               Go to EPVS Portal
             </a>
           </div>

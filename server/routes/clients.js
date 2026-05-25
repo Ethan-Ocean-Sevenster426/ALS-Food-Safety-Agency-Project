@@ -354,7 +354,7 @@ router.put('/approve/:id', async (req, res) => {
           subject: 'EPVS - Your Company Registration Has Been Approved',
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+              <div style="background: linear-gradient(135deg, #0E7C7B 0%, #065f5e 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
                 <h1 style="color: #fff; margin: 0; font-size: 28px;">EPVS</h1>
                 <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">Egg Production Verification System</p>
               </div>
@@ -364,7 +364,7 @@ router.put('/approve/:id', async (req, res) => {
                   Your company <strong>${record.BusinessName}</strong> has been approved on the Egg Production Verification System. You can now log in and access your account.
                 </p>
                 <div style="text-align: center; margin: 30px 0;">
-                  <a href="https://egg-production-verification.fsa-pty.co.za/login" style="display: inline-block; background-color: #4f46e5; color: #ffffff; padding: 14px 40px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: 600;">
+                  <a href="https://egg-production-verification.fsa-pty.co.za/login" style="display: inline-block; background-color: #0E7C7B; color: #ffffff; padding: 14px 40px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: 600;">
                     Sign In
                   </a>
                 </div>
@@ -436,7 +436,7 @@ router.put('/reject/:id', async (req, res) => {
           subject: 'EPVS - Company Registration Update',
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+              <div style="background: linear-gradient(135deg, #0E7C7B 0%, #065f5e 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
                 <h1 style="color: #fff; margin: 0; font-size: 28px;">EPVS</h1>
                 <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">Egg Production Verification System</p>
               </div>

@@ -242,7 +242,7 @@ function CompanyRegister() {
               You will receive an email notification once your registration has been approved.
               After approval, you can sign in to access the system.
             </p>
-            <Link to="/login" style={{ display: 'inline-block', marginTop: 20, padding: '10px 30px', background: '#4f46e5', color: '#fff', borderRadius: 8, textDecoration: 'none', fontWeight: 600 }}>
+            <Link to="/login" style={{ display: 'inline-block', marginTop: 20, padding: '10px 30px', background: '#0E7C7B', color: '#fff', borderRadius: 8, textDecoration: 'none', fontWeight: 600 }}>
               Go to Sign In
             </Link>
           </div>
@@ -269,7 +269,7 @@ function CompanyRegister() {
           {WIZARD_STEPS.map((s, i) => (
             <div key={i} style={{
               width: 10, height: 10, borderRadius: '50%',
-              background: i === step ? '#4f46e5' : i < step ? '#059669' : '#d1d5db',
+              background: i === step ? '#0E7C7B' : i < step ? '#059669' : '#d1d5db',
               transition: 'background 0.2s',
             }} title={s.title} />
           ))}
@@ -315,7 +315,7 @@ function CompanyRegister() {
                           fontWeight: 700, border: '2px solid #ddd', borderRadius: 10,
                           outline: 'none', transition: 'border-color 0.2s',
                         }}
-                        onFocus={(e) => e.target.style.borderColor = '#4f46e5'}
+                        onFocus={(e) => e.target.style.borderColor = '#0E7C7B'}
                         onBlur={(e) => e.target.style.borderColor = '#ddd'}
                       />
                     ))}
@@ -341,7 +341,7 @@ function CompanyRegister() {
                         onClick={() => { setOtpDigits(['', '', '', '', '', '']); sendOtp(); }}
                         disabled={otpSending}
                         style={{
-                          background: 'none', border: 'none', color: '#4f46e5',
+                          background: 'none', border: 'none', color: '#0E7C7B',
                           fontWeight: 600, cursor: 'pointer', fontSize: 13, padding: 0,
                         }}
                       >
@@ -352,8 +352,8 @@ function CompanyRegister() {
                 </>
               )}
 
-              <div style={{ display: 'flex', justifyContent: 'center', marginTop: 20 }}>
-                <button type="button" onClick={handleBack} className="auth-button" style={{ background: '#6b7280', maxWidth: 120 }}>
+              <div style={{ marginTop: 20 }}>
+                <button type="button" onClick={handleBack} className="auth-button" style={{ background: '#6b7280', width: '100%' }}>
                   Back
                 </button>
               </div>
@@ -389,21 +389,19 @@ function CompanyRegister() {
                 </div>
               ))}
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
-                {step > 0 ? (
-                  <button type="button" onClick={handleBack} className="auth-button" style={{ background: '#6b7280', flex: '0 0 auto', marginRight: 8 }}>
-                    Back
-                  </button>
-                ) : (
-                  <div />
-                )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 16 }}>
                 {isLastStep ? (
-                  <button type="button" onClick={handleSubmit} disabled={loading} className="auth-button" style={{ flex: '1 1 auto' }}>
+                  <button type="button" onClick={handleSubmit} disabled={loading} className="auth-button" style={{ width: '100%' }}>
                     {loading ? 'Submitting...' : 'Submit Registration'}
                   </button>
                 ) : (
-                  <button type="button" onClick={handleNext} className="auth-button" style={{ flex: '1 1 auto' }}>
+                  <button type="button" onClick={handleNext} className="auth-button" style={{ width: '100%' }}>
                     Next
+                  </button>
+                )}
+                {step > 0 && (
+                  <button type="button" onClick={handleBack} className="auth-button" style={{ background: '#6b7280', width: '100%' }}>
+                    Back
                   </button>
                 )}
               </div>

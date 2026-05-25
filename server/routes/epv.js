@@ -1266,7 +1266,7 @@ router.delete('/:id/pop', async (req, res) => {
 function buildEPVEmail({ businessName, month, year, formUrl, openingStock }) {
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+      <div style="background: linear-gradient(135deg, #0E7C7B 0%, #065f5e 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
         <h1 style="color: #fff; margin: 0; font-size: 28px;">EPVS</h1>
         <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">Egg Production Verification System</p>
       </div>
@@ -1274,7 +1274,7 @@ function buildEPVEmail({ businessName, month, year, formUrl, openingStock }) {
         <h2 style="color: #333; margin-top: 0;">Egg Production Verification Due</h2>
         <p style="color: #555; font-size: 15px; line-height: 1.6;">
           The monthly Egg Production Verification for <strong>${businessName}</strong> is due for
-          <strong style="color: #4f46e5;">${month} ${year}</strong>.
+          <strong style="color: #0E7C7B;">${month} ${year}</strong>.
         </p>
         ${openingStock > 0 ? `
         <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 14px; margin: 16px 0;">
@@ -1287,13 +1287,13 @@ function buildEPVEmail({ businessName, month, year, formUrl, openingStock }) {
           Please click the button below to complete the verification form:
         </p>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${formUrl}" style="display: inline-block; background-color: #4f46e5; color: #ffffff; padding: 14px 40px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: 600;">
+          <a href="${formUrl}" style="display: inline-block; background-color: #0E7C7B; color: #ffffff; padding: 14px 40px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: 600;">
             Complete Verification
           </a>
         </div>
         <p style="color: #999; font-size: 12px; text-align: center;">
           If the button doesn't work, copy and paste this link into your browser:<br>
-          <a href="${formUrl}" style="color: #667eea;">${formUrl}</a>
+          <a href="${formUrl}" style="color: #0E7C7B;">${formUrl}</a>
         </p>
       </div>
       <p style="color: #aaa; font-size: 11px; text-align: center; margin-top: 20px;">
