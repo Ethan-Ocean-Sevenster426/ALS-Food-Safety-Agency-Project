@@ -422,12 +422,7 @@ router.put('/reject/:id', async (req, res) => {
       return res.status(400).json({ message: `Company is already ${record.ApprovalStatus}.` });
     }
 
-    // Update approval status
-    await pool.request()
-      .input('id', sql.Int, parseInt(id))
-      .query("UPDATE ConsolidatedMasterAbattoirDatabase SET ApprovalStatus = 'Rejected' WHERE Id = @id");
-
-    // Send rejection notification email
+    // Send rejection notification email before deleting
     const userEmail = record.Email;
     if (userEmail) {
       try {
@@ -457,19 +452,29 @@ router.put('/reject/:id', async (req, res) => {
       }
     }
 
-    // Audit log
+    // Delete related invitations
     await pool.request()
-      .input('recordId', sql.Int, parseInt(id))
-      .input('fieldName', sql.NVarChar, 'ApprovalStatus')
-      .input('oldValue', sql.NVarChar, 'Pending')
-      .input('newValue', sql.NVarChar, `Rejected${reason ? ': ' + reason : ''}`)
-      .input('changedBy', sql.NVarChar, rejectedBy)
-      .query(
-        `INSERT INTO ClientAuditLog (RecordId, FieldName, OldValue, NewValue, ChangedBy)
-         VALUES (@recordId, @fieldName, @oldValue, @newValue, @changedBy)`
-      );
+      .input('id', sql.Int, parseInt(id))
+      .query('DELETE FROM Invitations WHERE ClientRecordId = @id');
 
-    res.json({ message: `${record.BusinessName} has been rejected.` });
+    // Delete related user account (created during self-registration)
+    if (userEmail) {
+      await pool.request()
+        .input('email', sql.NVarChar, userEmail)
+        .query('DELETE FROM Users WHERE LOWER(Email) = LOWER(@email)');
+    }
+
+    // Delete audit log entries for this record
+    await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .query('DELETE FROM ClientAuditLog WHERE RecordId = @id');
+
+    // Delete the client record itself
+    await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .query('DELETE FROM ConsolidatedMasterAbattoirDatabase WHERE Id = @id');
+
+    res.json({ message: `${record.BusinessName} has been rejected and removed.` });
   } catch (err) {
     console.error('Rejection error:', err);
     res.status(500).json({ message: 'Server error rejecting company.' });
