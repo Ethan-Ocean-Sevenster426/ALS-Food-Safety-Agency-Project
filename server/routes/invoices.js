@@ -7,7 +7,7 @@ const { sendEmail, sendEmailToEach } = require('../services/emailService');
 
 const router = express.Router();
 
-const LEVY_RATE = 0.018;
+const LEVY_RATE = 0.020;
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
 // Tables already exist in PostgreSQL — no-op

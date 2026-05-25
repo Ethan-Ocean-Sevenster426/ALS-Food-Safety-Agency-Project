@@ -3,7 +3,7 @@ const { sql, getPool } = require('../config/db');
 
 const router = express.Router();
 
-const LEVY_RATE = 0.018;
+const LEVY_RATE = 0.02;
 
 // GET /api/admin/stats - Admin overview stats
 router.get('/stats', async (req, res) => {
@@ -106,7 +106,7 @@ router.get('/reconciliation', async (req, res) => {
 
     // Status filter
     if (status === 'outstanding') {
-      where += " AND (e.IsReconciled = 0 OR e.IsReconciled IS NULL) AND (ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.018, 0) - ISNULL(e.ReconciledAmount, 0)) > 0";
+      where += " AND (e.IsReconciled = 0 OR e.IsReconciled IS NULL) AND (ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.02, 0) - ISNULL(e.ReconciledAmount, 0)) > 0";
     } else if (status === 'partial') {
       where += " AND (e.IsReconciled = 0 OR e.IsReconciled IS NULL) AND e.ReconciledAmount IS NOT NULL AND e.ReconciledAmount > 0";
     } else if (status === 'reconciled') {
@@ -155,9 +155,9 @@ router.get('/reconciliation', async (req, res) => {
       SELECT
         e.Id, e.ClientRecordId, e.ReferenceNumber, e.PeriodMonth, e.PeriodYear,
         e.LevyAmount, e.PulpSoldToTrade, e.SoldToTrade,
-        ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.018, 0) AS TotalBilled,
+        ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.02, 0) AS TotalBilled,
         ISNULL(e.ReconciledAmount, 0) AS ReconciledAmount,
-        ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.018, 0) - ISNULL(e.ReconciledAmount, 0) AS Outstanding,
+        ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.02, 0) - ISNULL(e.ReconciledAmount, 0) AS Outstanding,
         e.IsReconciled, e.ReconciledBy, e.ReconciledAt,
         e.IsVerified, e.POPFilePath, e.CompletedAt,
         c.BusinessName, c.FacilityProvince, c.Town
@@ -166,9 +166,9 @@ router.get('/reconciliation', async (req, res) => {
       ${where}
       ORDER BY
         CASE WHEN (e.IsReconciled = 0 OR e.IsReconciled IS NULL)
-          AND (ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.018, 0) - ISNULL(e.ReconciledAmount, 0)) > 0
+          AND (ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.02, 0) - ISNULL(e.ReconciledAmount, 0)) > 0
         THEN 0 ELSE 1 END,
-        (ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.018, 0) - ISNULL(e.ReconciledAmount, 0)) DESC
+        (ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.02, 0) - ISNULL(e.ReconciledAmount, 0)) DESC
       OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
     `);
 
@@ -208,7 +208,7 @@ router.put('/reconcile-batch', async (req, res) => {
         .input('id', sql.Int, parseInt(id))
         .query(`
           SELECT Id, ClientRecordId, ReferenceNumber,
-            ISNULL(LevyAmount, 0) + ISNULL(PulpSoldToTrade * 1.7 * 0.018, 0) AS TotalBilled,
+            ISNULL(LevyAmount, 0) + ISNULL(PulpSoldToTrade * 1.7 * 0.02, 0) AS TotalBilled,
             ISNULL(ReconciledAmount, 0) AS OldReconAmount,
             IsReconciled
           FROM EggProductionVerifications WHERE Id = @id

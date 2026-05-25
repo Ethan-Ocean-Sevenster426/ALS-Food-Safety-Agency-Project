@@ -80,7 +80,7 @@ function Inspectors() {
   };
 
   const userLabel = `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Unknown';
-  const LEVY_RATE = 0.018;
+  const LEVY_RATE = 0.020;
 
   const getProvinceParam = useCallback(() => {
     if (isInspectorRole && assignedProvince) return assignedProvince;

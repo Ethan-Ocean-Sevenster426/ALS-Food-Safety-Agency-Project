@@ -53,7 +53,7 @@ const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'Ju
 // Check if an EPV has a completed inspector EPV
 const hasInspectorAmount = (epv) => epv.inspectorEPV && epv.inspectorEPV.Status === 'Completed';
 
-const LEVY_RATE = 0.018;
+const LEVY_RATE = 0.020;
 
 // Calculate total owed from a single EPV record
 const calcTotalOwed = (record) => {

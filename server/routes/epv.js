@@ -1760,15 +1760,15 @@ router.get('/inspector/stats', async (req, res) => {
       return r.query(`
         SELECT
           c.Id AS ClientRecordId, c.BusinessName, c.Town, c.FacilityProvince,
-          SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.018, 0)) AS TotalBilled,
+          SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.02, 0)) AS TotalBilled,
           SUM(ISNULL(e.ReconciledAmount, 0)) AS TotalPaid,
-          SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.018, 0) - ISNULL(e.ReconciledAmount, 0)) AS TotalOwing
+          SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.02, 0) - ISNULL(e.ReconciledAmount, 0)) AS TotalOwing
         FROM EggProductionVerifications e
         JOIN ConsolidatedMasterAbattoirDatabase c ON e.ClientRecordId = c.Id
         WHERE e.EPVType = 'Client' AND e.Status = 'Completed' AND (e.IsReconciled = 0 OR e.IsReconciled IS NULL)
           ${provFilter}${dateWhere}
         GROUP BY c.Id, c.BusinessName, c.Town, c.FacilityProvince
-        HAVING SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.018, 0) - ISNULL(e.ReconciledAmount, 0)) > 0
+        HAVING SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.02, 0) - ISNULL(e.ReconciledAmount, 0)) > 0
         ORDER BY TotalOwing DESC
       `);
     })();
@@ -1784,10 +1784,10 @@ router.get('/inspector/stats', async (req, res) => {
           SUM(CASE WHEN e.IsReconciled = 1 THEN 1 ELSE 0 END) AS ReconciledCount,
           SUM(CASE WHEN e.IsReconciled = 0 OR e.IsReconciled IS NULL THEN 1 ELSE 0 END) AS UnreconciledCount,
           SUM(ISNULL(e.LevyAmount, 0)) AS TotalEggLevy,
-          SUM(ISNULL(e.PulpSoldToTrade, 0) * 1.7 * 0.018) AS TotalPulpLevy,
-          SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.018, 0)) AS TotalBilled,
+          SUM(ISNULL(e.PulpSoldToTrade, 0) * 1.7 * 0.02) AS TotalPulpLevy,
+          SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.02, 0)) AS TotalBilled,
           SUM(ISNULL(e.ReconciledAmount, 0)) AS TotalPaid,
-          SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.018, 0) - ISNULL(e.ReconciledAmount, 0)) AS TotalOutstanding,
+          SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.02, 0) - ISNULL(e.ReconciledAmount, 0)) AS TotalOutstanding,
           SUM(ISNULL(e.SoldToTrade, 0)) AS TotalEggDozens,
           SUM(ISNULL(e.PulpSoldToTrade, 0)) AS TotalPulpDozens,
           SUM(CASE WHEN ie.Id IS NOT NULL THEN 1 ELSE 0 END) AS TotalRejections,
@@ -1811,8 +1811,8 @@ router.get('/inspector/stats', async (req, res) => {
           e.PeriodMonth, e.PeriodYear,
           COUNT(e.Id) AS EPVCount,
           SUM(ISNULL(e.LevyAmount, 0)) AS EggLevy,
-          SUM(ISNULL(e.PulpSoldToTrade, 0) * 1.7 * 0.018) AS PulpLevy,
-          SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.018, 0)) AS TotalBilled,
+          SUM(ISNULL(e.PulpSoldToTrade, 0) * 1.7 * 0.02) AS PulpLevy,
+          SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.02, 0)) AS TotalBilled,
           SUM(ISNULL(e.ReconciledAmount, 0)) AS TotalPaid,
           SUM(CASE WHEN e.IsReconciled = 1 THEN 1 ELSE 0 END) AS PaidCount,
           SUM(ISNULL(e.SoldToTrade, 0)) AS EggDozens,
