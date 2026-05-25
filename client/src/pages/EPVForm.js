@@ -702,8 +702,7 @@ function EPVForm() {
                   <label>Total E (Transfers):</label>
                   <span className="epv-calc-total">- {totals.totalE.toLocaleString()}</span>
                 </div>
-                {(parseFloat(form.TransferredToOtherProducers) || 0) > 0 &&
-                  renderPurchaseEvidence('TransferPurchase', 'TransferPurchaseComment', 'Transfers to Other Producers')}
+                {renderPurchaseEvidence('TransferPurchase', 'TransferPurchaseComment', 'Transfers to Other Producers')}
               </div>
             </div>
 
