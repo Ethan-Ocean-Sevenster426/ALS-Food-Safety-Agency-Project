@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import './Auth.css';
@@ -20,6 +20,7 @@ const WIZARD_STEPS = [
       { key: 'confirmPassword', label: 'Confirm Password', type: 'password', required: true },
     ],
   },
+  { title: 'Email Verification', isOtp: true },
   {
     title: 'Business Information',
     fields: [
@@ -65,6 +66,23 @@ function CompanyRegister() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
+  // OTP state
+  const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpVerifying, setOtpVerifying] = useState(false);
+  const [otpToken, setOtpToken] = useState('');
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const inputRefs = useRef([]);
+
+  // Resend cooldown timer
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
+
   const handleChange = (key, value) => {
     setFormData(prev => ({ ...prev, [key]: value }));
     setError('');
@@ -72,13 +90,13 @@ function CompanyRegister() {
 
   const validateStep = () => {
     const currentStep = WIZARD_STEPS[step];
+    if (currentStep.isOtp) return true;
     for (const field of currentStep.fields) {
       if (field.required && !formData[field.key]?.trim()) {
         setError(`${field.label} is required.`);
         return false;
       }
     }
-    // Account details validation
     if (step === 0) {
       if (formData.password && formData.password.length < 6) {
         setError('Password must be at least 6 characters.');
@@ -92,14 +110,103 @@ function CompanyRegister() {
     return true;
   };
 
-  const handleNext = () => {
+  const sendOtp = async () => {
+    setOtpSending(true);
+    setError('');
+    try {
+      const res = await axios.post('/api/auth/send-otp', { email: formData.email });
+      setOtpSent(true);
+      setResendCooldown(60);
+      setError('');
+      // Show success briefly
+      setError('');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to send verification code.');
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  const handleOtpChange = (index, value) => {
+    if (value.length > 1) value = value.slice(-1);
+    if (value && !/^\d$/.test(value)) return;
+
+    const newDigits = [...otpDigits];
+    newDigits[index] = value;
+    setOtpDigits(newDigits);
+    setError('');
+
+    // Auto-focus next input
+    if (value && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleOtpKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !otpDigits[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleOtpPaste = (e) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (pasted.length === 6) {
+      const newDigits = pasted.split('');
+      setOtpDigits(newDigits);
+      inputRefs.current[5]?.focus();
+    }
+  };
+
+  const verifyOtp = async () => {
+    const code = otpDigits.join('');
+    if (code.length !== 6) {
+      setError('Please enter the full 6-digit code.');
+      return;
+    }
+    setOtpVerifying(true);
+    setError('');
+    try {
+      const res = await axios.post('/api/auth/verify-otp', { email: formData.email, code });
+      setOtpToken(res.data.otpToken);
+      setOtpVerified(true);
+      setStep(prev => prev + 1);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Invalid verification code.');
+    } finally {
+      setOtpVerifying(false);
+    }
+  };
+
+  const handleNext = async () => {
     if (!validateStep()) return;
     setError('');
+
+    // If moving from Account Details to OTP step, send OTP automatically
+    if (step === 0 && !otpVerified) {
+      setStep(1);
+      if (!otpSent) {
+        await sendOtp();
+      }
+      return;
+    }
+
+    // If already verified OTP, skip the OTP step
+    if (step === 0 && otpVerified) {
+      setStep(2);
+      return;
+    }
+
     setStep(prev => prev + 1);
   };
 
   const handleBack = () => {
     setError('');
+    // From OTP step, go back to Account Details
+    if (step === 1) {
+      setStep(0);
+      return;
+    }
     setStep(prev => prev - 1);
   };
 
@@ -109,7 +216,7 @@ function CompanyRegister() {
     setError('');
 
     try {
-      await axios.post('/api/auth/register-company', formData);
+      await axios.post('/api/auth/register-company', { ...formData, otpToken });
       setSuccess(true);
     } catch (err) {
       setError(err.response?.data?.message || 'Registration failed. Please try again.');
@@ -146,6 +253,7 @@ function CompanyRegister() {
 
   const currentStep = WIZARD_STEPS[step];
   const isLastStep = step === WIZARD_STEPS.length - 1;
+  const isOtpStep = currentStep.isOtp;
 
   return (
     <div className="auth-container">
@@ -174,52 +282,133 @@ function CompanyRegister() {
         {error && <div className="auth-error">{error}</div>}
 
         <div className="auth-form">
-          {currentStep.fields.map(field => (
-            <div key={field.key} className="form-group">
-              <label htmlFor={field.key}>
-                {field.label} {field.required && <span style={{ color: '#dc2626' }}>*</span>}
-              </label>
-              {field.type === 'select' ? (
-                <select
-                  id={field.key}
-                  value={formData[field.key] || ''}
-                  onChange={(e) => handleChange(field.key, e.target.value)}
-                  className="auth-input"
-                >
-                  {field.options.map(opt => (
-                    <option key={opt} value={opt}>{opt || '-- Select --'}</option>
-                  ))}
-                </select>
+          {isOtpStep ? (
+            /* OTP Verification Step */
+            <div style={{ textAlign: 'center', padding: '10px 0' }}>
+              {otpVerified ? (
+                <div>
+                  <div style={{ fontSize: 40, color: '#059669', marginBottom: 8 }}>&#10003;</div>
+                  <p style={{ color: '#059669', fontWeight: 600, fontSize: 15 }}>Email verified!</p>
+                </div>
               ) : (
-                <input
-                  type={field.type || 'text'}
-                  id={field.key}
-                  value={formData[field.key] || ''}
-                  onChange={(e) => handleChange(field.key, e.target.value)}
-                  placeholder={field.label}
-                />
-              )}
-            </div>
-          ))}
+                <>
+                  <p style={{ color: '#555', fontSize: 14, lineHeight: 1.6, marginBottom: 20 }}>
+                    We've sent a 6-digit verification code to<br />
+                    <strong>{formData.email}</strong>
+                  </p>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
-            {step > 0 ? (
-              <button type="button" onClick={handleBack} className="auth-button" style={{ background: '#6b7280', flex: '0 0 auto', marginRight: 8 }}>
-                Back
-              </button>
-            ) : (
-              <div />
-            )}
-            {isLastStep ? (
-              <button type="button" onClick={handleSubmit} disabled={loading} className="auth-button" style={{ flex: '1 1 auto' }}>
-                {loading ? 'Submitting...' : 'Submit Registration'}
-              </button>
-            ) : (
-              <button type="button" onClick={handleNext} className="auth-button" style={{ flex: '1 1 auto' }}>
-                Next
-              </button>
-            )}
-          </div>
+                  {/* 6-digit OTP inputs */}
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 20 }}>
+                    {otpDigits.map((digit, i) => (
+                      <input
+                        key={i}
+                        ref={el => inputRefs.current[i] = el}
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={1}
+                        value={digit}
+                        onChange={(e) => handleOtpChange(i, e.target.value)}
+                        onKeyDown={(e) => handleOtpKeyDown(i, e)}
+                        onPaste={i === 0 ? handleOtpPaste : undefined}
+                        style={{
+                          width: 48, height: 56, textAlign: 'center', fontSize: 24,
+                          fontWeight: 700, border: '2px solid #ddd', borderRadius: 10,
+                          outline: 'none', transition: 'border-color 0.2s',
+                        }}
+                        onFocus={(e) => e.target.style.borderColor = '#4f46e5'}
+                        onBlur={(e) => e.target.style.borderColor = '#ddd'}
+                      />
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={verifyOtp}
+                    disabled={otpVerifying || otpDigits.join('').length !== 6}
+                    className="auth-button"
+                    style={{ marginBottom: 16 }}
+                  >
+                    {otpVerifying ? 'Verifying...' : 'Verify Code'}
+                  </button>
+
+                  <p style={{ color: '#888', fontSize: 13, marginTop: 8 }}>
+                    Didn't receive the code?{' '}
+                    {resendCooldown > 0 ? (
+                      <span style={{ color: '#aaa' }}>Resend in {resendCooldown}s</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => { setOtpDigits(['', '', '', '', '', '']); sendOtp(); }}
+                        disabled={otpSending}
+                        style={{
+                          background: 'none', border: 'none', color: '#4f46e5',
+                          fontWeight: 600, cursor: 'pointer', fontSize: 13, padding: 0,
+                        }}
+                      >
+                        {otpSending ? 'Sending...' : 'Resend Code'}
+                      </button>
+                    )}
+                  </p>
+                </>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: 20 }}>
+                <button type="button" onClick={handleBack} className="auth-button" style={{ background: '#6b7280', maxWidth: 120 }}>
+                  Back
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* Regular form step */
+            <>
+              {currentStep.fields.map(field => (
+                <div key={field.key} className="form-group">
+                  <label htmlFor={field.key}>
+                    {field.label} {field.required && <span style={{ color: '#dc2626' }}>*</span>}
+                  </label>
+                  {field.type === 'select' ? (
+                    <select
+                      id={field.key}
+                      value={formData[field.key] || ''}
+                      onChange={(e) => handleChange(field.key, e.target.value)}
+                      className="auth-input"
+                    >
+                      {field.options.map(opt => (
+                        <option key={opt} value={opt}>{opt || '-- Select --'}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type={field.type || 'text'}
+                      id={field.key}
+                      value={formData[field.key] || ''}
+                      onChange={(e) => handleChange(field.key, e.target.value)}
+                      placeholder={field.label}
+                    />
+                  )}
+                </div>
+              ))}
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
+                {step > 0 ? (
+                  <button type="button" onClick={handleBack} className="auth-button" style={{ background: '#6b7280', flex: '0 0 auto', marginRight: 8 }}>
+                    Back
+                  </button>
+                ) : (
+                  <div />
+                )}
+                {isLastStep ? (
+                  <button type="button" onClick={handleSubmit} disabled={loading} className="auth-button" style={{ flex: '1 1 auto' }}>
+                    {loading ? 'Submitting...' : 'Submit Registration'}
+                  </button>
+                ) : (
+                  <button type="button" onClick={handleNext} className="auth-button" style={{ flex: '1 1 auto' }}>
+                    Next
+                  </button>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         <p className="auth-switch">

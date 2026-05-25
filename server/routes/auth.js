@@ -4,9 +4,22 @@ const jwt = require('jsonwebtoken');
 const { sql, getPool } = require('../config/db');
 const { sendEmail } = require('../services/emailService');
 
+const crypto = require('crypto');
+
 const router = express.Router();
 
 const VALID_ROLES = ['Super Admin', 'Admin', 'Inspector', 'Company Admin', 'User'];
+
+// In-memory OTP store: { email -> { code, expiresAt, verified } }
+const otpStore = new Map();
+
+// Clean up expired OTPs every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [email, entry] of otpStore) {
+    if (now > entry.expiresAt) otpStore.delete(email);
+  }
+}, 5 * 60 * 1000);
 
 // POST /api/auth/signup
 router.post('/signup', async (req, res) => {
@@ -47,7 +60,6 @@ router.post('/signup', async (req, res) => {
 
     // If a clientRecordId is provided for Company Admin or User, create an accepted invitation link
     if (clientRecordId && (assignedRole === 'Company Admin' || assignedRole === 'User')) {
-      const crypto = require('crypto');
       const token = crypto.randomBytes(32).toString('hex');
       await pool.request()
         .input('clientRecordId', sql.Int, parseInt(clientRecordId))
@@ -424,10 +436,111 @@ router.delete('/users/:id', async (req, res) => {
   }
 });
 
+// POST /api/auth/send-otp - send a 6-digit OTP to verify email during registration
+router.post('/send-otp', async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ message: 'Email is required.' });
+  }
+
+  try {
+    const pool = await getPool();
+
+    // Check if email already registered
+    const existing = await pool.request()
+      .input('email', sql.NVarChar, email)
+      .query('SELECT Id FROM Users WHERE LOWER(Email) = LOWER(@email)');
+    if (existing.recordset.length > 0) {
+      return res.status(409).json({ message: 'An account with this email already exists.' });
+    }
+
+    // Rate limit: don't allow resend within 60 seconds
+    const prev = otpStore.get(email.toLowerCase());
+    if (prev && Date.now() - (prev.createdAt || 0) < 60000) {
+      return res.status(429).json({ message: 'Please wait before requesting a new code.' });
+    }
+
+    // Generate 6-digit code
+    const code = crypto.randomInt(100000, 999999).toString();
+    otpStore.set(email.toLowerCase(), {
+      code,
+      expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes
+      createdAt: Date.now(),
+      verified: false,
+    });
+
+    // Send OTP email
+    await sendEmail({
+      to: email,
+      subject: 'EPVS - Email Verification Code',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+            <h1 style="color: #fff; margin: 0; font-size: 28px;">EPVS</h1>
+            <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">Egg Production Verification System</p>
+          </div>
+          <div style="background: #fff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+            <h2 style="color: #333; margin-top: 0;">Verify Your Email</h2>
+            <p style="color: #555; font-size: 15px; line-height: 1.6;">
+              Your verification code for company registration is:
+            </p>
+            <div style="text-align: center; margin: 24px 0;">
+              <span style="display: inline-block; background: #f3f4f6; border: 2px solid #4f46e5; border-radius: 12px; padding: 16px 32px; font-size: 32px; font-weight: 700; letter-spacing: 8px; color: #4f46e5;">${code}</span>
+            </div>
+            <p style="color: #999; font-size: 13px; text-align: center;">
+              This code expires in <strong>10 minutes</strong>. Do not share it with anyone.
+            </p>
+          </div>
+        </div>
+      `,
+    });
+
+    res.json({ message: 'Verification code sent to your email.' });
+  } catch (err) {
+    console.error('Send OTP error:', err);
+    res.status(500).json({ message: 'Failed to send verification code. Please try again.' });
+  }
+});
+
+// POST /api/auth/verify-otp - verify the 6-digit OTP
+router.post('/verify-otp', async (req, res) => {
+  const { email, code } = req.body;
+
+  if (!email || !code) {
+    return res.status(400).json({ message: 'Email and verification code are required.' });
+  }
+
+  const entry = otpStore.get(email.toLowerCase());
+
+  if (!entry) {
+    return res.status(400).json({ message: 'No verification code found. Please request a new one.' });
+  }
+
+  if (Date.now() > entry.expiresAt) {
+    otpStore.delete(email.toLowerCase());
+    return res.status(400).json({ message: 'Verification code has expired. Please request a new one.' });
+  }
+
+  if (entry.code !== code.toString().trim()) {
+    return res.status(400).json({ message: 'Invalid verification code.' });
+  }
+
+  // Mark as verified and generate a token
+  entry.verified = true;
+  const otpToken = jwt.sign(
+    { email: email.toLowerCase(), purpose: 'otp-verified' },
+    process.env.JWT_SECRET,
+    { expiresIn: '30m' }
+  );
+
+  res.json({ message: 'Email verified successfully.', otpToken });
+});
+
 // POST /api/auth/register-company - self-registration for companies
 router.post('/register-company', async (req, res) => {
   const {
-    firstName, lastName, email, password,
+    firstName, lastName, email, password, otpToken,
     businessName, facilityProvince, companyRegNumber, physicalAddress, vatNumber,
     facilityType, town,
     abattoirOwnerName, abattoirOwnerCell, abattoirOwnerEmail,
@@ -441,6 +554,19 @@ router.post('/register-company', async (req, res) => {
 
   if (password.length < 6) {
     return res.status(400).json({ message: 'Password must be at least 6 characters.' });
+  }
+
+  // Verify OTP token
+  if (!otpToken) {
+    return res.status(400).json({ message: 'Email verification is required.' });
+  }
+  try {
+    const decoded = jwt.verify(otpToken, process.env.JWT_SECRET);
+    if (decoded.purpose !== 'otp-verified' || decoded.email !== email.toLowerCase()) {
+      return res.status(400).json({ message: 'Invalid email verification. Please verify your email again.' });
+    }
+  } catch (e) {
+    return res.status(400).json({ message: 'Email verification expired. Please verify your email again.' });
   }
 
   try {
@@ -506,7 +632,6 @@ router.post('/register-company', async (req, res) => {
       .query('INSERT INTO Users (FirstName, LastName, Email, PasswordHash, Role, IsActive) VALUES (@firstName, @lastName, @email, @passwordHash, @role, FALSE)');
 
     // Create an accepted invitation to link user to client_record
-    const crypto = require('crypto');
     const inviteToken = crypto.randomBytes(32).toString('hex');
     await pool.request()
       .input('clientRecordId', sql.Int, clientRecordId)
