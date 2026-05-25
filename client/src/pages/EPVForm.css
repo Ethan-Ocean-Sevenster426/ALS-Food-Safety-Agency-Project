@@ -567,6 +567,16 @@
   padding: 8px 12px;
 }
 
+.epv-pulp-dozens-input {
+  text-align: right;
+  font-weight: 600;
+  color: #0E7C7B;
+  background: #e6f4f4;
+  border: 1px solid #b2dfdb;
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+
 /* Navigation Buttons */
 .epv-nav {
   display: flex;

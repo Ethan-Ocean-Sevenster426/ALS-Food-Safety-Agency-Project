@@ -57,7 +57,7 @@ function buildInvoicePDF(invoiceData) {
     doc.pipe(stream);
 
     // Header bar
-    doc.rect(0, 0, 595, 100).fill('#4f46e5');
+    doc.rect(0, 0, 595, 100).fill('#0E7C7B');
     doc.fontSize(28).fillColor('#fff').text('EPVS', 50, 25, { align: 'left' });
     doc.fontSize(10).fillColor('rgba(255,255,255,0.85)').text('Egg Production Verification System', 50, 58);
     doc.fontSize(22).fillColor('#fff').text('PRO FORMA INVOICE', 300, 35, { align: 'right' });
@@ -88,7 +88,7 @@ function buildInvoicePDF(invoiceData) {
     doc.font('Helvetica');
     if (invoiceData.tradingName) doc.text(`t/a ${invoiceData.tradingName}`, 350, y1 + 33);
     if (invoiceData.province) doc.text(invoiceData.province, 350, y1 + 48);
-    if (invoiceData.email) doc.fillColor('#4f46e5').text(invoiceData.email, 350, y1 + 63);
+    if (invoiceData.email) doc.fillColor('#0E7C7B').text(invoiceData.email, 350, y1 + 63);
 
     doc.fillColor('#333');
 
@@ -141,7 +141,7 @@ function buildInvoicePDF(invoiceData) {
 
     // Total line
     doc.moveTo(350, rowY + 5).lineTo(545, rowY + 5).stroke('#ddd');
-    doc.rect(350, rowY + 10, 195, 30).fill('#4f46e5');
+    doc.rect(350, rowY + 10, 195, 30).fill('#0E7C7B');
     doc.fillColor('#fff').font('Helvetica-Bold').fontSize(12);
     doc.text('TOTAL DUE:', 360, rowY + 18);
     doc.text(`R ${invoiceData.total.toFixed(2)}`, 460, rowY + 18, { align: 'right', width: 75 });
