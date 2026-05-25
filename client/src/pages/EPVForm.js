@@ -305,15 +305,19 @@ function EPVForm() {
           {uploadingCategory === apiCategory && <div style={{ fontSize: 13, color: '#666' }}>Uploading...</div>}
           {items.length === 0 && <div style={{ fontSize: 13, color: '#888' }}>No documents uploaded yet.</div>}
           {items.length > 0 && (
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+            <ul style={{ listStyle: 'none', padding: 0, margin: '8px 0 0' }}>
               {items.map(a => (
-                <li key={a.Id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px dashed #e5e7eb' }}>
-                  <a href={`/api/epv/attachment/${a.Id}`} target="_blank" rel="noopener noreferrer" style={{ color: '#4f46e5', flex: 1 }}>
-                    {a.OriginalName}
+                <li key={a.Id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', marginBottom: 6, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 6 }}>
+                  <span style={{ fontSize: 18, color: '#0E7C7B' }}>&#128196;</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1f2937', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.OriginalName}</div>
+                    <div style={{ fontSize: 11, color: '#888' }}>{formatBytes(a.FileSize)}</div>
+                  </div>
+                  <a href={`/api/epv/attachment/${a.Id}`} target="_blank" rel="noopener noreferrer" style={{ padding: '4px 10px', background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: 4, color: '#374151', fontSize: 12, fontWeight: 500, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                    View
                   </a>
-                  <span style={{ fontSize: 12, color: '#888' }}>{formatBytes(a.FileSize)}</span>
                   {!isReadOnly && (
-                    <button type="button" onClick={() => handleAttachmentDelete(a.Id)} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 13 }}>
+                    <button type="button" onClick={() => handleAttachmentDelete(a.Id)} style={{ padding: '4px 10px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 4, color: '#dc2626', cursor: 'pointer', fontSize: 12, fontWeight: 500 }}>
                       Remove
                     </button>
                   )}
