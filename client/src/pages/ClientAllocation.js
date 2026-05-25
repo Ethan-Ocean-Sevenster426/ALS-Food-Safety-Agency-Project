@@ -89,8 +89,6 @@ function ClientAllocation() {
   const [inviteSending, setInviteSending] = useState(false);
   const [expandedRows, setExpandedRows] = useState({});
   const [epvSending, setEpvSending] = useState(null); // clientRecordId being sent
-  const [pendingClients, setPendingClients] = useState([]);
-  const [pendingLoading, setPendingLoading] = useState(false);
   const [approvingId, setApprovingId] = useState(null);
   const [rejectingId, setRejectingId] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -133,24 +131,12 @@ function ClientAllocation() {
     }
   }, [auditPage, auditRecordFilter]);
 
-  const fetchPendingClients = useCallback(async () => {
-    setPendingLoading(true);
-    try {
-      const res = await axios.get('/api/clients/pending');
-      setPendingClients(res.data.data);
-    } catch (err) {
-      console.error('Failed to load pending clients');
-    } finally {
-      setPendingLoading(false);
-    }
-  }, []);
 
   const handleApprove = async (client) => {
     setApprovingId(client.Id);
     try {
       const res = await axios.put(`/api/clients/approve/${client.Id}`, { approvedBy: userLabel });
       setSuccessMsg(res.data.message);
-      fetchPendingClients();
       fetchClients();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to approve.');
@@ -167,7 +153,6 @@ function ClientAllocation() {
       setSuccessMsg(res.data.message);
       setShowRejectModal(null);
       setRejectReason('');
-      fetchPendingClients();
       fetchClients();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to reject.');
@@ -177,7 +162,6 @@ function ClientAllocation() {
   };
 
   useEffect(() => { fetchClients(); }, [fetchClients]);
-  useEffect(() => { fetchPendingClients(); }, [fetchPendingClients]);
   useEffect(() => { if (showAuditLog) fetchAuditLog(); }, [fetchAuditLog, showAuditLog]);
 
   // Auto-clear success message
@@ -407,54 +391,6 @@ function ClientAllocation() {
         {error && <p className="ca-error">{error}</p>}
         {successMsg && <p className="ca-success">{successMsg}</p>}
 
-        {/* Pending Registrations */}
-        {pendingClients.length > 0 && !showAuditLog && (
-          <div style={{ background: '#fffbeb', border: '1px solid #fbbf24', borderRadius: 8, padding: 16, marginBottom: 16 }}>
-            <h3 style={{ margin: '0 0 12px', color: '#92400e', fontSize: 16 }}>
-              Pending Registrations ({pendingClients.length})
-            </h3>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-                <thead>
-                  <tr style={{ background: '#fef3c7' }}>
-                    <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid #fbbf24' }}>Business Name</th>
-                    <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid #fbbf24' }}>Email</th>
-                    <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid #fbbf24' }}>Province</th>
-                    <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid #fbbf24' }}>Facility Type</th>
-                    <th style={{ padding: '8px 12px', textAlign: 'center', borderBottom: '1px solid #fbbf24' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pendingClients.map(c => (
-                    <tr key={c.Id} style={{ borderBottom: '1px solid #fde68a' }}>
-                      <td style={{ padding: '8px 12px' }}>{c.BusinessName}</td>
-                      <td style={{ padding: '8px 12px' }}>{c.Email}</td>
-                      <td style={{ padding: '8px 12px' }}>{c.FacilityProvince}</td>
-                      <td style={{ padding: '8px 12px' }}>{c.FacilityType}</td>
-                      <td style={{ padding: '8px 12px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                        <button
-                          onClick={() => handleApprove(c)}
-                          disabled={approvingId === c.Id}
-                          style={{ background: '#059669', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: 6, cursor: 'pointer', fontWeight: 600, marginRight: 6 }}
-                        >
-                          {approvingId === c.Id ? 'Approving...' : 'Approve'}
-                        </button>
-                        <button
-                          onClick={() => { setShowRejectModal(c); setRejectReason(''); }}
-                          disabled={rejectingId === c.Id}
-                          style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}
-                        >
-                          Reject
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
         {/* Reject confirmation modal */}
         {showRejectModal && (
           <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
@@ -680,9 +616,11 @@ function ClientAllocation() {
                   ) : clients.length === 0 ? (
                     <tr><td colSpan={TABLE_FIELDS.length + 4} className="ca-loading">No records found.</td></tr>
                   ) : (
-                    clients.map((c) => (
+                    clients.map((c) => {
+                      const isPending = c.ApprovalStatus === 'Pending';
+                      return (
                       <React.Fragment key={c.Id}>
-                        <tr className={editingId === c.Id ? 'ca-editing-row' : ''}>
+                        <tr className={editingId === c.Id ? 'ca-editing-row' : ''} style={isPending ? { background: '#fffbeb', borderLeft: '4px solid #f59e0b' } : {}}>
                           <td className="ca-actions-cell">
                             {editingId === c.Id ? (
                               <div className="ca-edit-actions">
@@ -700,7 +638,12 @@ function ClientAllocation() {
                             )}
                           </td>
                           <td className="ca-status-cell">
-                            {c.OnboardedAt && (
+                            {isPending && (
+                              <span className="ca-pending-badge" title="Pending approval" style={{ display: 'inline-block', background: '#f59e0b', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700 }}>
+                                Pending
+                              </span>
+                            )}
+                            {c.OnboardedAt && !isPending && (
                               <span
                                 className="ca-verified-badge"
                                 title={`Onboarding completed by ${c.OnboardedBy || 'Unknown'} on ${new Date(c.OnboardedAt).toLocaleDateString()}`}
@@ -761,7 +704,7 @@ function ClientAllocation() {
                         </tr>
                         {/* Expandable detail row */}
                         {expandedRows[c.Id] && (
-                          <tr className={`ca-detail-row ${editingId === c.Id ? 'ca-editing-row' : ''}`}>
+                          <tr className={`ca-detail-row ${editingId === c.Id ? 'ca-editing-row' : ''}`} style={isPending ? { background: '#fffef5' } : {}}>
                             <td colSpan={TABLE_FIELDS.length + 4}>
                               <div className="ca-detail-groups">
                                 {DETAIL_GROUPS.map(group => (
@@ -787,11 +730,30 @@ function ClientAllocation() {
                                   </div>
                                 ))}
                               </div>
+                              {isPending && editingId !== c.Id && (
+                                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', padding: '12px 0 4px', borderTop: '1px solid #fde68a', marginTop: 12 }}>
+                                  <button
+                                    onClick={() => handleApprove(c)}
+                                    disabled={approvingId === c.Id}
+                                    style={{ background: '#059669', color: '#fff', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 14 }}
+                                  >
+                                    {approvingId === c.Id ? 'Approving...' : 'Approve'}
+                                  </button>
+                                  <button
+                                    onClick={() => { setShowRejectModal(c); setRejectReason(''); }}
+                                    disabled={rejectingId === c.Id}
+                                    style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 14 }}
+                                  >
+                                    Reject
+                                  </button>
+                                </div>
+                              )}
                             </td>
                           </tr>
                         )}
                       </React.Fragment>
-                    ))
+                      );
+                    })
                   )}
                 </tbody>
               </table>
