@@ -220,14 +220,14 @@ function applyWholeQueryTransforms(q) {
     'LIMIT $2 OFFSET $1',
   );
 
-  // T-SQL `OUTPUT INSERTED.col` (between column list and VALUES) ->
-  // Postgres `RETURNING col` (appended at end). Handles a single column
-  // which is the common case (`OUTPUT INSERTED.Id`).
-  const outputMatch = q.match(/\bOUTPUT\s+INSERTED\.(\w+)/i);
+  // T-SQL `OUTPUT INSERTED.col1, INSERTED.col2, …` (between column list
+  // and VALUES) -> Postgres `RETURNING col1, col2, …` (appended at end).
+  const outputMatch = q.match(/\bOUTPUT\s+(INSERTED\.\w+(?:\s*,\s*INSERTED\.\w+)*)/i);
   if (outputMatch) {
-    q = q.replace(/\bOUTPUT\s+INSERTED\.\w+\s*/gi, '');
+    const cols = outputMatch[1].match(/INSERTED\.(\w+)/gi).map(m => m.replace(/INSERTED\./i, ''));
+    q = q.replace(/\bOUTPUT\s+INSERTED\.\w+(?:\s*,\s*INSERTED\.\w+)*/gi, '');
     if (!/\bRETURNING\b/i.test(q)) {
-      q = q.replace(/;?\s*$/, ` RETURNING ${outputMatch[1].toLowerCase()}`);
+      q = q.replace(/;?\s*$/, ` RETURNING ${cols.join(', ')}`);
     }
   }
 
