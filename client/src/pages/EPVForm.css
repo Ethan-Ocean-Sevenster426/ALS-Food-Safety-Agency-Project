@@ -904,6 +904,16 @@
   color: #dc2626;
 }
 
+.epv-addition-row label {
+  color: #059669;
+  font-weight: 600;
+}
+
+.epv-addition-row input {
+  border-color: #6ee7b7;
+  color: #059669;
+}
+
 .epv-deduction-value {
   color: #dc2626 !important;
   font-weight: 600;

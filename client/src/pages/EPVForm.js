@@ -695,7 +695,7 @@ function EPVForm() {
                   <label>- Transferred or Sold to Other Producers:</label>
                   <input type="text" value={formatNumber(form.TransferredToOtherProducers)} onChange={(e) => handleNumberChange('TransferredToOtherProducers', e.target.value)} disabled={isReadOnly} placeholder="0" />
                 </div>
-                <div className="epv-calc-row">
+                <div className="epv-calc-row epv-addition-row">
                   <label>+ Transferred or Purchased from Other Producers:</label>
                   <input type="text" value={formatNumber(form.TransferredOrPurchasedFromProducers)} onChange={(e) => handleNumberChange('TransferredOrPurchasedFromProducers', e.target.value)} disabled={isReadOnly} placeholder="0" />
                 </div>
