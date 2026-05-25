@@ -445,16 +445,6 @@ router.post('/send-otp', async (req, res) => {
   }
 
   try {
-    const pool = await getPool();
-
-    // Check if email already registered
-    const existing = await pool.request()
-      .input('email', sql.NVarChar, email)
-      .query('SELECT Id FROM Users WHERE LOWER(Email) = LOWER(@email)');
-    if (existing.recordset.length > 0) {
-      return res.status(409).json({ message: 'An account with this email already exists.' });
-    }
-
     // Rate limit: don't allow resend within 60 seconds
     const prev = otpStore.get(email.toLowerCase());
     if (prev && Date.now() - (prev.createdAt || 0) < 60000) {
