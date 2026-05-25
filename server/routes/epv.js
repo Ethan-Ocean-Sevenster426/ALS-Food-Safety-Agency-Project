@@ -7,7 +7,7 @@ const { sendEmail, sendEmailToEach } = require('../services/emailService');
 
 const router = express.Router();
 
-const LEVY_RATE = 0.018;
+const LEVY_RATE = 0.02;
 
 // Helper: log to ClientAuditLog for company-level change log
 async function logCompanyAudit(pool, recordId, fieldName, oldValue, newValue, changedBy, userRole) {
@@ -78,7 +78,8 @@ async function generateReferenceNumber(pool, month, year) {
 
 // All numeric fields that can be submitted
 const NUMERIC_FIELDS = [
-  'OpeningStock', 'GradedEggsPurchased', 'UngradedEggsPurchased',
+  'OpeningStock', 'EggsProducedDuringMonth', 'GradedEggsPurchased', 'UngradedEggsPurchased',
+  'TransferredOrPurchasedFromProducers',
   'MarketReturns', 'MachineLoss', 'SentToPulp', 'Destroyed', 'Exported',
   'SoldToTrade', 'SoldToStaff', 'SoldThroughFarmStall',
   'TransferredToOtherProducers',
@@ -92,19 +93,22 @@ const TEXT_FIELDS = [
   'AuthorizedPersonName', 'PositionInCompany',
   'TelephoneNumber', 'CellPhoneNumber', 'EmailAddress',
   'VarianceReason',
-  'EggPurchaseComment', 'PulpPurchaseComment',
+  'EggPurchaseComment', 'PulpPurchaseComment', 'TransferPurchaseComment',
 ];
 
 const ALL_FIELDS = [...TEXT_FIELDS, ...NUMERIC_FIELDS];
 
 function calculateTotals(data) {
-  // A = Opening Stock
-  const totalA = parseFloat(data.OpeningStock) || 0;
+  // A = Opening Stock + Eggs Produced
+  const openingStock = parseFloat(data.OpeningStock) || 0;
+  const eggsProduced = parseFloat(data.EggsProducedDuringMonth) || 0;
+  const totalA = openingStock + eggsProduced;
 
-  // B = Purchases (Graded + Ungraded)
+  // B = Purchases (Graded + Ungraded + Transferred/Purchased from Other Producers)
   const graded = parseFloat(data.GradedEggsPurchased) || 0;
   const ungraded = parseFloat(data.UngradedEggsPurchased) || 0;
-  const totalB = graded + ungraded;
+  const transferredOrPurchased = parseFloat(data.TransferredOrPurchasedFromProducers) || 0;
+  const totalB = graded + ungraded + transferredOrPurchased;
 
   // C = Deductions
   const marketReturns = parseFloat(data.MarketReturns) || 0;
@@ -519,8 +523,8 @@ router.post('/token/:token/attachment', purchaseUpload.single('file'), async (re
   const category = (req.query.category || '').toLowerCase();
   const uploadedBy = (req.body && req.body.uploadedBy) || 'Unknown';
 
-  if (!['egg', 'pulp'].includes(category)) {
-    return res.status(400).json({ message: 'category must be "egg" or "pulp".' });
+  if (!['egg', 'pulp', 'transfer'].includes(category)) {
+    return res.status(400).json({ message: 'category must be "egg", "pulp", or "transfer".' });
   }
   if (!req.file) {
     return res.status(400).json({ message: 'No file uploaded.' });
@@ -539,7 +543,7 @@ router.post('/token/:token/attachment', purchaseUpload.single('file'), async (re
 
     const inserted = await pool.request()
       .input('vid', sql.Int, epv.Id)
-      .input('cat', sql.NVarChar, category === 'egg' ? 'EggPurchase' : 'PulpPurchase')
+      .input('cat', sql.NVarChar, category === 'egg' ? 'EggPurchase' : category === 'transfer' ? 'TransferPurchase' : 'PulpPurchase')
       .input('fn', sql.NVarChar, req.file.filename)
       .input('orig', sql.NVarChar, req.file.originalname)
       .input('size', sql.Int, req.file.size)
@@ -1401,12 +1405,15 @@ router.post('/inspector/create', async (req, res) => {
       .input('telephoneNumber', sql.NVarChar, epv.TelephoneNumber || '')
       .input('cellPhoneNumber', sql.NVarChar, epv.CellPhoneNumber || '')
       .input('openingStock', sql.Decimal(18, 2), parseFloat(epv.OpeningStock) || 0)
+      .input('eggsProducedDuringMonth', sql.Decimal(18, 2), parseFloat(epv.EggsProducedDuringMonth) || 0)
       .input('gradedEggsPurchased', sql.Decimal(18, 2), parseFloat(epv.GradedEggsPurchased) || 0)
       .input('ungradedEggsPurchased', sql.Decimal(18, 2), parseFloat(epv.UngradedEggsPurchased) || 0)
+      .input('transferredOrPurchasedFromProducers', sql.Decimal(18, 2), parseFloat(epv.TransferredOrPurchasedFromProducers) || 0)
       .input('marketReturns', sql.Decimal(18, 2), parseFloat(epv.MarketReturns) || 0)
       .input('machineLoss', sql.Decimal(18, 2), parseFloat(epv.MachineLoss) || 0)
       .input('sentToPulp', sql.Decimal(18, 2), parseFloat(epv.SentToPulp) || 0)
       .input('destroyed', sql.Decimal(18, 2), parseFloat(epv.Destroyed) || 0)
+      .input('exported', sql.Decimal(18, 2), parseFloat(epv.Exported) || 0)
       .input('soldToTrade', sql.Decimal(18, 2), parseFloat(epv.SoldToTrade) || 0)
       .input('soldToStaff', sql.Decimal(18, 2), parseFloat(epv.SoldToStaff) || 0)
       .input('soldThroughFarmStall', sql.Decimal(18, 2), parseFloat(epv.SoldThroughFarmStall) || 0)
@@ -1417,7 +1424,11 @@ router.post('/inspector/create', async (req, res) => {
       .input('pulpConverted', sql.Decimal(18, 2), parseFloat(epv.PulpConverted) || 0)
       .input('pulpSoldToTrade', sql.Decimal(18, 2), parseFloat(epv.PulpSoldToTrade) || 0)
       .input('pulpSoldToProducers', sql.Decimal(18, 2), parseFloat(epv.PulpSoldToProducers) || 0)
+      .input('pulpConversionLoss', sql.Decimal(18, 2), parseFloat(epv.PulpConversionLoss) || 0)
       .input('varianceReason', sql.NVarChar, epv.VarianceReason || '')
+      .input('eggPurchaseComment', sql.NVarChar, epv.EggPurchaseComment || '')
+      .input('pulpPurchaseComment', sql.NVarChar, epv.PulpPurchaseComment || '')
+      .input('transferPurchaseComment', sql.NVarChar, epv.TransferPurchaseComment || '')
       .input('levyAmount', sql.Decimal(18, 2), parseFloat(epv.LevyAmount) || 0)
       .input('inspectorId', sql.Int, parseInt(inspectorId))
       .input('linkedEPVId', sql.Int, parseInt(clientEpvId))
@@ -1427,22 +1438,24 @@ router.post('/inspector/create', async (req, res) => {
          (ClientRecordId, PeriodMonth, PeriodYear, Token, ReferenceNumber, Status,
           BusinessName, FacilityType, FacilityProvince, EmailAddress, AuthorizedPersonName,
           TradingName, PositionInCompany, TelephoneNumber, CellPhoneNumber,
-          OpeningStock, GradedEggsPurchased, UngradedEggsPurchased,
-          MarketReturns, MachineLoss, SentToPulp, Destroyed,
+          OpeningStock, EggsProducedDuringMonth, GradedEggsPurchased, UngradedEggsPurchased,
+          TransferredOrPurchasedFromProducers,
+          MarketReturns, MachineLoss, SentToPulp, Destroyed, Exported,
           SoldToTrade, SoldToStaff, SoldThroughFarmStall, TransferredToOtherProducers,
           ActualClosingStock,
-          PulpOpeningStock, PulpPurchased, PulpConverted, PulpSoldToTrade, PulpSoldToProducers,
-          VarianceReason, LevyAmount,
+          PulpOpeningStock, PulpPurchased, PulpConverted, PulpSoldToTrade, PulpSoldToProducers, PulpConversionLoss,
+          VarianceReason, EggPurchaseComment, PulpPurchaseComment, TransferPurchaseComment, LevyAmount,
           EPVType, InspectorId, LinkedEPVId)
          VALUES (@clientRecordId, @month, @year, @token, @refNumber, 'Pending',
                  @businessName, @facilityType, @facilityProvince, @email, @ownerName,
                  @tradingName, @positionInCompany, @telephoneNumber, @cellPhoneNumber,
-                 @openingStock, @gradedEggsPurchased, @ungradedEggsPurchased,
-                 @marketReturns, @machineLoss, @sentToPulp, @destroyed,
+                 @openingStock, @eggsProducedDuringMonth, @gradedEggsPurchased, @ungradedEggsPurchased,
+                 @transferredOrPurchasedFromProducers,
+                 @marketReturns, @machineLoss, @sentToPulp, @destroyed, @exported,
                  @soldToTrade, @soldToStaff, @soldThroughFarmStall, @transferredToOtherProducers,
                  @actualClosingStock,
-                 @pulpOpeningStock, @pulpPurchased, @pulpConverted, @pulpSoldToTrade, @pulpSoldToProducers,
-                 @varianceReason, @levyAmount,
+                 @pulpOpeningStock, @pulpPurchased, @pulpConverted, @pulpSoldToTrade, @pulpSoldToProducers, @pulpConversionLoss,
+                 @varianceReason, @eggPurchaseComment, @pulpPurchaseComment, @transferPurchaseComment, @levyAmount,
                  'Inspector', @inspectorId, @linkedEPVId)`
       );
 

@@ -16,6 +16,7 @@ import EPVForm from './pages/EPVForm';
 import Support from './pages/Support';
 import Inspectors from './pages/Inspectors';
 import Administrators from './pages/Administrators';
+import CompanyRegister from './pages/CompanyRegister';
 import AppLayout from './components/AppLayout';
 
 function PrivateRoute({ children }) {
@@ -59,6 +60,7 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/register" element={<CompanyRegister />} />
         <Route path="/accept-invite/:token" element={<AcceptInvite />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
         <Route path="/epv/:token" element={<EPVForm />} />

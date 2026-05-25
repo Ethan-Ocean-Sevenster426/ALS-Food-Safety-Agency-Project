@@ -119,8 +119,22 @@ router.post('/login', async (req, res) => {
     const user = result.recordset[0];
 
     if (user.IsActive === false || user.IsActive === 0) {
-      await logLoginAttempt(pool, { userId: user.Id, email: user.Email, success: false, reason: 'Account deactivated', req });
-      return res.status(403).json({ message: 'Your account has been deactivated. Please contact an administrator.' });
+      // Check if this is a pending self-registration
+      const pendingCheck = await pool.request()
+        .input('pendingEmail', sql.NVarChar, user.Email)
+        .query(
+          `SELECT c.ApprovalStatus FROM Invitations i
+           JOIN ConsolidatedMasterAbattoirDatabase c ON i.ClientRecordId = c.Id
+           WHERE LOWER(i.Email) = LOWER(@pendingEmail) AND i.Status = 'Accepted'
+           ORDER BY i.AcceptedAt DESC
+           LIMIT 1`
+        );
+      const isPending = pendingCheck.recordset.length > 0 && pendingCheck.recordset[0].ApprovalStatus === 'Pending';
+      const msg = isPending
+        ? 'Your company registration is pending approval. You will receive an email once approved.'
+        : 'Your account has been deactivated. Please contact an administrator.';
+      await logLoginAttempt(pool, { userId: user.Id, email: user.Email, success: false, reason: isPending ? 'Pending approval' : 'Account deactivated', req });
+      return res.status(403).json({ message: msg });
     }
 
     const isMatch = await bcrypt.compare(password, user.PasswordHash);
@@ -407,6 +421,119 @@ router.delete('/users/:id', async (req, res) => {
   } catch (err) {
     console.error('User delete error:', err);
     res.status(500).json({ message: 'Server error.' });
+  }
+});
+
+// POST /api/auth/register-company - self-registration for companies
+router.post('/register-company', async (req, res) => {
+  const {
+    firstName, lastName, email, password,
+    businessName, facilityProvince, companyRegNumber, physicalAddress, vatNumber,
+    facilityType, town,
+    abattoirOwnerName, abattoirOwnerCell, abattoirOwnerEmail,
+    accountsContactName, accountsTelephone, accountsEmail,
+    abattoirManagerName, abattoirManagerCell, abattoirManagerEmail
+  } = req.body;
+
+  if (!firstName || !lastName || !email || !password || !businessName) {
+    return res.status(400).json({ message: 'First name, last name, email, password, and business name are required.' });
+  }
+
+  if (password.length < 6) {
+    return res.status(400).json({ message: 'Password must be at least 6 characters.' });
+  }
+
+  try {
+    const pool = await getPool();
+
+    // Check if user already exists
+    const existing = await pool.request()
+      .input('email', sql.NVarChar, email)
+      .query('SELECT Id FROM Users WHERE LOWER(Email) = LOWER(@email)');
+    if (existing.recordset.length > 0) {
+      return res.status(409).json({ message: 'An account with this email already exists.' });
+    }
+
+    // Create client_record with ApprovalStatus = 'Pending'
+    const clientResult = await pool.request()
+      .input('businessName', sql.NVarChar, businessName)
+      .input('email', sql.NVarChar, email)
+      .input('facilityProvince', sql.NVarChar, facilityProvince || '')
+      .input('companyRegNumber', sql.NVarChar, companyRegNumber || '')
+      .input('physicalAddress', sql.NVarChar, physicalAddress || '')
+      .input('vatNumber', sql.NVarChar, vatNumber || '')
+      .input('facilityType', sql.NVarChar, facilityType || '')
+      .input('town', sql.NVarChar, town || '')
+      .input('abattoirOwnerName', sql.NVarChar, abattoirOwnerName || '')
+      .input('abattoirOwnerCell', sql.NVarChar, abattoirOwnerCell || '')
+      .input('abattoirOwnerEmail', sql.NVarChar, abattoirOwnerEmail || '')
+      .input('accountsContactName', sql.NVarChar, accountsContactName || '')
+      .input('accountsTelephone', sql.NVarChar, accountsTelephone || '')
+      .input('accountsEmail', sql.NVarChar, accountsEmail || '')
+      .input('abattoirManagerName', sql.NVarChar, abattoirManagerName || '')
+      .input('abattoirManagerCell', sql.NVarChar, abattoirManagerCell || '')
+      .input('abattoirManagerEmail', sql.NVarChar, abattoirManagerEmail || '')
+      .input('approvalStatus', sql.NVarChar, 'Pending')
+      .query(
+        `INSERT INTO ConsolidatedMasterAbattoirDatabase
+         (BusinessName, Email, FacilityProvince, CompanyRegNumber, PhysicalAddress, VATNumber,
+          FacilityType, Town,
+          AbattoirOwnerName, AbattoirOwnerCell, AbattoirOwnerEmail,
+          AccountsContactName, AccountsTelephone, AccountsEmail,
+          AbattoirManagerName, AbattoirManagerCell, AbattoirManagerEmail,
+          ApprovalStatus)
+         OUTPUT INSERTED.Id
+         VALUES (@businessName, @email, @facilityProvince, @companyRegNumber, @physicalAddress, @vatNumber,
+                 @facilityType, @town,
+                 @abattoirOwnerName, @abattoirOwnerCell, @abattoirOwnerEmail,
+                 @accountsContactName, @accountsTelephone, @accountsEmail,
+                 @abattoirManagerName, @abattoirManagerCell, @abattoirManagerEmail,
+                 @approvalStatus)`
+      );
+
+    const clientRecordId = clientResult.recordset[0].Id;
+
+    // Create user account with IsActive = FALSE (blocked until approved)
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(password, salt);
+
+    await pool.request()
+      .input('firstName', sql.NVarChar, firstName)
+      .input('lastName', sql.NVarChar, lastName)
+      .input('email', sql.NVarChar, email)
+      .input('passwordHash', sql.NVarChar, passwordHash)
+      .input('role', sql.NVarChar, 'Company Admin')
+      .query('INSERT INTO Users (FirstName, LastName, Email, PasswordHash, Role, IsActive) VALUES (@firstName, @lastName, @email, @passwordHash, @role, FALSE)');
+
+    // Create an accepted invitation to link user to client_record
+    const crypto = require('crypto');
+    const inviteToken = crypto.randomBytes(32).toString('hex');
+    await pool.request()
+      .input('clientRecordId', sql.Int, clientRecordId)
+      .input('email', sql.NVarChar, email)
+      .input('role', sql.NVarChar, 'Company Admin')
+      .input('token', sql.NVarChar, inviteToken)
+      .input('invitedBy', sql.NVarChar, 'Self-Registration')
+      .query(
+        `INSERT INTO Invitations (ClientRecordId, Email, Role, Token, InvitedBy, Status, AcceptedAt)
+         VALUES (@clientRecordId, @email, @role, @token, @invitedBy, 'Accepted', GETDATE())`
+      );
+
+    // Audit log
+    await pool.request()
+      .input('recordId', sql.Int, clientRecordId)
+      .input('fieldName', sql.NVarChar, '_SELF_REGISTERED')
+      .input('newValue', sql.NVarChar, `Self-registered by ${firstName} ${lastName} (${email})`)
+      .input('changedBy', sql.NVarChar, `${firstName} ${lastName}`)
+      .query(
+        `INSERT INTO ClientAuditLog (RecordId, FieldName, OldValue, NewValue, ChangedBy)
+         VALUES (@recordId, @fieldName, '', @newValue, @changedBy)`
+      );
+
+    res.status(201).json({ message: 'Registration submitted. Your account is pending approval. You will receive an email once approved.' });
+  } catch (err) {
+    console.error('Self-registration error:', err);
+    res.status(500).json({ message: 'Server error. Please try again.' });
   }
 });
 

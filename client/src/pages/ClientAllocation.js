@@ -89,6 +89,12 @@ function ClientAllocation() {
   const [inviteSending, setInviteSending] = useState(false);
   const [expandedRows, setExpandedRows] = useState({});
   const [epvSending, setEpvSending] = useState(null); // clientRecordId being sent
+  const [pendingClients, setPendingClients] = useState([]);
+  const [pendingLoading, setPendingLoading] = useState(false);
+  const [approvingId, setApprovingId] = useState(null);
+  const [rejectingId, setRejectingId] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [showRejectModal, setShowRejectModal] = useState(null);
   const limit = 50;
 
   const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -127,7 +133,51 @@ function ClientAllocation() {
     }
   }, [auditPage, auditRecordFilter]);
 
+  const fetchPendingClients = useCallback(async () => {
+    setPendingLoading(true);
+    try {
+      const res = await axios.get('/api/clients/pending');
+      setPendingClients(res.data.data);
+    } catch (err) {
+      console.error('Failed to load pending clients');
+    } finally {
+      setPendingLoading(false);
+    }
+  }, []);
+
+  const handleApprove = async (client) => {
+    setApprovingId(client.Id);
+    try {
+      const res = await axios.put(`/api/clients/approve/${client.Id}`, { approvedBy: userLabel });
+      setSuccessMsg(res.data.message);
+      fetchPendingClients();
+      fetchClients();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to approve.');
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!showRejectModal) return;
+    setRejectingId(showRejectModal.Id);
+    try {
+      const res = await axios.put(`/api/clients/reject/${showRejectModal.Id}`, { rejectedBy: userLabel, reason: rejectReason });
+      setSuccessMsg(res.data.message);
+      setShowRejectModal(null);
+      setRejectReason('');
+      fetchPendingClients();
+      fetchClients();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to reject.');
+    } finally {
+      setRejectingId(null);
+    }
+  };
+
   useEffect(() => { fetchClients(); }, [fetchClients]);
+  useEffect(() => { fetchPendingClients(); }, [fetchPendingClients]);
   useEffect(() => { if (showAuditLog) fetchAuditLog(); }, [fetchAuditLog, showAuditLog]);
 
   // Auto-clear success message
@@ -356,6 +406,80 @@ function ClientAllocation() {
 
         {error && <p className="ca-error">{error}</p>}
         {successMsg && <p className="ca-success">{successMsg}</p>}
+
+        {/* Pending Registrations */}
+        {pendingClients.length > 0 && !showAuditLog && (
+          <div style={{ background: '#fffbeb', border: '1px solid #fbbf24', borderRadius: 8, padding: 16, marginBottom: 16 }}>
+            <h3 style={{ margin: '0 0 12px', color: '#92400e', fontSize: 16 }}>
+              Pending Registrations ({pendingClients.length})
+            </h3>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                <thead>
+                  <tr style={{ background: '#fef3c7' }}>
+                    <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid #fbbf24' }}>Business Name</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid #fbbf24' }}>Email</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid #fbbf24' }}>Province</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid #fbbf24' }}>Facility Type</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'center', borderBottom: '1px solid #fbbf24' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingClients.map(c => (
+                    <tr key={c.Id} style={{ borderBottom: '1px solid #fde68a' }}>
+                      <td style={{ padding: '8px 12px' }}>{c.BusinessName}</td>
+                      <td style={{ padding: '8px 12px' }}>{c.Email}</td>
+                      <td style={{ padding: '8px 12px' }}>{c.FacilityProvince}</td>
+                      <td style={{ padding: '8px 12px' }}>{c.FacilityType}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                        <button
+                          onClick={() => handleApprove(c)}
+                          disabled={approvingId === c.Id}
+                          style={{ background: '#059669', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: 6, cursor: 'pointer', fontWeight: 600, marginRight: 6 }}
+                        >
+                          {approvingId === c.Id ? 'Approving...' : 'Approve'}
+                        </button>
+                        <button
+                          onClick={() => { setShowRejectModal(c); setRejectReason(''); }}
+                          disabled={rejectingId === c.Id}
+                          style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}
+                        >
+                          Reject
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Reject confirmation modal */}
+        {showRejectModal && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+            <div style={{ background: '#fff', borderRadius: 12, padding: 24, maxWidth: 440, width: '90%' }}>
+              <h3 style={{ margin: '0 0 12px', color: '#dc2626' }}>Reject Registration</h3>
+              <p style={{ color: '#555', fontSize: 14 }}>
+                Reject <strong>{showRejectModal.BusinessName}</strong>? This will notify them via email.
+              </p>
+              <label style={{ display: 'block', margin: '12px 0 6px', fontWeight: 600, fontSize: 14, color: '#333' }}>Reason (optional):</label>
+              <textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Enter rejection reason..."
+                rows={3}
+                style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #d1d5db', fontSize: 14 }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+                <button onClick={() => setShowRejectModal(null)} style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer' }}>Cancel</button>
+                <button onClick={handleReject} disabled={rejectingId} style={{ padding: '8px 16px', borderRadius: 6, border: 'none', background: '#dc2626', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>
+                  {rejectingId ? 'Rejecting...' : 'Confirm Reject'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ===== DELETE CONFIRMATION MODAL ===== */}
         {deleteConfirm && (

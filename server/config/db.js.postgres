@@ -84,6 +84,9 @@ const COLUMN_OVERRIDES = {
   InspEPVStatus: 'insp_epv_status',
   InspEPVRef: 'insp_epv_ref',
   KPI: 'kpi',
+  TransferredOrPurchasedFromProducers: 'transferred_or_purchased_from_producers',
+  TransferPurchaseComment: 'transfer_purchase_comment',
+  ApprovalStatus: 'approval_status',
 };
 
 // snake_case -> PascalCase for result mapping.

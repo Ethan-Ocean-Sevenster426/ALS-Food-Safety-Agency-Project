@@ -136,6 +136,9 @@ function Login() {
             <p className="auth-switch">
               Don't have an account? <Link to="/signup">Sign Up</Link>
             </p>
+            <p className="auth-switch" style={{ marginTop: 4 }}>
+              Want to register your company? <Link to="/register">Register Company</Link>
+            </p>
           </>
         )}
       </div>
