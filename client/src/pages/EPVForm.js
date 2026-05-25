@@ -688,7 +688,7 @@ function EPVForm() {
             </div>
 
             {/* Section E: Transfers */}
-            <div className="epv-calc-section epv-deduction-section">
+            <div className="epv-calc-section">
               <h4>E. Transfers</h4>
               <div className="epv-calc-rows">
                 <div className="epv-calc-row epv-deduction-row">
@@ -699,9 +699,9 @@ function EPVForm() {
                   <label>+ Transferred or Purchased from Other Producers:</label>
                   <input type="text" value={formatNumber(form.TransferredOrPurchasedFromProducers)} onChange={(e) => handleNumberChange('TransferredOrPurchasedFromProducers', e.target.value)} disabled={isReadOnly} placeholder="0" />
                 </div>
-                <div className="epv-calc-row epv-total-row epv-deduction-total">
+                <div className={`epv-calc-row epv-total-row ${totals.totalE > 0 ? 'epv-deduction-total' : totals.totalE < 0 ? 'epv-addition-total' : ''}`}>
                   <label>Total E (Transfers):</label>
-                  <span className="epv-calc-total">{totals.totalE < 0 ? '+ ' : '- '}{Math.abs(totals.totalE).toLocaleString()}</span>
+                  <span className="epv-calc-total" style={totals.totalE < 0 ? { color: '#059669' } : totals.totalE > 0 ? { color: '#dc2626' } : {}}>{totals.totalE < 0 ? '+ ' : totals.totalE > 0 ? '- ' : ''}{Math.abs(totals.totalE).toLocaleString()}</span>
                 </div>
                 {renderPurchaseEvidence('TransferPurchase', 'TransferPurchaseComment', 'Transfers to Other Producers')}
               </div>
