@@ -27,6 +27,7 @@ function EPVForm() {
   const [uploadingCategory, setUploadingCategory] = useState(null); // 'egg' | 'pulp' | null
   const [step, setStep] = useState(1); // Wizard steps: 1=Business Details, 2=Calculation, 3=Review
   const [validationErrors, setValidationErrors] = useState({});
+  const [focusedField, setFocusedField] = useState(null);
 
   // Form data
   const [form, setForm] = useState({
@@ -337,6 +338,21 @@ function EPVForm() {
     return num.toLocaleString();
   };
 
+  // Show raw number (no commas) while field is focused to prevent cursor jumping
+  const displayVal = (key, val) => {
+    const v = val !== undefined ? val : form[key];
+    if (focusedField === key) {
+      const num = parseInt(v, 10);
+      return (!num && num !== 0) || num === 0 ? '' : String(num);
+    }
+    return formatNumber(v);
+  };
+
+  const numFieldProps = (key) => ({
+    onFocus: () => setFocusedField(key),
+    onBlur: () => setFocusedField(null),
+  });
+
   const handleSubmit = async () => {
     setSubmitting(true);
     setError('');
@@ -602,11 +618,11 @@ function EPVForm() {
               <div className="epv-calc-rows">
                 <div className="epv-calc-row">
                   <label>Opening Stock (previous month closing):</label>
-                  <input type="text" value={formatNumber(form.OpeningStock)} onChange={(e) => handleNumberChange('OpeningStock', e.target.value)} disabled={isReadOnly} placeholder="0" />
+                  <input type="text" value={displayVal('OpeningStock')} onChange={(e) => handleNumberChange('OpeningStock', e.target.value)} {...numFieldProps('OpeningStock')} disabled={isReadOnly} placeholder="0" />
                 </div>
                 <div className="epv-calc-row">
                   <label>Eggs Produced during the Month:</label>
-                  <input type="text" value={formatNumber(form.EggsProducedDuringMonth)} onChange={(e) => handleNumberChange('EggsProducedDuringMonth', e.target.value)} disabled={isReadOnly} placeholder="0" />
+                  <input type="text" value={displayVal('EggsProducedDuringMonth')} onChange={(e) => handleNumberChange('EggsProducedDuringMonth', e.target.value)} {...numFieldProps('EggsProducedDuringMonth')} disabled={isReadOnly} placeholder="0" />
                 </div>
                 <div className="epv-calc-row epv-total-row">
                   <label>Total A:</label>
@@ -621,11 +637,11 @@ function EPVForm() {
               <div className="epv-calc-rows">
                 <div className="epv-calc-row">
                   <label>+ Graded Eggs Purchased:</label>
-                  <input type="text" value={formatNumber(form.GradedEggsPurchased)} onChange={(e) => handleNumberChange('GradedEggsPurchased', e.target.value)} disabled={isReadOnly} placeholder="0" />
+                  <input type="text" value={displayVal('GradedEggsPurchased')} onChange={(e) => handleNumberChange('GradedEggsPurchased', e.target.value)} {...numFieldProps('GradedEggsPurchased')} disabled={isReadOnly} placeholder="0" />
                 </div>
                 <div className="epv-calc-row">
                   <label>+ Ungraded Eggs Purchased:</label>
-                  <input type="text" value={formatNumber(form.UngradedEggsPurchased)} onChange={(e) => handleNumberChange('UngradedEggsPurchased', e.target.value)} disabled={isReadOnly} placeholder="0" />
+                  <input type="text" value={displayVal('UngradedEggsPurchased')} onChange={(e) => handleNumberChange('UngradedEggsPurchased', e.target.value)} {...numFieldProps('UngradedEggsPurchased')} disabled={isReadOnly} placeholder="0" />
                 </div>
                 <div className="epv-calc-row epv-total-row">
                   <label>Total B (Purchases):</label>
@@ -642,23 +658,23 @@ function EPVForm() {
               <div className="epv-calc-rows">
                 <div className="epv-calc-row epv-deduction-row">
                   <label>- Market Returns:</label>
-                  <input type="text" value={formatNumber(form.MarketReturns)} onChange={(e) => handleNumberChange('MarketReturns', e.target.value)} disabled={isReadOnly} placeholder="0" />
+                  <input type="text" value={displayVal('MarketReturns')} onChange={(e) => handleNumberChange('MarketReturns', e.target.value)} {...numFieldProps('MarketReturns')} disabled={isReadOnly} placeholder="0" />
                 </div>
                 <div className="epv-calc-row epv-deduction-row">
                   <label>- Machine Loss:</label>
-                  <input type="text" value={formatNumber(form.MachineLoss)} onChange={(e) => handleNumberChange('MachineLoss', e.target.value)} disabled={isReadOnly} placeholder="0" />
+                  <input type="text" value={displayVal('MachineLoss')} onChange={(e) => handleNumberChange('MachineLoss', e.target.value)} {...numFieldProps('MachineLoss')} disabled={isReadOnly} placeholder="0" />
                 </div>
                 <div className="epv-calc-row epv-deduction-row">
                   <label>- Sent to Pulp:</label>
-                  <input type="text" value={formatNumber(form.SentToPulp)} onChange={(e) => handleNumberChange('SentToPulp', e.target.value)} disabled={isReadOnly} placeholder="0" />
+                  <input type="text" value={displayVal('SentToPulp')} onChange={(e) => handleNumberChange('SentToPulp', e.target.value)} {...numFieldProps('SentToPulp')} disabled={isReadOnly} placeholder="0" />
                 </div>
                 <div className="epv-calc-row epv-deduction-row">
                   <label>- Destroyed (other e.g., full bloods):</label>
-                  <input type="text" value={formatNumber(form.Destroyed)} onChange={(e) => handleNumberChange('Destroyed', e.target.value)} disabled={isReadOnly} placeholder="0" />
+                  <input type="text" value={displayVal('Destroyed')} onChange={(e) => handleNumberChange('Destroyed', e.target.value)} {...numFieldProps('Destroyed')} disabled={isReadOnly} placeholder="0" />
                 </div>
                 <div className="epv-calc-row epv-deduction-row">
                   <label>- Eggs Exported:</label>
-                  <input type="text" value={formatNumber(form.Exported)} onChange={(e) => handleNumberChange('Exported', e.target.value)} disabled={isReadOnly} placeholder="0" />
+                  <input type="text" value={displayVal('Exported')} onChange={(e) => handleNumberChange('Exported', e.target.value)} {...numFieldProps('Exported')} disabled={isReadOnly} placeholder="0" />
                 </div>
                 <div className="epv-calc-row epv-total-row epv-deduction-total">
                   <label>Total C (Deductions):</label>
@@ -673,15 +689,15 @@ function EPVForm() {
               <div className="epv-calc-rows">
                 <div className="epv-calc-row epv-deduction-row">
                   <label>- Sold to Trade:</label>
-                  <input type="text" value={formatNumber(form.SoldToTrade)} onChange={(e) => handleNumberChange('SoldToTrade', e.target.value)} disabled={isReadOnly} placeholder="0" />
+                  <input type="text" value={displayVal('SoldToTrade')} onChange={(e) => handleNumberChange('SoldToTrade', e.target.value)} {...numFieldProps('SoldToTrade')} disabled={isReadOnly} placeholder="0" />
                 </div>
                 <div className="epv-calc-row epv-deduction-row">
                   <label>- Sold to Staff or Own Use:</label>
-                  <input type="text" value={formatNumber(form.SoldToStaff)} onChange={(e) => handleNumberChange('SoldToStaff', e.target.value)} disabled={isReadOnly} placeholder="0" />
+                  <input type="text" value={displayVal('SoldToStaff')} onChange={(e) => handleNumberChange('SoldToStaff', e.target.value)} {...numFieldProps('SoldToStaff')} disabled={isReadOnly} placeholder="0" />
                 </div>
                 <div className="epv-calc-row epv-deduction-row">
                   <label>- Sold through Farm Stall (Informal Market):</label>
-                  <input type="text" value={formatNumber(form.SoldThroughFarmStall)} onChange={(e) => handleNumberChange('SoldThroughFarmStall', e.target.value)} disabled={isReadOnly} placeholder="0" />
+                  <input type="text" value={displayVal('SoldThroughFarmStall')} onChange={(e) => handleNumberChange('SoldThroughFarmStall', e.target.value)} {...numFieldProps('SoldThroughFarmStall')} disabled={isReadOnly} placeholder="0" />
                 </div>
                 <div className="epv-calc-row epv-total-row epv-deduction-total">
                   <label>Total D (Sales):</label>
@@ -700,11 +716,11 @@ function EPVForm() {
               <div className="epv-calc-rows">
                 <div className="epv-calc-row epv-deduction-row">
                   <label>- Transferred or Sold to Other Producers:</label>
-                  <input type="text" value={formatNumber(form.TransferredToOtherProducers)} onChange={(e) => handleNumberChange('TransferredToOtherProducers', e.target.value)} disabled={isReadOnly} placeholder="0" />
+                  <input type="text" value={displayVal('TransferredToOtherProducers')} onChange={(e) => handleNumberChange('TransferredToOtherProducers', e.target.value)} {...numFieldProps('TransferredToOtherProducers')} disabled={isReadOnly} placeholder="0" />
                 </div>
                 <div className="epv-calc-row epv-addition-row">
                   <label>+ Transferred or Purchased from Other Producers:</label>
-                  <input type="text" value={formatNumber(form.TransferredOrPurchasedFromProducers)} onChange={(e) => handleNumberChange('TransferredOrPurchasedFromProducers', e.target.value)} disabled={isReadOnly} placeholder="0" />
+                  <input type="text" value={displayVal('TransferredOrPurchasedFromProducers')} onChange={(e) => handleNumberChange('TransferredOrPurchasedFromProducers', e.target.value)} {...numFieldProps('TransferredOrPurchasedFromProducers')} disabled={isReadOnly} placeholder="0" />
                 </div>
                 <div className={`epv-calc-row epv-total-row ${totals.totalE > 0 ? 'epv-deduction-total' : totals.totalE < 0 ? 'epv-addition-total' : ''}`}>
                   <label>Total E (Transfers):</label>
@@ -726,7 +742,7 @@ function EPVForm() {
                 </div>
                 <div className="epv-calc-row">
                   <label>Actual Closing Stock (provided by producer):</label>
-                  <input type="text" value={formatNumber(form.ActualClosingStock)} onChange={(e) => handleNumberChange('ActualClosingStock', e.target.value)} disabled={isReadOnly} placeholder="0" />
+                  <input type="text" value={displayVal('ActualClosingStock')} onChange={(e) => handleNumberChange('ActualClosingStock', e.target.value)} {...numFieldProps('ActualClosingStock')} disabled={isReadOnly} placeholder="0" />
                 </div>
                 <div className={`epv-calc-row epv-lossgain-row ${totals.lossGain < 0 ? 'loss' : totals.lossGain > 0 ? 'gain' : ''}`}>
                   <label>(Loss) / Gain:</label>
@@ -788,18 +804,18 @@ function EPVForm() {
               <div className="epv-calc-rows">
                 <div className="epv-calc-row epv-pulp-row">
                   <label>A. Opening Stock (Pulp brought forward):</label>
-                  <input type="text" value={formatNumber(form.PulpOpeningStock)} onChange={(e) => handleNumberChange('PulpOpeningStock', e.target.value)} disabled={isReadOnly} placeholder="0" />
-                  <input type="text" value={formatNumber(totals.pulpADozens)} onChange={(e) => handlePulpDozensChange('PulpOpeningStock', e.target.value)} disabled={isReadOnly} placeholder="0" className="epv-pulp-dozens-input" />
+                  <input type="text" value={displayVal('PulpOpeningStock')} onChange={(e) => handleNumberChange('PulpOpeningStock', e.target.value)} {...numFieldProps('PulpOpeningStock')} disabled={isReadOnly} placeholder="0" />
+                  <input type="text" value={displayVal('pulpADozens', totals.pulpADozens)} onChange={(e) => handlePulpDozensChange('PulpOpeningStock', e.target.value)} {...numFieldProps('pulpADozens')} disabled={isReadOnly} placeholder="0" className="epv-pulp-dozens-input" />
                 </div>
                 <div className="epv-calc-row epv-pulp-row">
                   <label>B. Pulp Purchased from Others:</label>
-                  <input type="text" value={formatNumber(form.PulpPurchased)} onChange={(e) => handleNumberChange('PulpPurchased', e.target.value)} disabled={isReadOnly} placeholder="0" />
-                  <input type="text" value={formatNumber(totals.pulpBDozens)} onChange={(e) => handlePulpDozensChange('PulpPurchased', e.target.value)} disabled={isReadOnly} placeholder="0" className="epv-pulp-dozens-input" />
+                  <input type="text" value={displayVal('PulpPurchased')} onChange={(e) => handleNumberChange('PulpPurchased', e.target.value)} {...numFieldProps('PulpPurchased')} disabled={isReadOnly} placeholder="0" />
+                  <input type="text" value={displayVal('pulpBDozens', totals.pulpBDozens)} onChange={(e) => handlePulpDozensChange('PulpPurchased', e.target.value)} {...numFieldProps('pulpBDozens')} disabled={isReadOnly} placeholder="0" className="epv-pulp-dozens-input" />
                 </div>
                 <div className="epv-calc-row epv-pulp-row">
                   <label>C. Eggs Converted to Pulp:</label>
-                  <input type="text" value={formatNumber(form.PulpConverted)} onChange={(e) => handleNumberChange('PulpConverted', e.target.value)} disabled={isReadOnly} placeholder="0" />
-                  <input type="text" value={formatNumber(totals.pulpCDozens)} onChange={(e) => handlePulpDozensChange('PulpConverted', e.target.value)} disabled={isReadOnly} placeholder="0" className="epv-pulp-dozens-input" />
+                  <input type="text" value={displayVal('PulpConverted')} onChange={(e) => handleNumberChange('PulpConverted', e.target.value)} {...numFieldProps('PulpConverted')} disabled={isReadOnly} placeholder="0" />
+                  <input type="text" value={displayVal('pulpCDozens', totals.pulpCDozens)} onChange={(e) => handlePulpDozensChange('PulpConverted', e.target.value)} {...numFieldProps('pulpCDozens')} disabled={isReadOnly} placeholder="0" className="epv-pulp-dozens-input" />
                 </div>
                 <div className="epv-calc-row epv-total-row epv-pulp-row">
                   <label>= Stock on Hand (A + B + C):</label>
@@ -822,8 +838,8 @@ function EPVForm() {
               <div className="epv-calc-rows">
                 <div className="epv-calc-row epv-pulp-row epv-deduction-row">
                   <label>- Sales to Trade:</label>
-                  <input type="text" value={formatNumber(form.PulpSoldToTrade)} onChange={(e) => handleNumberChange('PulpSoldToTrade', e.target.value)} disabled={isReadOnly} placeholder="0" />
-                  <input type="text" value={formatNumber(totals.pulpSoldToTradeDozens)} onChange={(e) => handlePulpDozensChange('PulpSoldToTrade', e.target.value)} disabled={isReadOnly} placeholder="0" className="epv-pulp-dozens-input" />
+                  <input type="text" value={displayVal('PulpSoldToTrade')} onChange={(e) => handleNumberChange('PulpSoldToTrade', e.target.value)} {...numFieldProps('PulpSoldToTrade')} disabled={isReadOnly} placeholder="0" />
+                  <input type="text" value={displayVal('pulpSoldToTradeDozens', totals.pulpSoldToTradeDozens)} onChange={(e) => handlePulpDozensChange('PulpSoldToTrade', e.target.value)} {...numFieldProps('pulpSoldToTradeDozens')} disabled={isReadOnly} placeholder="0" className="epv-pulp-dozens-input" />
                 </div>
                 <div className="epv-calc-row epv-levy-row">
                   <label>Pulp Levy (Dozens &times; R{LEVY_RATE}):</label>
@@ -831,13 +847,13 @@ function EPVForm() {
                 </div>
                 <div className="epv-calc-row epv-pulp-row epv-deduction-row">
                   <label>- Sold to Other Producers:</label>
-                  <input type="text" value={formatNumber(form.PulpSoldToProducers)} onChange={(e) => handleNumberChange('PulpSoldToProducers', e.target.value)} disabled={isReadOnly} placeholder="0" />
-                  <input type="text" value={formatNumber(totals.pulpSoldToProducersDozens)} onChange={(e) => handlePulpDozensChange('PulpSoldToProducers', e.target.value)} disabled={isReadOnly} placeholder="0" className="epv-pulp-dozens-input" />
+                  <input type="text" value={displayVal('PulpSoldToProducers')} onChange={(e) => handleNumberChange('PulpSoldToProducers', e.target.value)} {...numFieldProps('PulpSoldToProducers')} disabled={isReadOnly} placeholder="0" />
+                  <input type="text" value={displayVal('pulpSoldToProducersDozens', totals.pulpSoldToProducersDozens)} onChange={(e) => handlePulpDozensChange('PulpSoldToProducers', e.target.value)} {...numFieldProps('pulpSoldToProducersDozens')} disabled={isReadOnly} placeholder="0" className="epv-pulp-dozens-input" />
                 </div>
                 <div className="epv-calc-row epv-pulp-row epv-deduction-row">
                   <label>- Conversion Loss:</label>
-                  <input type="text" value={formatNumber(form.PulpConversionLoss)} onChange={(e) => handleNumberChange('PulpConversionLoss', e.target.value)} disabled={isReadOnly} placeholder="0" />
-                  <input type="text" value={formatNumber(totals.pulpConversionLossDozens)} onChange={(e) => handlePulpDozensChange('PulpConversionLoss', e.target.value)} disabled={isReadOnly} placeholder="0" className="epv-pulp-dozens-input" />
+                  <input type="text" value={displayVal('PulpConversionLoss')} onChange={(e) => handleNumberChange('PulpConversionLoss', e.target.value)} {...numFieldProps('PulpConversionLoss')} disabled={isReadOnly} placeholder="0" />
+                  <input type="text" value={displayVal('pulpConversionLossDozens', totals.pulpConversionLossDozens)} onChange={(e) => handlePulpDozensChange('PulpConversionLoss', e.target.value)} {...numFieldProps('pulpConversionLossDozens')} disabled={isReadOnly} placeholder="0" className="epv-pulp-dozens-input" />
                 </div>
               </div>
             </div>
