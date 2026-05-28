@@ -219,23 +219,24 @@ function EPVForm() {
   const PULP_KG_FIELDS = ['PulpOpeningStock', 'PulpPurchased', 'PulpConverted', 'PulpSoldToTrade', 'PulpSoldToProducers', 'PulpConversionLoss'];
 
   const handleNumberChange = (key, value) => {
-    // Strip commas and non-numeric chars (except minus)
-    const raw = value.replace(/[^0-9-]/g, '');
-    const num = raw === '' || raw === '-' ? 0 : parseInt(raw, 10);
+    const isPulpKg = PULP_KG_FIELDS.includes(key);
+    // Allow decimals for pulp kg fields, integers for everything else
+    const raw = isPulpKg ? value.replace(/[^0-9.\-]/g, '') : value.replace(/[^0-9-]/g, '');
+    const num = raw === '' || raw === '-' || raw === '.' ? 0 : (isPulpKg ? parseFloat(raw) : parseInt(raw, 10));
     const safe = isNaN(num) ? 0 : num;
     setForm(prev => ({ ...prev, [key]: safe }));
     // If editing a pulp kg field, sync its dozens value (with 1 decimal)
-    if (PULP_KG_FIELDS.includes(key)) {
+    if (isPulpKg) {
       setPulpDozens(prev => ({ ...prev, [key]: parseFloat((safe * 1.7).toFixed(1)) }));
     }
   };
 
-  // Handle pulp dozens input — store dozens directly, convert kg for storage
+  // Handle pulp dozens input — store dozens directly, convert kg for storage (with 1 decimal)
   const handlePulpDozensChange = (kgKey, dozensValue) => {
     const raw = dozensValue.replace(/[^0-9.\-]/g, '');
     const dozens = raw === '' || raw === '-' || raw === '.' ? 0 : parseFloat(raw);
     const safeD = isNaN(dozens) ? 0 : dozens;
-    const kg = Math.round(safeD / 1.7);
+    const kg = parseFloat((safeD / 1.7).toFixed(1));
     setPulpDozens(prev => ({ ...prev, [kgKey]: safeD }));
     setForm(prev => ({ ...prev, [kgKey]: kg }));
   };
