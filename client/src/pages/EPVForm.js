@@ -96,12 +96,12 @@ function EPVForm() {
       });
       // Initialize pulp dozens from kg values
       setPulpDozens({
-        PulpOpeningStock: Math.round((parseInt(v.PulpOpeningStock) || 0) * 1.7),
-        PulpPurchased: Math.round((parseInt(v.PulpPurchased) || 0) * 1.7),
-        PulpConverted: Math.round((parseInt(v.PulpConverted) || 0) * 1.7),
-        PulpSoldToTrade: Math.round((parseInt(v.PulpSoldToTrade) || 0) * 1.7),
-        PulpSoldToProducers: Math.round((parseInt(v.PulpSoldToProducers) || 0) * 1.7),
-        PulpConversionLoss: Math.round((parseInt(v.PulpConversionLoss) || 0) * 1.7),
+        PulpOpeningStock: parseFloat(((parseInt(v.PulpOpeningStock) || 0) * 1.7).toFixed(1)),
+        PulpPurchased: parseFloat(((parseInt(v.PulpPurchased) || 0) * 1.7).toFixed(1)),
+        PulpConverted: parseFloat(((parseInt(v.PulpConverted) || 0) * 1.7).toFixed(1)),
+        PulpSoldToTrade: parseFloat(((parseInt(v.PulpSoldToTrade) || 0) * 1.7).toFixed(1)),
+        PulpSoldToProducers: parseFloat(((parseInt(v.PulpSoldToProducers) || 0) * 1.7).toFixed(1)),
+        PulpConversionLoss: parseFloat(((parseInt(v.PulpConversionLoss) || 0) * 1.7).toFixed(1)),
       });
       setAttachments(res.data.attachments || []);
     } catch (err) {
@@ -224,16 +224,16 @@ function EPVForm() {
     const num = raw === '' || raw === '-' ? 0 : parseInt(raw, 10);
     const safe = isNaN(num) ? 0 : num;
     setForm(prev => ({ ...prev, [key]: safe }));
-    // If editing a pulp kg field, sync its dozens value
+    // If editing a pulp kg field, sync its dozens value (with 1 decimal)
     if (PULP_KG_FIELDS.includes(key)) {
-      setPulpDozens(prev => ({ ...prev, [key]: Math.round(safe * 1.7) }));
+      setPulpDozens(prev => ({ ...prev, [key]: parseFloat((safe * 1.7).toFixed(1)) }));
     }
   };
 
   // Handle pulp dozens input — store dozens directly, convert kg for storage
   const handlePulpDozensChange = (kgKey, dozensValue) => {
-    const raw = dozensValue.replace(/[^0-9-]/g, '');
-    const dozens = raw === '' || raw === '-' ? 0 : parseInt(raw, 10);
+    const raw = dozensValue.replace(/[^0-9.\-]/g, '');
+    const dozens = raw === '' || raw === '-' || raw === '.' ? 0 : parseFloat(raw);
     const safeD = isNaN(dozens) ? 0 : dozens;
     const kg = Math.round(safeD / 1.7);
     setPulpDozens(prev => ({ ...prev, [kgKey]: safeD }));
@@ -357,18 +357,22 @@ function EPVForm() {
   };
 
   const formatNumber = (val) => {
-    const num = parseInt(val, 10);
-    if (!num && num !== 0) return '';
-    if (num === 0) return '';
-    return num.toLocaleString();
+    const num = parseFloat(val);
+    if (isNaN(num) || num === 0) return '';
+    // If it has decimals, format with 1 decimal place
+    if (num % 1 !== 0) {
+      const [whole, dec] = num.toFixed(1).split('.');
+      return parseInt(whole).toLocaleString() + '.' + dec;
+    }
+    return Math.floor(num).toLocaleString();
   };
 
   // Show raw number (no commas) while field is focused to prevent cursor jumping.
   const displayVal = (key, val) => {
     const v = val !== undefined ? val : form[key];
     if (focusedField === key) {
-      const num = parseInt(v, 10);
-      return (!num && num !== 0) || num === 0 ? '' : String(num);
+      const num = parseFloat(v);
+      return isNaN(num) || num === 0 ? '' : String(num);
     }
     return formatNumber(v);
   };
