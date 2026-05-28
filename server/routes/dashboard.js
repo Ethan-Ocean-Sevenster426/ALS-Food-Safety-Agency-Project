@@ -20,7 +20,7 @@ router.get('/stats', async (req, res) => {
 
     // Total clients
     const clientsResult = await pool.request().query(
-      'SELECT COUNT(*) AS total, SUM(CASE WHEN VerifiedAt IS NOT NULL THEN 1 ELSE 0 END) AS verified FROM ConsolidatedMasterAbattoirDatabase'
+      'SELECT COUNT(*) AS total, SUM(CASE WHEN OnboardedAt IS NOT NULL THEN 1 ELSE 0 END) AS verified FROM ConsolidatedMasterAbattoirDatabase'
     );
 
     // EPV stats
