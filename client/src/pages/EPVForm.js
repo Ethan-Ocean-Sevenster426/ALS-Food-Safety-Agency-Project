@@ -28,7 +28,12 @@ function EPVForm() {
   const [step, setStep] = useState(1); // Wizard steps: 1=Business Details, 2=Calculation, 3=Review
   const [validationErrors, setValidationErrors] = useState({});
   const [focusedField, setFocusedField] = useState(null);
-  const [dozensRaw, setDozensRaw] = useState({}); // raw typed value for dozens fields (avoids rounding feedback)
+  // Pulp dozens stored independently so typing in dozens doesn't get mangled
+  // by the kg→dozens rounding (e.g. 123 doz → 72 kg → 122 doz).
+  const [pulpDozens, setPulpDozens] = useState({
+    PulpOpeningStock: 0, PulpPurchased: 0, PulpConverted: 0,
+    PulpSoldToTrade: 0, PulpSoldToProducers: 0, PulpConversionLoss: 0,
+  });
 
   // Form data
   const [form, setForm] = useState({
@@ -89,6 +94,15 @@ function EPVForm() {
         PulpPurchaseComment: v.PulpPurchaseComment || '',
         TransferPurchaseComment: v.TransferPurchaseComment || '',
       });
+      // Initialize pulp dozens from kg values
+      setPulpDozens({
+        PulpOpeningStock: Math.round((parseInt(v.PulpOpeningStock) || 0) * 1.7),
+        PulpPurchased: Math.round((parseInt(v.PulpPurchased) || 0) * 1.7),
+        PulpConverted: Math.round((parseInt(v.PulpConverted) || 0) * 1.7),
+        PulpSoldToTrade: Math.round((parseInt(v.PulpSoldToTrade) || 0) * 1.7),
+        PulpSoldToProducers: Math.round((parseInt(v.PulpSoldToProducers) || 0) * 1.7),
+        PulpConversionLoss: Math.round((parseInt(v.PulpConversionLoss) || 0) * 1.7),
+      });
       setAttachments(res.data.attachments || []);
     } catch (err) {
       setError('Verification form not found or has expired.');
@@ -144,30 +158,31 @@ function EPVForm() {
     const pulpA = parseInt(form.PulpOpeningStock) || 0;
     const pulpB = parseInt(form.PulpPurchased) || 0;
     const pulpC = parseInt(form.PulpConverted) || 0;
-    const pulpADozens = Math.round(pulpA * 1.7);
-    const pulpBDozens = Math.round(pulpB * 1.7);
-    const pulpCDozens = Math.round(pulpC * 1.7);
+    // Dozens come from the independent pulpDozens state (not derived from kg)
+    const pulpADozens = pulpDozens.PulpOpeningStock;
+    const pulpBDozens = pulpDozens.PulpPurchased;
+    const pulpCDozens = pulpDozens.PulpConverted;
 
     // Stock on Hand = A + B + C
     const pulpStockOnHand = pulpA + pulpB + pulpC;
-    const pulpStockOnHandDozens = Math.round(pulpStockOnHand * 1.7);
+    const pulpStockOnHandDozens = pulpADozens + pulpBDozens + pulpCDozens;
 
     // Pulp Sales & Transfers
     const pulpSoldToTrade = parseInt(form.PulpSoldToTrade) || 0;
     const pulpSoldToProducers = parseInt(form.PulpSoldToProducers) || 0;
     const pulpConversionLoss = parseInt(form.PulpConversionLoss) || 0;
-    const pulpSoldToTradeDozens = Math.round(pulpSoldToTrade * 1.7);
-    const pulpSoldToProducersDozens = Math.round(pulpSoldToProducers * 1.7);
-    const pulpConversionLossDozens = Math.round(pulpConversionLoss * 1.7);
+    const pulpSoldToTradeDozens = pulpDozens.PulpSoldToTrade;
+    const pulpSoldToProducersDozens = pulpDozens.PulpSoldToProducers;
+    const pulpConversionLossDozens = pulpDozens.PulpConversionLoss;
     // Conversion loss does not contribute to the levy.
     const pulpLevyAmount = pulpSoldToTradeDozens * LEVY_RATE;
 
     // Closing Stock = Stock on Hand - Sales - Sold to Producers - Conversion Loss
     const pulpClosingStock = pulpStockOnHand - pulpSoldToTrade - pulpSoldToProducers - pulpConversionLoss;
-    const pulpClosingStockDozens = Math.round(pulpClosingStock * 1.7);
+    const pulpClosingStockDozens = pulpStockOnHandDozens - pulpSoldToTradeDozens - pulpSoldToProducersDozens - pulpConversionLossDozens;
 
     return { totalA, totalB, totalC, totalD, totalE, levyAmount, closingStock, actualClosingStock, lossGain, pulpA, pulpB, pulpC, pulpADozens, pulpBDozens, pulpCDozens, pulpStockOnHand, pulpStockOnHandDozens, pulpSoldToTrade, pulpSoldToProducers, pulpConversionLoss, pulpSoldToTradeDozens, pulpSoldToProducersDozens, pulpConversionLossDozens, pulpLevyAmount, pulpClosingStock, pulpClosingStockDozens };
-  }, [form]);
+  }, [form, pulpDozens]);
 
   const REQUIRED_FIELDS = [
     { key: 'BusinessName', label: 'Facility Name' },
@@ -201,21 +216,27 @@ function EPVForm() {
     }
   };
 
+  const PULP_KG_FIELDS = ['PulpOpeningStock', 'PulpPurchased', 'PulpConverted', 'PulpSoldToTrade', 'PulpSoldToProducers', 'PulpConversionLoss'];
+
   const handleNumberChange = (key, value) => {
     // Strip commas and non-numeric chars (except minus)
     const raw = value.replace(/[^0-9-]/g, '');
     const num = raw === '' || raw === '-' ? 0 : parseInt(raw, 10);
-    setForm(prev => ({ ...prev, [key]: isNaN(num) ? 0 : num }));
+    const safe = isNaN(num) ? 0 : num;
+    setForm(prev => ({ ...prev, [key]: safe }));
+    // If editing a pulp kg field, sync its dozens value
+    if (PULP_KG_FIELDS.includes(key)) {
+      setPulpDozens(prev => ({ ...prev, [key]: Math.round(safe * 1.7) }));
+    }
   };
 
-  // Handle pulp dozens input — convert back to KG (÷ 1.7)
-  // dozensKey is used to store the raw typed value so the display doesn't
-  // get corrupted by the kg→dozens rounding feedback loop.
-  const handlePulpDozensChange = (kgKey, dozensValue, dozensKey) => {
+  // Handle pulp dozens input — store dozens directly, convert kg for storage
+  const handlePulpDozensChange = (kgKey, dozensValue) => {
     const raw = dozensValue.replace(/[^0-9-]/g, '');
-    setDozensRaw(prev => ({ ...prev, [dozensKey]: raw }));
     const dozens = raw === '' || raw === '-' ? 0 : parseInt(raw, 10);
-    const kg = Math.round((isNaN(dozens) ? 0 : dozens) / 1.7);
+    const safeD = isNaN(dozens) ? 0 : dozens;
+    const kg = Math.round(safeD / 1.7);
+    setPulpDozens(prev => ({ ...prev, [kgKey]: safeD }));
     setForm(prev => ({ ...prev, [kgKey]: kg }));
   };
 
@@ -343,12 +364,9 @@ function EPVForm() {
   };
 
   // Show raw number (no commas) while field is focused to prevent cursor jumping.
-  // For dozens fields, show the raw typed string (stored in dozensRaw) to avoid
-  // the rounding feedback loop (dozens→kg→dozens loses precision).
   const displayVal = (key, val) => {
     const v = val !== undefined ? val : form[key];
     if (focusedField === key) {
-      if (dozensRaw[key] !== undefined) return dozensRaw[key];
       const num = parseInt(v, 10);
       return (!num && num !== 0) || num === 0 ? '' : String(num);
     }
@@ -357,10 +375,7 @@ function EPVForm() {
 
   const numFieldProps = (key) => ({
     onFocus: () => setFocusedField(key),
-    onBlur: () => {
-      setFocusedField(null);
-      setDozensRaw(prev => { const n = { ...prev }; delete n[key]; return n; });
-    },
+    onBlur: () => setFocusedField(null),
   });
 
   const handleSubmit = async () => {
@@ -815,17 +830,17 @@ function EPVForm() {
                 <div className="epv-calc-row epv-pulp-row">
                   <label>A. Opening Stock (Pulp brought forward):</label>
                   <input type="text" value={displayVal('PulpOpeningStock')} onChange={(e) => handleNumberChange('PulpOpeningStock', e.target.value)} {...numFieldProps('PulpOpeningStock')} disabled={isReadOnly} placeholder="0" />
-                  <input type="text" value={displayVal('pulpADozens', totals.pulpADozens)} onChange={(e) => handlePulpDozensChange('PulpOpeningStock', e.target.value, 'pulpADozens')} {...numFieldProps('pulpADozens')} disabled={isReadOnly} placeholder="0" className="epv-pulp-dozens-input" />
+                  <input type="text" value={displayVal('pulpADoz', pulpDozens.PulpOpeningStock)} onChange={(e) => handlePulpDozensChange('PulpOpeningStock', e.target.value)} {...numFieldProps('pulpADoz')} disabled={isReadOnly} placeholder="0" className="epv-pulp-dozens-input" />
                 </div>
                 <div className="epv-calc-row epv-pulp-row">
                   <label>B. Pulp Purchased from Others:</label>
                   <input type="text" value={displayVal('PulpPurchased')} onChange={(e) => handleNumberChange('PulpPurchased', e.target.value)} {...numFieldProps('PulpPurchased')} disabled={isReadOnly} placeholder="0" />
-                  <input type="text" value={displayVal('pulpBDozens', totals.pulpBDozens)} onChange={(e) => handlePulpDozensChange('PulpPurchased', e.target.value, 'pulpBDozens')} {...numFieldProps('pulpBDozens')} disabled={isReadOnly} placeholder="0" className="epv-pulp-dozens-input" />
+                  <input type="text" value={displayVal('pulpBDoz', pulpDozens.PulpPurchased)} onChange={(e) => handlePulpDozensChange('PulpPurchased', e.target.value)} {...numFieldProps('pulpBDoz')} disabled={isReadOnly} placeholder="0" className="epv-pulp-dozens-input" />
                 </div>
                 <div className="epv-calc-row epv-pulp-row">
                   <label>C. Eggs Converted to Pulp:</label>
                   <input type="text" value={displayVal('PulpConverted')} onChange={(e) => handleNumberChange('PulpConverted', e.target.value)} {...numFieldProps('PulpConverted')} disabled={isReadOnly} placeholder="0" />
-                  <input type="text" value={displayVal('pulpCDozens', totals.pulpCDozens)} onChange={(e) => handlePulpDozensChange('PulpConverted', e.target.value, 'pulpCDozens')} {...numFieldProps('pulpCDozens')} disabled={isReadOnly} placeholder="0" className="epv-pulp-dozens-input" />
+                  <input type="text" value={displayVal('pulpCDoz', pulpDozens.PulpConverted)} onChange={(e) => handlePulpDozensChange('PulpConverted', e.target.value)} {...numFieldProps('pulpCDoz')} disabled={isReadOnly} placeholder="0" className="epv-pulp-dozens-input" />
                 </div>
                 <div className="epv-calc-row epv-total-row epv-pulp-row">
                   <label>= Stock on Hand (A + B + C):</label>
@@ -849,7 +864,7 @@ function EPVForm() {
                 <div className="epv-calc-row epv-pulp-row epv-deduction-row">
                   <label>- Sales to Trade:</label>
                   <input type="text" value={displayVal('PulpSoldToTrade')} onChange={(e) => handleNumberChange('PulpSoldToTrade', e.target.value)} {...numFieldProps('PulpSoldToTrade')} disabled={isReadOnly} placeholder="0" />
-                  <input type="text" value={displayVal('pulpSoldToTradeDozens', totals.pulpSoldToTradeDozens)} onChange={(e) => handlePulpDozensChange('PulpSoldToTrade', e.target.value, 'pulpSoldToTradeDozens')} {...numFieldProps('pulpSoldToTradeDozens')} disabled={isReadOnly} placeholder="0" className="epv-pulp-dozens-input" />
+                  <input type="text" value={displayVal('pulpSTDoz', pulpDozens.PulpSoldToTrade)} onChange={(e) => handlePulpDozensChange('PulpSoldToTrade', e.target.value)} {...numFieldProps('pulpSTDoz')} disabled={isReadOnly} placeholder="0" className="epv-pulp-dozens-input" />
                 </div>
                 <div className="epv-calc-row epv-levy-row">
                   <label>Pulp Levy (Dozens &times; R{LEVY_RATE}):</label>
@@ -858,12 +873,12 @@ function EPVForm() {
                 <div className="epv-calc-row epv-pulp-row epv-deduction-row">
                   <label>- Sold to Other Producers:</label>
                   <input type="text" value={displayVal('PulpSoldToProducers')} onChange={(e) => handleNumberChange('PulpSoldToProducers', e.target.value)} {...numFieldProps('PulpSoldToProducers')} disabled={isReadOnly} placeholder="0" />
-                  <input type="text" value={displayVal('pulpSoldToProducersDozens', totals.pulpSoldToProducersDozens)} onChange={(e) => handlePulpDozensChange('PulpSoldToProducers', e.target.value, 'pulpSoldToProducersDozens')} {...numFieldProps('pulpSoldToProducersDozens')} disabled={isReadOnly} placeholder="0" className="epv-pulp-dozens-input" />
+                  <input type="text" value={displayVal('pulpSPDoz', pulpDozens.PulpSoldToProducers)} onChange={(e) => handlePulpDozensChange('PulpSoldToProducers', e.target.value)} {...numFieldProps('pulpSPDoz')} disabled={isReadOnly} placeholder="0" className="epv-pulp-dozens-input" />
                 </div>
                 <div className="epv-calc-row epv-pulp-row epv-deduction-row">
                   <label>- Conversion Loss:</label>
                   <input type="text" value={displayVal('PulpConversionLoss')} onChange={(e) => handleNumberChange('PulpConversionLoss', e.target.value)} {...numFieldProps('PulpConversionLoss')} disabled={isReadOnly} placeholder="0" />
-                  <input type="text" value={displayVal('pulpConversionLossDozens', totals.pulpConversionLossDozens)} onChange={(e) => handlePulpDozensChange('PulpConversionLoss', e.target.value, 'pulpConversionLossDozens')} {...numFieldProps('pulpConversionLossDozens')} disabled={isReadOnly} placeholder="0" className="epv-pulp-dozens-input" />
+                  <input type="text" value={displayVal('pulpCLDoz', pulpDozens.PulpConversionLoss)} onChange={(e) => handlePulpDozensChange('PulpConversionLoss', e.target.value)} {...numFieldProps('pulpCLDoz')} disabled={isReadOnly} placeholder="0" className="epv-pulp-dozens-input" />
                 </div>
               </div>
             </div>
