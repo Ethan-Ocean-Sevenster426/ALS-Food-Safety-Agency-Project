@@ -113,14 +113,14 @@ function EPVForm() {
         PowderPurchaseComment: v.PowderPurchaseComment || '',
         TransferPurchaseComment: v.TransferPurchaseComment || '',
       });
-      // Initialize pulp dozens from kg values
+      // Initialize pulp dozens from kg values (1 kg = 1.7 dozens)
       const initDozens = {
-        PulpOpeningStock: parseFloat(((parseInt(v.PulpOpeningStock) || 0) * 7).toFixed(1)),
-        PulpPurchased: parseFloat(((parseInt(v.PulpPurchased) || 0) * 7).toFixed(1)),
-        PulpConverted: parseFloat(((parseInt(v.PulpConverted) || 0) * 7).toFixed(1)),
-        PulpSoldToTrade: parseFloat(((parseInt(v.PulpSoldToTrade) || 0) * 7).toFixed(1)),
-        PulpSoldToProducers: parseFloat(((parseInt(v.PulpSoldToProducers) || 0) * 7).toFixed(1)),
-        PulpConversionLoss: parseFloat(((parseInt(v.PulpConversionLoss) || 0) * 7).toFixed(1)),
+        PulpOpeningStock: parseFloat(((parseInt(v.PulpOpeningStock) || 0) * 1.7).toFixed(1)),
+        PulpPurchased: parseFloat(((parseInt(v.PulpPurchased) || 0) * 1.7).toFixed(1)),
+        PulpConverted: parseFloat(((parseInt(v.PulpConverted) || 0) * 1.7).toFixed(1)),
+        PulpSoldToTrade: parseFloat(((parseInt(v.PulpSoldToTrade) || 0) * 1.7).toFixed(1)),
+        PulpSoldToProducers: parseFloat(((parseInt(v.PulpSoldToProducers) || 0) * 1.7).toFixed(1)),
+        PulpConversionLoss: parseFloat(((parseInt(v.PulpConversionLoss) || 0) * 1.7).toFixed(1)),
       };
       setPulpDozens(initDozens);
       setPulpEggs({
@@ -288,7 +288,7 @@ function EPVForm() {
     const safe = isNaN(num) ? 0 : num;
     setForm(prev => ({ ...prev, [key]: safe }));
     if (isPulpKg) {
-      const newDozens = parseFloat((safe * 7).toFixed(1));
+      const newDozens = parseFloat((safe * 1.7).toFixed(1));
       setPulpDozens(prev => ({ ...prev, [key]: newDozens }));
       if (PULP_EGGS_FIELDS.includes(key)) {
         setPulpEggs(prev => ({ ...prev, [key]: parseFloat((newDozens * 12).toFixed(1)) }));
@@ -303,12 +303,12 @@ function EPVForm() {
     }
   };
 
-  // Handle pulp dozens input (1 kg = 7 dozens)
+  // Handle pulp dozens input (1 kg = 1.7 dozens)
   const handlePulpDozensChange = (kgKey, dozensValue) => {
     const raw = dozensValue.replace(/[^0-9.\-]/g, '');
     const dozens = raw === '' || raw === '-' || raw === '.' ? 0 : parseFloat(raw);
     const safeD = isNaN(dozens) ? 0 : dozens;
-    const kg = parseFloat((safeD / 7).toFixed(1));
+    const kg = parseFloat((safeD / 1.7).toFixed(1));
     setPulpDozens(prev => ({ ...prev, [kgKey]: safeD }));
     setForm(prev => ({ ...prev, [kgKey]: kg }));
     if (PULP_EGGS_FIELDS.includes(kgKey)) {
@@ -316,13 +316,13 @@ function EPVForm() {
     }
   };
 
-  // Handle pulp eggs input (1 kg = 84 eggs = 7 dozens)
+  // Handle pulp eggs input (1 kg = 20.4 eggs = 1.7 dozens)
   const handlePulpEggsChange = (kgKey, eggsValue) => {
     const raw = eggsValue.replace(/[^0-9.\-]/g, '');
     const eggs = raw === '' || raw === '-' || raw === '.' ? 0 : parseFloat(raw);
     const safeE = isNaN(eggs) ? 0 : eggs;
     const dozens = parseFloat((safeE / 12).toFixed(1));
-    const kg = parseFloat((dozens / 7).toFixed(1));
+    const kg = parseFloat((dozens / 1.7).toFixed(1));
     setPulpEggs(prev => ({ ...prev, [kgKey]: safeE }));
     setPulpDozens(prev => ({ ...prev, [kgKey]: dozens }));
     setForm(prev => ({ ...prev, [kgKey]: kg }));
