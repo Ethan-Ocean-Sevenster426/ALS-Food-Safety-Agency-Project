@@ -54,18 +54,17 @@ router.get('/', async (req, res) => {
               onboarding.AcceptedAt    AS OnboardedAt,
               onboarding.Email         AS OnboardedBy
        FROM ConsolidatedMasterAbattoirDatabase c
-       LEFT JOIN LATERAL (
-         SELECT AcceptedAt, Email
+       OUTER APPLY (
+         SELECT TOP 1 AcceptedAt, Email
          FROM Invitations
          WHERE ClientRecordId = c.Id
            AND Role = 'Company Admin'
            AND Status = 'Accepted'
          ORDER BY AcceptedAt ASC
-         LIMIT 1
-       ) onboarding ON true
+       ) onboarding
        ${whereClauseQualified}
        ORDER BY c.Id
-       OFFSET @offset LIMIT @limit`
+       OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`
     );
 
     res.json({
@@ -343,7 +342,7 @@ router.put('/approve/:id', async (req, res) => {
     if (userEmail) {
       await pool.request()
         .input('email', sql.NVarChar, userEmail)
-        .query('UPDATE Users SET IsActive = TRUE WHERE LOWER(Email) = LOWER(@email) AND IsActive = FALSE');
+        .query('UPDATE Users SET IsActive = 1 WHERE LOWER(Email) = LOWER(@email) AND IsActive = 0');
     }
 
     // Send approval notification email

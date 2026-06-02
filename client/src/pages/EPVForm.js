@@ -34,6 +34,9 @@ function EPVForm() {
     PulpOpeningStock: 0, PulpPurchased: 0, PulpConverted: 0,
     PulpSoldToTrade: 0, PulpSoldToProducers: 0, PulpConversionLoss: 0,
   });
+  const [pulpEggs, setPulpEggs] = useState({
+    PulpOpeningStock: 0, PulpPurchased: 0,
+  });
 
   // Form data
   const [form, setForm] = useState({
@@ -95,13 +98,18 @@ function EPVForm() {
         TransferPurchaseComment: v.TransferPurchaseComment || '',
       });
       // Initialize pulp dozens from kg values
-      setPulpDozens({
+      const initDozens = {
         PulpOpeningStock: parseFloat(((parseInt(v.PulpOpeningStock) || 0) * 1.7).toFixed(1)),
         PulpPurchased: parseFloat(((parseInt(v.PulpPurchased) || 0) * 1.7).toFixed(1)),
         PulpConverted: parseFloat(((parseInt(v.PulpConverted) || 0) * 1.7).toFixed(1)),
         PulpSoldToTrade: parseFloat(((parseInt(v.PulpSoldToTrade) || 0) * 1.7).toFixed(1)),
         PulpSoldToProducers: parseFloat(((parseInt(v.PulpSoldToProducers) || 0) * 1.7).toFixed(1)),
         PulpConversionLoss: parseFloat(((parseInt(v.PulpConversionLoss) || 0) * 1.7).toFixed(1)),
+      };
+      setPulpDozens(initDozens);
+      setPulpEggs({
+        PulpOpeningStock: parseFloat((initDozens.PulpOpeningStock * 12).toFixed(1)),
+        PulpPurchased: parseFloat((initDozens.PulpPurchased * 12).toFixed(1)),
       });
       setAttachments(res.data.attachments || []);
     } catch (err) {
@@ -217,6 +225,7 @@ function EPVForm() {
   };
 
   const PULP_KG_FIELDS = ['PulpOpeningStock', 'PulpPurchased', 'PulpConverted', 'PulpSoldToTrade', 'PulpSoldToProducers', 'PulpConversionLoss'];
+  const PULP_EGGS_FIELDS = ['PulpOpeningStock', 'PulpPurchased'];
 
   const handleNumberChange = (key, value) => {
     const isPulpKg = PULP_KG_FIELDS.includes(key);
@@ -225,9 +234,13 @@ function EPVForm() {
     const num = raw === '' || raw === '-' || raw === '.' ? 0 : (isPulpKg ? parseFloat(raw) : parseInt(raw, 10));
     const safe = isNaN(num) ? 0 : num;
     setForm(prev => ({ ...prev, [key]: safe }));
-    // If editing a pulp kg field, sync its dozens value (with 1 decimal)
+    // If editing a pulp kg field, sync its dozens and eggs values
     if (isPulpKg) {
-      setPulpDozens(prev => ({ ...prev, [key]: parseFloat((safe * 1.7).toFixed(1)) }));
+      const newDozens = parseFloat((safe * 1.7).toFixed(1));
+      setPulpDozens(prev => ({ ...prev, [key]: newDozens }));
+      if (PULP_EGGS_FIELDS.includes(key)) {
+        setPulpEggs(prev => ({ ...prev, [key]: parseFloat((newDozens * 12).toFixed(1)) }));
+      }
     }
   };
 
@@ -238,6 +251,21 @@ function EPVForm() {
     const safeD = isNaN(dozens) ? 0 : dozens;
     const kg = parseFloat((safeD / 1.7).toFixed(1));
     setPulpDozens(prev => ({ ...prev, [kgKey]: safeD }));
+    setForm(prev => ({ ...prev, [kgKey]: kg }));
+    if (PULP_EGGS_FIELDS.includes(kgKey)) {
+      setPulpEggs(prev => ({ ...prev, [kgKey]: parseFloat((safeD * 12).toFixed(1)) }));
+    }
+  };
+
+  // Handle pulp eggs input — store eggs directly, derive dozens and kg
+  const handlePulpEggsChange = (kgKey, eggsValue) => {
+    const raw = eggsValue.replace(/[^0-9.\-]/g, '');
+    const eggs = raw === '' || raw === '-' || raw === '.' ? 0 : parseFloat(raw);
+    const safeE = isNaN(eggs) ? 0 : eggs;
+    const dozens = parseFloat((safeE / 12).toFixed(1));
+    const kg = parseFloat((dozens / 1.7).toFixed(1));
+    setPulpEggs(prev => ({ ...prev, [kgKey]: safeE }));
+    setPulpDozens(prev => ({ ...prev, [kgKey]: dozens }));
     setForm(prev => ({ ...prev, [kgKey]: kg }));
   };
 
@@ -488,7 +516,7 @@ function EPVForm() {
               <div className="epv-summary-row"><span>Theoretical Closing Stock:</span><strong>{totals.closingStock.toLocaleString()}</strong></div>
               <div className="epv-summary-row"><span>Actual Closing Stock:</span><strong>{totals.actualClosingStock.toLocaleString()}</strong></div>
               <div className="epv-summary-row"><span>Egg Levy Amount:</span><strong>R {totals.levyAmount.toFixed(2)}</strong></div>
-              <div className="epv-summary-row"><span>Pulp Levy Amount:</span><strong>R {totals.pulpLevyAmount.toFixed(2)}</strong></div>
+              <div className="epv-summary-row"><span>Powder Egg Levy Amount:</span><strong>R {totals.pulpLevyAmount.toFixed(2)}</strong></div>
               <div className="epv-summary-row" style={{ borderTop: '2px solid #065f46', paddingTop: 8, marginTop: 4 }}><span style={{ color: '#065f46', fontWeight: 700 }}>Total Owed:</span><strong style={{ color: '#065f46' }}>R {(totals.levyAmount + totals.pulpLevyAmount).toFixed(2)}</strong></div>
             </div>
           </div>
@@ -545,7 +573,7 @@ function EPVForm() {
           <div className="epv-step-line" />
           <div className={`epv-step ${step >= 3 ? 'active' : ''} ${step > 3 ? 'done' : ''}`}>
             <span className="epv-step-num">3</span>
-            <span className="epv-step-label">Levy (Pulp)</span>
+            <span className="epv-step-label">Levy (Powder Eggs)</span>
           </div>
           <div className="epv-step-line" />
           <div className={`epv-step ${step >= 4 ? 'active' : ''}`}>
@@ -695,7 +723,7 @@ function EPVForm() {
                   <input type="text" value={displayVal('MachineLoss')} onChange={(e) => handleNumberChange('MachineLoss', e.target.value)} {...numFieldProps('MachineLoss')} disabled={isReadOnly} placeholder="0" />
                 </div>
                 <div className="epv-calc-row epv-deduction-row">
-                  <label>- Sent to Pulp:</label>
+                  <label>- Sent to Powder Eggs:</label>
                   <input type="text" value={displayVal('SentToPulp')} onChange={(e) => handleNumberChange('SentToPulp', e.target.value)} {...numFieldProps('SentToPulp')} disabled={isReadOnly} placeholder="0" />
                 </div>
                 <div className="epv-calc-row epv-deduction-row">
@@ -813,47 +841,52 @@ function EPVForm() {
                 }
                 setError('');
                 setStep(3);
-              }}>Next: Levy (Pulp) &rarr;</button>
+              }}>Next: Levy (Powder Eggs) &rarr;</button>
             </div>
           </div>
         )}
 
-        {/* STEP 3: Pulp Calculation */}
+        {/* STEP 3: Powder Egg Calculation */}
         {step === 3 && (
           <div className="epv-step-content">
-            <h3>Calculation of Statutory Levy (Pulp)</h3>
-            <p className="epv-step-desc">All values in Kilograms. Dozens are automatically calculated at 1.7 dozens per kilogram of pulp.</p>
+            <h3>Calculation of Statutory Levy (Powder Eggs)</h3>
+            <p className="epv-step-desc">All values in Kilograms. Dozens are automatically calculated at 1.7 dozens per kilogram of powder eggs.</p>
 
             {/* Stock In */}
             <div className="epv-calc-section">
-              <div className="epv-pulp-header">
+              <div className="epv-pulp-header epv-pulp-header-eggs">
                 <span></span>
+                <span className="epv-pulp-col-label">Eggs</span>
                 <span className="epv-pulp-col-label">Kilograms</span>
                 <span className="epv-pulp-col-label">Dozens</span>
               </div>
               <div className="epv-calc-rows">
-                <div className="epv-calc-row epv-pulp-row">
-                  <label>A. Opening Stock (Pulp brought forward):</label>
+                <div className="epv-calc-row epv-pulp-row epv-pulp-row-eggs">
+                  <label>A. Opening Stock (Powder Eggs brought forward):</label>
+                  <input type="text" value={displayVal('pulpAEggs', pulpEggs.PulpOpeningStock)} onChange={(e) => handlePulpEggsChange('PulpOpeningStock', e.target.value)} {...numFieldProps('pulpAEggs')} disabled={isReadOnly} placeholder="0" className="epv-pulp-eggs-input" />
                   <input type="text" value={displayVal('PulpOpeningStock')} onChange={(e) => handleNumberChange('PulpOpeningStock', e.target.value)} {...numFieldProps('PulpOpeningStock')} disabled={isReadOnly} placeholder="0" />
                   <input type="text" value={displayVal('pulpADoz', pulpDozens.PulpOpeningStock)} onChange={(e) => handlePulpDozensChange('PulpOpeningStock', e.target.value)} {...numFieldProps('pulpADoz')} disabled={isReadOnly} placeholder="0" className="epv-pulp-dozens-input" />
                 </div>
-                <div className="epv-calc-row epv-pulp-row">
-                  <label>B. Pulp Purchased from Others:</label>
+                <div className="epv-calc-row epv-pulp-row epv-pulp-row-eggs">
+                  <label>B. Powder Eggs Purchased from Others:</label>
+                  <input type="text" value={displayVal('pulpBEggs', pulpEggs.PulpPurchased)} onChange={(e) => handlePulpEggsChange('PulpPurchased', e.target.value)} {...numFieldProps('pulpBEggs')} disabled={isReadOnly} placeholder="0" className="epv-pulp-eggs-input" />
                   <input type="text" value={displayVal('PulpPurchased')} onChange={(e) => handleNumberChange('PulpPurchased', e.target.value)} {...numFieldProps('PulpPurchased')} disabled={isReadOnly} placeholder="0" />
                   <input type="text" value={displayVal('pulpBDoz', pulpDozens.PulpPurchased)} onChange={(e) => handlePulpDozensChange('PulpPurchased', e.target.value)} {...numFieldProps('pulpBDoz')} disabled={isReadOnly} placeholder="0" className="epv-pulp-dozens-input" />
                 </div>
-                <div className="epv-calc-row epv-pulp-row">
-                  <label>C. Eggs Converted to Pulp:</label>
+                <div className="epv-calc-row epv-pulp-row epv-pulp-row-eggs">
+                  <label>C. Eggs Converted to Powder Eggs:</label>
+                  <span></span>
                   <input type="text" value={displayVal('PulpConverted')} onChange={(e) => handleNumberChange('PulpConverted', e.target.value)} {...numFieldProps('PulpConverted')} disabled={isReadOnly} placeholder="0" />
                   <input type="text" value={displayVal('pulpCDoz', pulpDozens.PulpConverted)} onChange={(e) => handlePulpDozensChange('PulpConverted', e.target.value)} {...numFieldProps('pulpCDoz')} disabled={isReadOnly} placeholder="0" className="epv-pulp-dozens-input" />
                 </div>
-                <div className="epv-calc-row epv-total-row epv-pulp-row">
+                <div className="epv-calc-row epv-total-row epv-pulp-row epv-pulp-row-eggs">
                   <label>= Stock on Hand (A + B + C):</label>
+                  <span></span>
                   <span className="epv-calc-total">{totals.pulpStockOnHand.toLocaleString()}</span>
                   <span className="epv-calc-total">{totals.pulpStockOnHandDozens.toLocaleString()}</span>
                 </div>
                 {(parseInt(form.PulpPurchased) || 0) > 0 &&
-                  renderPurchaseEvidence('PulpPurchase', 'PulpPurchaseComment', 'Pulp Purchased from Others')}
+                  renderPurchaseEvidence('PulpPurchase', 'PulpPurchaseComment', 'Powder Eggs Purchased from Others')}
               </div>
             </div>
 
@@ -872,7 +905,7 @@ function EPVForm() {
                   <input type="text" value={displayVal('pulpSTDoz', pulpDozens.PulpSoldToTrade)} onChange={(e) => handlePulpDozensChange('PulpSoldToTrade', e.target.value)} {...numFieldProps('pulpSTDoz')} disabled={isReadOnly} placeholder="0" className="epv-pulp-dozens-input" />
                 </div>
                 <div className="epv-calc-row epv-levy-row">
-                  <label>Pulp Levy (Dozens &times; R{LEVY_RATE}):</label>
+                  <label>Powder Egg Levy (Dozens &times; R{LEVY_RATE}):</label>
                   <span className="epv-levy-amount" style={{ gridColumn: 'span 2', textAlign: 'right' }}>R {totals.pulpLevyAmount.toFixed(2)}</span>
                 </div>
                 <div className="epv-calc-row epv-pulp-row epv-deduction-row">
@@ -963,7 +996,7 @@ function EPVForm() {
                   <tr className="epv-review-section-header"><td colSpan="2">C. Deductions</td></tr>
                   <tr><td>- Market Returns</td><td className="epv-num">{(parseFloat(form.MarketReturns) || 0).toLocaleString()}</td></tr>
                   <tr><td>- Machine Loss</td><td className="epv-num">{(parseFloat(form.MachineLoss) || 0).toLocaleString()}</td></tr>
-                  <tr><td>- Sent to Pulp</td><td className="epv-num">{(parseFloat(form.SentToPulp) || 0).toLocaleString()}</td></tr>
+                  <tr><td>- Sent to Powder Eggs</td><td className="epv-num">{(parseFloat(form.SentToPulp) || 0).toLocaleString()}</td></tr>
                   <tr><td>- Destroyed</td><td className="epv-num">{(parseFloat(form.Destroyed) || 0).toLocaleString()}</td></tr>
                   <tr><td>- Eggs Exported</td><td className="epv-num">{(parseFloat(form.Exported) || 0).toLocaleString()}</td></tr>
                   <tr className="epv-review-total"><td>Total C (Deductions)</td><td className="epv-num">{totals.totalC.toLocaleString()}</td></tr>
@@ -1012,7 +1045,7 @@ function EPVForm() {
             </div>
 
             <div className="epv-review-section">
-              <h4>Calculation of Statutory Levy (Pulp)</h4>
+              <h4>Calculation of Statutory Levy (Powder Eggs)</h4>
               <table className="epv-review-table">
                 <thead>
                   <tr>
@@ -1023,17 +1056,17 @@ function EPVForm() {
                 </thead>
                 <tbody>
                   <tr>
-                    <td>A. Opening Stock (Pulp brought forward)</td>
+                    <td>A. Opening Stock (Powder Eggs brought forward)</td>
                     <td className="epv-num">{totals.pulpA.toLocaleString()}</td>
                     <td className="epv-num">{totals.pulpADozens.toLocaleString()}</td>
                   </tr>
                   <tr>
-                    <td>B. Pulp Purchased from Others</td>
+                    <td>B. Powder Eggs Purchased from Others</td>
                     <td className="epv-num">{totals.pulpB.toLocaleString()}</td>
                     <td className="epv-num">{totals.pulpBDozens.toLocaleString()}</td>
                   </tr>
                   <tr>
-                    <td>C. Eggs Converted to Pulp</td>
+                    <td>C. Eggs Converted to Powder Eggs</td>
                     <td className="epv-num">{totals.pulpC.toLocaleString()}</td>
                     <td className="epv-num">{totals.pulpCDozens.toLocaleString()}</td>
                   </tr>
@@ -1045,7 +1078,7 @@ function EPVForm() {
                   {(form.PulpPurchaseComment || attachments.some(a => a.Category === 'PulpPurchase')) && (
                     <tr><td colSpan="3" style={{ background: '#fafafa', padding: 8 }}>
                       {form.PulpPurchaseComment && (
-                        <div style={{ marginBottom: 6 }}><strong>Pulp Source &amp; Supplier:</strong> {form.PulpPurchaseComment}</div>
+                        <div style={{ marginBottom: 6 }}><strong>Powder Egg Source &amp; Supplier:</strong> {form.PulpPurchaseComment}</div>
                       )}
                       {attachments.filter(a => a.Category === 'PulpPurchase').map(a => (
                         <div key={a.Id} style={{ fontSize: 13 }}>
@@ -1061,7 +1094,7 @@ function EPVForm() {
                     <td className="epv-num">{totals.pulpSoldToTradeDozens.toLocaleString()}</td>
                   </tr>
                   <tr className="epv-review-levy">
-                    <td>Pulp Levy (Dozens &times; R{LEVY_RATE})</td>
+                    <td>Powder Egg Levy (Dozens &times; R{LEVY_RATE})</td>
                     <td colSpan="2" className="epv-num">R {totals.pulpLevyAmount.toFixed(2)}</td>
                   </tr>
                   <tr className="epv-review-deduction">
@@ -1093,7 +1126,7 @@ function EPVForm() {
                     <td className="epv-num">R {totals.levyAmount.toFixed(2)}</td>
                   </tr>
                   <tr>
-                    <td>Pulp Levy Amount</td>
+                    <td>Powder Egg Levy Amount</td>
                     <td className="epv-num">R {totals.pulpLevyAmount.toFixed(2)}</td>
                   </tr>
                   <tr className="epv-review-grand-total">
@@ -1111,7 +1144,7 @@ function EPVForm() {
             )}
 
             <div className="epv-nav">
-              <button className="epv-back-btn" onClick={() => setStep(3)}>&larr; Back to Pulp</button>
+              <button className="epv-back-btn" onClick={() => setStep(3)}>&larr; Back to Powder Eggs</button>
               {!isCompleted && (
                 <button className="epv-submit-btn" onClick={handleSubmit} disabled={submitting}>
                   {submitting ? 'Submitting...' : 'Submit Verification'}

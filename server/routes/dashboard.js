@@ -21,13 +21,12 @@ router.get('/stats', async (req, res) => {
     // Total clients — "verified" = has an accepted Company Admin invitation
     const clientsResult = await pool.request().query(
       `SELECT COUNT(*) AS total,
-        SUM(CASE WHEN EXISTS (
-          SELECT 1 FROM Invitations i
-          WHERE i.ClientRecordId = c.Id
-            AND i.Role = 'Company Admin'
-            AND i.Status = 'Accepted'
-        ) THEN 1 ELSE 0 END) AS verified
-       FROM ConsolidatedMasterAbattoirDatabase c`
+        SUM(CASE WHEN vi.ClientRecordId IS NOT NULL THEN 1 ELSE 0 END) AS verified
+       FROM ConsolidatedMasterAbattoirDatabase c
+       LEFT JOIN (
+         SELECT DISTINCT ClientRecordId FROM Invitations
+         WHERE Role = 'Company Admin' AND Status = 'Accepted'
+       ) vi ON vi.ClientRecordId = c.Id`
     );
 
     // EPV stats

@@ -554,7 +554,31 @@
 }
 
 .epv-pulp-row input {
+  width: 100%;
+  box-sizing: border-box;
   text-align: right;
+}
+
+.epv-pulp-row .epv-calc-total {
+  min-width: 0;
+}
+
+.epv-pulp-header-eggs {
+  grid-template-columns: 1fr 160px 160px 120px !important;
+}
+
+.epv-pulp-row-eggs {
+  grid-template-columns: 1fr 160px 160px 120px !important;
+}
+
+.epv-pulp-eggs-input {
+  text-align: right;
+  font-weight: 600;
+  color: #0E7C7B;
+  background: #e6f4f4;
+  border: 1px solid #b2dfdb;
+  border-radius: 6px;
+  padding: 8px 12px;
 }
 
 .epv-pulp-dozens {

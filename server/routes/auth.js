@@ -55,7 +55,7 @@ router.post('/signup', async (req, res) => {
       .input('role', sql.NVarChar, assignedRole)
       .input('inspectorProvince', sql.NVarChar, assignedRole === 'Inspector' ? (inspectorProvince || null) : null)
       .query(
-        'INSERT INTO Users (FirstName, LastName, Email, PasswordHash, Role, InspectorProvince, IsActive) VALUES (@firstName, @lastName, @email, @passwordHash, @role, @inspectorProvince, TRUE)'
+        'INSERT INTO Users (FirstName, LastName, Email, PasswordHash, Role, InspectorProvince, IsActive) VALUES (@firstName, @lastName, @email, @passwordHash, @role, @inspectorProvince, 1)'
       );
 
     // If a clientRecordId is provided for Company Admin or User, create an accepted invitation link
@@ -114,13 +114,12 @@ router.post('/login', async (req, res) => {
       .request()
       .input('email', sql.NVarChar, email)
       .query(
-        `SELECT u.Id, u.FirstName, u.LastName, u.Email, u.PasswordHash, u.Role, COALESCE(u.IsActive, true) AS IsActive,
+        `SELECT TOP 1 u.Id, u.FirstName, u.LastName, u.Email, u.PasswordHash, u.Role, ISNULL(u.IsActive, 1) AS IsActive,
                 u.InspectorProvince, i.ClientRecordId
          FROM Users u
          LEFT JOIN Invitations i ON LOWER(u.Email) = LOWER(i.Email) AND i.Status = 'Accepted'
          WHERE LOWER(u.Email) = LOWER(@email)
-         ORDER BY i.AcceptedAt DESC
-         LIMIT 1`
+         ORDER BY i.AcceptedAt DESC`
       );
 
     if (result.recordset.length === 0) {
@@ -135,11 +134,10 @@ router.post('/login', async (req, res) => {
       const pendingCheck = await pool.request()
         .input('pendingEmail', sql.NVarChar, user.Email)
         .query(
-          `SELECT c.ApprovalStatus FROM Invitations i
+          `SELECT TOP 1 c.ApprovalStatus FROM Invitations i
            JOIN ConsolidatedMasterAbattoirDatabase c ON i.ClientRecordId = c.Id
            WHERE LOWER(i.Email) = LOWER(@pendingEmail) AND i.Status = 'Accepted'
-           ORDER BY i.AcceptedAt DESC
-           LIMIT 1`
+           ORDER BY i.AcceptedAt DESC`
         );
       const isPending = pendingCheck.recordset.length > 0 && pendingCheck.recordset[0].ApprovalStatus === 'Pending';
       const msg = isPending
@@ -619,7 +617,7 @@ router.post('/register-company', async (req, res) => {
       .input('email', sql.NVarChar, email)
       .input('passwordHash', sql.NVarChar, passwordHash)
       .input('role', sql.NVarChar, 'Company Admin')
-      .query('INSERT INTO Users (FirstName, LastName, Email, PasswordHash, Role, IsActive) VALUES (@firstName, @lastName, @email, @passwordHash, @role, FALSE)');
+      .query('INSERT INTO Users (FirstName, LastName, Email, PasswordHash, Role, IsActive) VALUES (@firstName, @lastName, @email, @passwordHash, @role, 0)');
 
     // Create an accepted invitation to link user to client_record
     const inviteToken = crypto.randomBytes(32).toString('hex');
