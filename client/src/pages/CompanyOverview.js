@@ -148,7 +148,7 @@ const SA_PROVINCES = [
 
 function CompanyOverview() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const isAdmin = user.role === 'Super Admin' || user.role === 'Admin';
+  const isAdmin = user.role === 'Super Admin' || user.role === 'Admin' || user.role === 'Super';
   const isInspector = user.role === 'Inspector';
   const canSelectCompany = isAdmin || isInspector;
   const userLabel = `${user.firstName || ''} ${user.lastName || ''} (${user.email || 'unknown'})`.trim();

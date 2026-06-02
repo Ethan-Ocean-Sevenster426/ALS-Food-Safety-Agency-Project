@@ -7,7 +7,7 @@ function Navbar() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const isCompanyUser = user.role === 'Company Admin' || user.role === 'User';
   const isInspector = user.role === 'Inspector';
-  const showInspectorsTab = user.role === 'Super Admin' || user.role === 'Admin' || user.role === 'Inspector';
+  const showInspectorsTab = user.role === 'Super Admin' || user.role === 'Admin' || user.role === 'Super' || user.role === 'Inspector';
   const [menuOpen, setMenuOpen] = useState(false);
 
   const handleLogout = () => {
@@ -18,7 +18,7 @@ function Navbar() {
 
   const closeMenu = () => setMenuOpen(false);
 
-  const canDownloadManual = ['Super Admin', 'Admin', 'Inspector', 'Company Admin', 'User'].includes(user.role);
+  const canDownloadManual = ['Super Admin', 'Admin', 'Super', 'Inspector', 'Company Admin', 'User'].includes(user.role);
 
   const downloadManual = async () => {
     try {

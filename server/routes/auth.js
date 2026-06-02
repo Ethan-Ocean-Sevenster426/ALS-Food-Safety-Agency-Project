@@ -8,7 +8,7 @@ const crypto = require('crypto');
 
 const router = express.Router();
 
-const VALID_ROLES = ['Super Admin', 'Admin', 'Inspector', 'Company Admin', 'User'];
+const VALID_ROLES = ['Super Admin', 'Admin', 'Super', 'Inspector', 'Company Admin', 'User'];
 
 // In-memory OTP store: { email -> { code, expiresAt, verified } }
 const otpStore = new Map();

@@ -12,7 +12,7 @@ const SA_PROVINCES = [
 
 function Settings() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const isAdmin = user.role === 'Super Admin' || user.role === 'Admin';
+  const isAdmin = user.role === 'Super Admin' || user.role === 'Admin' || user.role === 'Super';
 
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);

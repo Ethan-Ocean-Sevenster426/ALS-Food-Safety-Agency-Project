@@ -45,7 +45,7 @@ function Inspectors() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const navigate = useNavigate();
   const isInspectorRole = user.role === 'Inspector';
-  const isAdmin = user.role === 'Super Admin' || user.role === 'Admin';
+  const isAdmin = user.role === 'Super Admin' || user.role === 'Admin' || user.role === 'Super';
   const assignedProvince = user.inspectorProvince || null;
 
   const [stats, setStats] = useState(null);

@@ -9,7 +9,7 @@ const PRIORITIES = ['Low', 'Medium', 'High', 'Urgent'];
 function Support() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const isSuper = user.role === 'Super Admin';
-  const isAdmin = user.role === 'Admin';
+  const isAdmin = user.role === 'Admin' || user.role === 'Super';
   const canManage = isSuper || isAdmin;
 
   const [tickets, setTickets] = useState([]);

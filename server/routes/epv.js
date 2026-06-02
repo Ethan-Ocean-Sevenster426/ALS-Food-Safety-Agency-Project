@@ -977,7 +977,7 @@ router.put('/:id/reconcile', async (req, res) => {
 
     // Admin/Super Admin can reconcile without POP; other roles require it
     const userRole = req.body.userRole || '';
-    const isAdminRole = userRole === 'Super Admin' || userRole === 'Admin';
+    const isAdminRole = userRole === 'Super Admin' || userRole === 'Admin' || userRole === 'Super';
     if (reconciled && !existing.recordset[0].POPFilePath && !isAdminRole) {
       return res.status(400).json({ message: 'Cannot reconcile without a Proof of Payment uploaded.' });
     }

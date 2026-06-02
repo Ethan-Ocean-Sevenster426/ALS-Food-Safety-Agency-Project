@@ -15,7 +15,7 @@ router.get('/stats', async (req, res) => {
 
     // Users by role
     const roleResult = await pool.request().query(
-      "SELECT Role, COUNT(*) AS count FROM Users GROUP BY Role ORDER BY CASE Role WHEN 'Super Admin' THEN 1 WHEN 'Admin' THEN 2 WHEN 'Company Admin' THEN 3 ELSE 4 END"
+      "SELECT Role, COUNT(*) AS count FROM Users GROUP BY Role ORDER BY CASE Role WHEN 'Super Admin' THEN 1 WHEN 'Admin' THEN 2 WHEN 'Super' THEN 3 WHEN 'Company Admin' THEN 4 ELSE 5 END"
     );
 
     // Total clients — "verified" = has an accepted Company Admin invitation
