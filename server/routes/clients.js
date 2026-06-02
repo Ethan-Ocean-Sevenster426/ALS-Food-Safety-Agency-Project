@@ -54,14 +54,12 @@ router.get('/', async (req, res) => {
               onboarding.AcceptedAt    AS OnboardedAt,
               onboarding.Email         AS OnboardedBy
        FROM ConsolidatedMasterAbattoirDatabase c
-       OUTER APPLY (
-         SELECT TOP 1 AcceptedAt, Email
+       LEFT JOIN (
+         SELECT ClientRecordId, AcceptedAt, Email,
+                ROW_NUMBER() OVER (PARTITION BY ClientRecordId ORDER BY AcceptedAt ASC) AS rn
          FROM Invitations
-         WHERE ClientRecordId = c.Id
-           AND Role = 'Company Admin'
-           AND Status = 'Accepted'
-         ORDER BY AcceptedAt ASC
-       ) onboarding
+         WHERE Role = 'Company Admin' AND Status = 'Accepted'
+       ) onboarding ON onboarding.ClientRecordId = c.Id AND onboarding.rn = 1
        ${whereClauseQualified}
        ORDER BY c.Id
        OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`
