@@ -85,6 +85,8 @@ const NUMERIC_FIELDS = [
   'TransferredToOtherProducers',
   'PulpOpeningStock', 'PulpPurchased', 'PulpConverted',
   'PulpSoldToTrade', 'PulpSoldToProducers', 'PulpConversionLoss',
+  'PowderOpeningStock', 'PowderPurchased', 'PowderConverted',
+  'PowderSoldToTrade', 'PowderSoldToProducers', 'PowderConversionLoss',
 ];
 
 // All text fields that can be submitted
@@ -93,7 +95,7 @@ const TEXT_FIELDS = [
   'AuthorizedPersonName', 'PositionInCompany',
   'TelephoneNumber', 'CellPhoneNumber', 'EmailAddress',
   'VarianceReason',
-  'EggPurchaseComment', 'PulpPurchaseComment', 'TransferPurchaseComment',
+  'EggPurchaseComment', 'PulpPurchaseComment', 'PowderPurchaseComment', 'TransferPurchaseComment',
 ];
 
 const ALL_FIELDS = [...TEXT_FIELDS, ...NUMERIC_FIELDS];
