@@ -54,8 +54,9 @@ router.post('/signup', async (req, res) => {
       .input('passwordHash', sql.NVarChar, passwordHash)
       .input('role', sql.NVarChar, assignedRole)
       .input('inspectorProvince', sql.NVarChar, assignedRole === 'Inspector' ? (inspectorProvince || null) : null)
+      .input('isActive', sql.Bit, true)
       .query(
-        'INSERT INTO Users (FirstName, LastName, Email, PasswordHash, Role, InspectorProvince, IsActive) VALUES (@firstName, @lastName, @email, @passwordHash, @role, @inspectorProvince, 1)'
+        'INSERT INTO Users (FirstName, LastName, Email, PasswordHash, Role, InspectorProvince, IsActive) VALUES (@firstName, @lastName, @email, @passwordHash, @role, @inspectorProvince, @isActive)'
       );
 
     // If a clientRecordId is provided for Company Admin or User, create an accepted invitation link
@@ -617,7 +618,8 @@ router.post('/register-company', async (req, res) => {
       .input('email', sql.NVarChar, email)
       .input('passwordHash', sql.NVarChar, passwordHash)
       .input('role', sql.NVarChar, 'Company Admin')
-      .query('INSERT INTO Users (FirstName, LastName, Email, PasswordHash, Role, IsActive) VALUES (@firstName, @lastName, @email, @passwordHash, @role, 0)');
+      .input('isActive', sql.Bit, false)
+      .query('INSERT INTO Users (FirstName, LastName, Email, PasswordHash, Role, IsActive) VALUES (@firstName, @lastName, @email, @passwordHash, @role, @isActive)');
 
     // Create an accepted invitation to link user to client_record
     const inviteToken = crypto.randomBytes(32).toString('hex');
