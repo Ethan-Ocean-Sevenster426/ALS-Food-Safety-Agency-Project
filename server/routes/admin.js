@@ -35,7 +35,7 @@ router.get('/stats', async (req, res) => {
     // 1. Aggregate financial stats
     const statsResult = await pool.request().query(`
       SELECT
-        COUNT(e.Id) AS TotalEPVs,
+        COUNT(e.Id) AS TotalEpvs,
         SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * ${LEVY_RATE}, 0)) AS TotalBilled,
         SUM(ISNULL(e.ReconciledAmount, 0)) AS TotalPaid,
         SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * ${LEVY_RATE}, 0) - ISNULL(e.ReconciledAmount, 0)) AS TotalOutstanding,
@@ -53,7 +53,7 @@ router.get('/stats', async (req, res) => {
     const monthlyResult = await pool.request().query(`
       SELECT
         e.PeriodMonth, e.PeriodYear,
-        COUNT(e.Id) AS EPVCount,
+        COUNT(e.Id) AS EpvCount,
         SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * ${LEVY_RATE}, 0)) AS TotalBilled,
         SUM(ISNULL(e.ReconciledAmount, 0)) AS TotalPaid,
         SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * ${LEVY_RATE}, 0) - ISNULL(e.ReconciledAmount, 0)) AS Outstanding,
@@ -69,7 +69,7 @@ router.get('/stats', async (req, res) => {
     const byProvResult = await pool.request().query(`
       SELECT
         c.FacilityProvince,
-        COUNT(e.Id) AS EPVCount,
+        COUNT(e.Id) AS EpvCount,
         SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * ${LEVY_RATE}, 0)) AS TotalBilled,
         SUM(ISNULL(e.ReconciledAmount, 0)) AS TotalPaid,
         SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * ${LEVY_RATE}, 0) - ISNULL(e.ReconciledAmount, 0)) AS Outstanding

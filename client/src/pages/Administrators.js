@@ -251,7 +251,7 @@ function Administrators() {
   );
 
   // KPI computations
-  const reconPct = s.TotalEPVs > 0 ? +((s.ReconciledCount / s.TotalEPVs) * 100).toFixed(1) : 0;
+  const reconPct = s.TotalEpvs > 0 ? +((s.ReconciledCount / s.TotalEpvs) * 100).toFixed(1) : 0;
   const collectionPct = s.TotalBilled > 0 ? +((s.TotalPaid / s.TotalBilled) * 100).toFixed(1) : 0;
   const outstandingPct = s.TotalBilled > 0 ? +((s.TotalOutstanding / s.TotalBilled) * 100).toFixed(1) : 0;
 
@@ -272,7 +272,7 @@ function Administrators() {
       year: m.PeriodYear,
       month: m.PeriodMonth,
       key: m.PeriodYear * 100 + m.PeriodMonth,
-      total: m.EPVCount || 0,
+      total: m.EpvCount || 0,
       reconciled: m.ReconciledCount || 0,
       needRecon: m.NeedReconCount || 0,
     }));
@@ -289,12 +289,12 @@ function Administrators() {
   const rrT = kpiTargets.reconciliation_rate;
   const orT = kpiTargets.outstanding_rate;
   const vrT = kpiTargets.verification_rate;
-  const verificationVal = s.TotalEPVs > 0 ? +((s.VerifiedCount / s.TotalEPVs) * 100).toFixed(1) : 0;
+  const verificationVal = s.TotalEpvs > 0 ? +((s.VerifiedCount / s.TotalEpvs) * 100).toFixed(1) : 0;
   const kpis = [
     { label: 'Collection Rate', value: collectionPct, target: crT, suffix: '%', detail: `${formatR(s.TotalPaid)} of ${formatR(s.TotalBilled)}`, color: collectionPct >= crT ? '#16a34a' : collectionPct >= crT * 0.75 ? '#d97706' : '#dc2626' },
-    { label: 'Reconciliation Rate', value: reconPct, target: rrT, suffix: '%', detail: `${formatNum(s.ReconciledCount)} of ${formatNum(s.TotalEPVs)} EPVs reconciled`, color: reconPct >= rrT ? '#16a34a' : reconPct >= rrT * 0.78 ? '#d97706' : '#dc2626' },
+    { label: 'Reconciliation Rate', value: reconPct, target: rrT, suffix: '%', detail: `${formatNum(s.ReconciledCount)} of ${formatNum(s.TotalEpvs)} EPVs reconciled`, color: reconPct >= rrT ? '#16a34a' : reconPct >= rrT * 0.78 ? '#d97706' : '#dc2626' },
     { label: 'Outstanding Rate', value: outstandingPct, target: orT, suffix: '%', detail: `${formatR(s.TotalOutstanding)} outstanding`, invert: true, color: outstandingPct <= orT ? '#16a34a' : outstandingPct <= orT * 3 ? '#d97706' : '#dc2626' },
-    { label: 'Verification Rate', value: verificationVal, target: vrT, suffix: '%', detail: `${formatNum(s.VerifiedCount)} of ${formatNum(s.TotalEPVs)} verified`, color: verificationVal >= vrT ? '#16a34a' : verificationVal >= vrT * 0.78 ? '#d97706' : '#dc2626' },
+    { label: 'Verification Rate', value: verificationVal, target: vrT, suffix: '%', detail: `${formatNum(s.VerifiedCount)} of ${formatNum(s.TotalEpvs)} verified`, color: verificationVal >= vrT ? '#16a34a' : verificationVal >= vrT * 0.78 ? '#d97706' : '#dc2626' },
   ];
 
   return (
@@ -390,7 +390,7 @@ function Administrators() {
             </div>
           </div>
           <div className="admin-action-card admin-action-card-info" onClick={() => setActiveTab('all')}>
-            <span className="admin-action-count admin-action-count-info">{formatNum(s.TotalEPVs)}</span>
+            <span className="admin-action-count admin-action-count-info">{formatNum(s.TotalEpvs)}</span>
             <div className="admin-action-detail">
               <div className="admin-action-title">Total Completed EPVs</div>
               <div className="admin-action-desc">All completed facility EPVs</div>

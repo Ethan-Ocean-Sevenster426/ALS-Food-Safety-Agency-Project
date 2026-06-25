@@ -1782,8 +1782,8 @@ router.get('/inspector/stats', async (req, res) => {
       if (province) r.input('province', sql.NVarChar, province);
       return r.query(`
         SELECT
-          COUNT(DISTINCT e.ClientRecordId) AS TotalFacilitiesWithEPV,
-          COUNT(e.Id) AS TotalEPVs,
+          COUNT(DISTINCT e.ClientRecordId) AS FacilitiesWithEpv,
+          COUNT(e.Id) AS TotalEpvs,
           SUM(CASE WHEN e.IsReconciled = 1 THEN 1 ELSE 0 END) AS ReconciledCount,
           SUM(CASE WHEN e.IsReconciled = 0 OR e.IsReconciled IS NULL THEN 1 ELSE 0 END) AS UnreconciledCount,
           SUM(ISNULL(e.LevyAmount, 0)) AS TotalEggLevy,
@@ -1812,7 +1812,7 @@ router.get('/inspector/stats', async (req, res) => {
       return r.query(`
         SELECT
           e.PeriodMonth, e.PeriodYear,
-          COUNT(e.Id) AS EPVCount,
+          COUNT(e.Id) AS EpvCount,
           SUM(ISNULL(e.LevyAmount, 0)) AS EggLevy,
           SUM(ISNULL(e.PulpSoldToTrade, 0) * 1.7 * 0.02) AS PulpLevy,
           SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.02, 0)) AS TotalBilled,

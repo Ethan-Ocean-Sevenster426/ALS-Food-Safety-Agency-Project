@@ -115,7 +115,7 @@ function Dashboard() {
         'Total Paid': +(m.TotalPaid || 0).toFixed(2),
         'Egg Levy': +(m.EggLevy || 0).toFixed(2),
         'Pulp Levy': +(m.PulpLevy || 0).toFixed(2),
-        'EPV Count': m.EPVCount || 0,
+        'EPV Count': m.EpvCount || 0,
         'Rejections': m.Rejections || 0,
         paidPct: m.TotalBilled > 0 ? +((m.TotalPaid / m.TotalBilled) * 100).toFixed(0) : 0,
       }));
@@ -163,7 +163,7 @@ function Dashboard() {
   const curPct = curBilled > 0 ? +((curPaid / curBilled) * 100).toFixed(1) : 0;
   const curMonthName = MONTH_NAMES[curMonth - 1];
 
-  const approvalPct = s.TotalEPVs > 0 ? +((s.VerifiedCount / s.TotalEPVs) * 100).toFixed(1) : 0;
+  const approvalPct = s.TotalEpvs > 0 ? +((s.VerifiedCount / s.TotalEpvs) * 100).toFixed(1) : 0;
   const visitedDone = totalFacilities - (epvData?.needVisitCount || 0);
   const visitedPct = totalFacilities > 0 ? +((visitedDone / totalFacilities) * 100).toFixed(1) : 0;
 
@@ -176,7 +176,7 @@ function Dashboard() {
   const kpis = [
     { label: `Collection — ${prevMonthNames || 'Prior Months'}`, value: prevPct, target: ct, suffix: '%', detail: `${formatR(prevPaid)} of ${formatR(prevBilled)}`, color: prevPct >= ct ? '#16a34a' : prevPct >= ct * 0.75 ? '#d97706' : '#dc2626' },
     { label: `Collection — ${curMonthName} (Current)`, value: curPct, target: ct, suffix: '%', detail: `${formatR(curPaid)} of ${formatR(curBilled)}`, color: curPct >= ct ? '#16a34a' : curPct >= ct * 0.75 ? '#d97706' : '#dc2626' },
-    { label: 'Approvals Actioned', value: approvalPct, target: at, suffix: '%', detail: `${formatNum(s.VerifiedCount)} of ${formatNum(s.TotalEPVs)} EPVs`, color: approvalPct >= at ? '#16a34a' : approvalPct >= at * 0.78 ? '#d97706' : '#dc2626' },
+    { label: 'Approvals Actioned', value: approvalPct, target: at, suffix: '%', detail: `${formatNum(s.VerifiedCount)} of ${formatNum(s.TotalEpvs)} EPVs`, color: approvalPct >= at ? '#16a34a' : approvalPct >= at * 0.78 ? '#d97706' : '#dc2626' },
     { label: 'Facilities Visited', value: visitedPct, target: ft, suffix: '%', detail: `${formatNum(visitedDone)} of ${formatNum(totalFacilities)} (Q${q.quarter})`, color: visitedPct >= ft ? '#16a34a' : visitedPct >= ft * 0.75 ? '#d97706' : '#dc2626' },
   ];
 
@@ -379,7 +379,7 @@ function Dashboard() {
                 <span className="dash-epv-stat-label">Facilities</span>
               </div>
               <div className="dash-epv-stat">
-                <span className="dash-epv-stat-num" style={{ color: '#4f46e5' }}>{formatNum(s.TotalEPVs)}</span>
+                <span className="dash-epv-stat-num" style={{ color: '#4f46e5' }}>{formatNum(s.TotalEpvs)}</span>
                 <span className="dash-epv-stat-label">Completed EPVs</span>
               </div>
               <div className="dash-epv-stat">

@@ -130,8 +130,8 @@ router.get('/epv-overview', async (req, res) => {
     // 1. Aggregate stats
     const statsResult = await pool.request().query(`
       SELECT
-        COUNT(DISTINCT e.ClientRecordId) AS TotalFacilitiesWithEPV,
-        COUNT(e.Id) AS TotalEPVs,
+        COUNT(DISTINCT e.ClientRecordId) AS FacilitiesWithEpv,
+        COUNT(e.Id) AS TotalEpvs,
         SUM(CASE WHEN e.IsReconciled = 1 THEN 1 ELSE 0 END) AS ReconciledCount,
         SUM(ISNULL(e.LevyAmount, 0)) AS TotalEggLevy,
         SUM(ISNULL(e.PulpSoldToTrade, 0) * 1.7 * 0.02) AS TotalPulpLevy,
@@ -153,7 +153,7 @@ router.get('/epv-overview', async (req, res) => {
     const monthlyResult = await pool.request().query(`
       SELECT
         e.PeriodMonth, e.PeriodYear,
-        COUNT(e.Id) AS EPVCount,
+        COUNT(e.Id) AS EpvCount,
         SUM(ISNULL(e.LevyAmount, 0)) AS EggLevy,
         SUM(ISNULL(e.PulpSoldToTrade, 0) * 1.7 * 0.02) AS PulpLevy,
         SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.02, 0)) AS TotalBilled,
