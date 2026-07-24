@@ -220,6 +220,7 @@ def epv_overview(request):
         stats = {
             'TotalFacilitiesWithEPV': stats_agg['TotalFacilitiesWithEPV'],
             'TotalEPVs': stats_agg['TotalEPVs'],
+            'TotalEpvs': stats_agg['TotalEPVs'],  # alias: Express backend casing, used by the frontend
             'ReconciledCount': stats_agg['ReconciledCount'],
             'TotalEggLevy': total_egg_levy,
             'TotalPulpLevy': total_pulp_levy,

@@ -1844,6 +1844,7 @@ def inspector_stats(request):
         stats_data = {
             'TotalFacilitiesWithEPV': total_facilities_with_epv,
             'TotalEPVs': total_epvs,
+            'TotalEpvs': total_epvs,  # alias: Express backend casing, used by the frontend
             'ReconciledCount': reconciled_count,
             'UnreconciledCount': unreconciled_count,
             'TotalEggLevy': round(total_egg_levy, 2),

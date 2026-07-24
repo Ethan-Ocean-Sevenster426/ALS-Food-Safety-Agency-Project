@@ -50,10 +50,13 @@ router.get('/', async (req, res) => {
               c.AbattoirOwnerName, c.AbattoirOwnerCell, c.AbattoirOwnerEmail,
               c.AccountsContactName, c.AccountsTelephone, c.AccountsEmail,
               c.AbattoirManagerName, c.AbattoirManagerCell, c.AbattoirManagerEmail,
-              c.EPVCycleStatus, c.ApprovalStatus,
+              c.EPVCycleStatus, c.ApprovalStatus, c.AssignedInspectorId,
+              insp.FirstName           AS InspFirstName,
+              insp.LastName            AS InspLastName,
               onboarding.AcceptedAt    AS OnboardedAt,
               onboarding.Email         AS OnboardedBy
        FROM ConsolidatedMasterAbattoirDatabase c
+       LEFT JOIN Users insp ON insp.Id = c.AssignedInspectorId
        LEFT JOIN (
          SELECT ClientRecordId, AcceptedAt, Email,
                 ROW_NUMBER() OVER (PARTITION BY ClientRecordId ORDER BY AcceptedAt ASC) AS rn
@@ -66,7 +69,10 @@ router.get('/', async (req, res) => {
     );
 
     res.json({
-      data: result.recordset,
+      data: result.recordset.map(r => ({
+        ...r,
+        AssignedInspectorName: [r.InspFirstName, r.InspLastName].filter(Boolean).join(' ') || null,
+      })),
       page,
       limit,
       total,
@@ -151,6 +157,29 @@ router.put('/:id', async (req, res) => {
     const auditEntries = [];
 
     for (const [field, newValue] of Object.entries(updates)) {
+      if (field === 'AssignedInspectorId') {
+        const newId = (newValue === '' || newValue === null || newValue === undefined)
+          ? null : parseInt(newValue);
+        const oldId = oldRecord.AssignedInspectorId || null;
+        if (newId === oldId) continue;
+
+        // Resolve names so the audit log reads like the rest of the change log
+        const inspectorLabel = async (userId) => {
+          if (!userId) return '(none)';
+          const r = await pool.request()
+            .input('uid', sql.Int, userId)
+            .query('SELECT FirstName, LastName FROM Users WHERE Id = @uid');
+          const u = r.recordset[0];
+          return u ? `${u.FirstName || ''} ${u.LastName || ''}`.trim() : `User #${userId}`;
+        };
+        setClauses.push({ field, value: newId, isInt: true });
+        auditEntries.push({
+          field: 'AssignedInspector',
+          oldValue: await inspectorLabel(oldId),
+          newValue: await inspectorLabel(newId),
+        });
+        continue;
+      }
       if (!EDITABLE_FIELDS.includes(field)) continue;
       const oldValue = oldRecord[field] || '';
       if (String(oldValue) === String(newValue)) continue; // no change
@@ -167,7 +196,11 @@ router.put('/:id', async (req, res) => {
     const updateRequest = pool.request();
     updateRequest.input('id', sql.Int, parseInt(id));
     const setParts = setClauses.map((c, i) => {
-      updateRequest.input(`val${i}`, sql.NVarChar, String(c.value));
+      if (c.isInt) {
+        updateRequest.input(`val${i}`, sql.Int, c.value);
+      } else {
+        updateRequest.input(`val${i}`, sql.NVarChar, String(c.value));
+      }
       return `${c.field} = @val${i}`;
     });
 
