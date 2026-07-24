@@ -43,6 +43,10 @@ class ClientRecord(models.Model):
     verified_at = models.DateTimeField(null=True, blank=True)
     verified_by = models.CharField(max_length=255, null=True, blank=True)
     epv_cycle_status = models.CharField(max_length=50, null=True, blank=True)
+    assigned_inspector = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL,
+        db_column='assigned_inspector_id', related_name='assigned_facilities',
+    )
 
     class Meta:
         db_table = 'client_records'
@@ -70,6 +74,7 @@ class ClientRecord(models.Model):
         'AbattoirManagerEmail': 'abattoir_manager_email',
         'CorporateGroup': 'corporate_group',
         'GroupType': 'group_type',
+        'AssignedInspectorId': 'assigned_inspector_id',
     }
 
     EDITABLE_FIELDS = [
@@ -79,7 +84,13 @@ class ClientRecord(models.Model):
         'AbattoirOwnerName', 'AbattoirOwnerCell', 'AbattoirOwnerEmail',
         'AccountsContactName', 'AccountsTelephone', 'AccountsEmail',
         'AbattoirManagerName', 'AbattoirManagerCell', 'AbattoirManagerEmail',
+        'AssignedInspectorId',
     ]
+
+    def assigned_inspector_name(self):
+        if not self.assigned_inspector:
+            return None
+        return f"{self.assigned_inspector.first_name} {self.assigned_inspector.last_name}".strip()
 
     def to_js_dict(self):
         return {
@@ -108,6 +119,8 @@ class ClientRecord(models.Model):
             'VerifiedAt': self.verified_at.isoformat() if self.verified_at else None,
             'VerifiedBy': self.verified_by,
             'EPVCycleStatus': self.epv_cycle_status,
+            'AssignedInspectorId': self.assigned_inspector_id,
+            'AssignedInspectorName': self.assigned_inspector_name(),
         }
 
 
@@ -188,6 +201,8 @@ class EggProductionVerification(models.Model):
     pulp_purchased = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     pulp_converted = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     pulp_sold_to_trade = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    # Egg powder sold to trade, in KG (1 kg whole egg powder ~ 6.7 dozen eggs)
+    powder_sold_to_trade = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     pulp_sold_to_producers = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     # Calculated totals
     total_b = models.DecimalField(max_digits=18, decimal_places=2, default=0)
@@ -257,6 +272,7 @@ class EggProductionVerification(models.Model):
         'PulpPurchased': 'pulp_purchased',
         'PulpConverted': 'pulp_converted',
         'PulpSoldToTrade': 'pulp_sold_to_trade',
+        'PowderSoldToTrade': 'powder_sold_to_trade',
         'PulpSoldToProducers': 'pulp_sold_to_producers',
     }
 
@@ -297,6 +313,7 @@ class EggProductionVerification(models.Model):
             'PulpPurchased': float(self.pulp_purchased),
             'PulpConverted': float(self.pulp_converted),
             'PulpSoldToTrade': float(self.pulp_sold_to_trade),
+            'PowderSoldToTrade': float(self.powder_sold_to_trade or 0),
             'PulpSoldToProducers': float(self.pulp_sold_to_producers),
             'TotalB': float(self.total_b),
             'TotalC': float(self.total_c),

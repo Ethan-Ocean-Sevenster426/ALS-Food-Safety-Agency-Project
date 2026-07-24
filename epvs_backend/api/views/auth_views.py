@@ -150,23 +150,32 @@ def login(request):
 @api_view(['GET'])
 def get_users(request):
     try:
-        users = User.objects.all().order_by('-created_at')
-        user_list = []
+        users_qs = User.objects.all().order_by('-created_at')
+        role = request.query_params.get('role')
+        if role:
+            users_qs = users_qs.filter(role=role)
+        users = list(users_qs)
 
+        # Batch-load allocated clients: latest accepted invitation per email,
+        # then the referenced client records — 2 queries instead of 2 per user.
+        emails = [u.email.lower() for u in users if u.email]
+        inv_by_email = {}
+        for inv in (
+            Invitation.objects.filter(status='Accepted', email__in=emails)
+            .order_by('accepted_at')  # later rows overwrite -> latest accepted wins
+        ):
+            inv_by_email[(inv.email or '').lower()] = inv.client_record_id
+
+        client_names = {
+            c['id']: c['business_name']
+            for c in ClientRecord.objects.filter(
+                id__in=set(inv_by_email.values())
+            ).values('id', 'business_name')
+        }
+
+        user_list = []
         for u in users:
-            # Get allocated client from most recent accepted invitation
-            allocated_client = None
-            invitation = (
-                Invitation.objects.filter(email__iexact=u.email, status='Accepted')
-                .order_by('-accepted_at')
-                .first()
-            )
-            if invitation:
-                try:
-                    client = ClientRecord.objects.get(id=invitation.client_record_id)
-                    allocated_client = client.business_name
-                except ClientRecord.DoesNotExist:
-                    pass
+            allocated_client = client_names.get(inv_by_email.get((u.email or '').lower()))
 
             user_list.append({
                 'Id': u.id,

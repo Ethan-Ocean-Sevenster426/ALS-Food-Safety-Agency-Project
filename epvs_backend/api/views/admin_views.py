@@ -166,8 +166,6 @@ def stats(request):
 
         # 3. Outstanding by province (join ClientRecord for FacilityProvince)
         province_map = {}
-        client_ids = set(e['client_record_id'] for e in epvs_full if 'client_record_id' not in e)
-        # Re-query with client_record_id
         epvs_with_client = list(qs.values(
             'id', 'client_record_id', 'levy_amount', 'pulp_sold_to_trade', 'reconciled_amount',
         ))

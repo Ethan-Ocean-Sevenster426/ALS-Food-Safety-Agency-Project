@@ -39,6 +39,7 @@ function EPVForm() {
     TransferredToOtherProducers: 0, ActualClosingStock: 0,
     PulpOpeningStock: 0, PulpPurchased: 0, PulpConverted: 0,
     PulpSoldToTrade: 0, PulpSoldToProducers: 0, PulpConversionLoss: 0,
+    PowderSoldToTrade: 0,
     VarianceReason: '',
     EggPurchaseComment: '', PulpPurchaseComment: '',
   });
@@ -80,6 +81,7 @@ function EPVForm() {
         PulpSoldToTrade: parseInt(v.PulpSoldToTrade) || 0,
         PulpSoldToProducers: parseInt(v.PulpSoldToProducers) || 0,
         PulpConversionLoss: parseInt(v.PulpConversionLoss) || 0,
+        PowderSoldToTrade: parseInt(v.PowderSoldToTrade) || 0,
         VarianceReason: v.VarianceReason || '',
         EggPurchaseComment: v.EggPurchaseComment || '',
         PulpPurchaseComment: v.PulpPurchaseComment || '',
@@ -809,6 +811,15 @@ function EPVForm() {
                 <div className="epv-calc-row epv-levy-row">
                   <label>Pulp Levy (Dozens &times; R{LEVY_RATE}):</label>
                   <span className="epv-levy-amount" style={{ gridColumn: 'span 2', textAlign: 'right' }}>R {totals.pulpLevyAmount.toFixed(2)}</span>
+                </div>
+                <div className="epv-calc-row epv-pulp-row epv-deduction-row">
+                  <label>- Egg Powder Sold to Trade (KG):</label>
+                  <input type="text" value={formatNumber(form.PowderSoldToTrade)} onChange={(e) => handleNumberChange('PowderSoldToTrade', e.target.value)} disabled={isReadOnly} placeholder="0" />
+                  <span className="epv-pulp-dozens epv-deduction-value">{Math.round((parseInt(form.PowderSoldToTrade) || 0) * 6.7).toLocaleString()}</span>
+                </div>
+                <div className="epv-calc-row epv-levy-row">
+                  <label>Powder Eggs Levy (KG &times; 6.7 doz &times; R{LEVY_RATE}):</label>
+                  <span className="epv-levy-amount" style={{ gridColumn: 'span 2', textAlign: 'right' }}>R {(((parseInt(form.PowderSoldToTrade) || 0) * 6.7) * LEVY_RATE).toFixed(2)}</span>
                 </div>
                 <div className="epv-calc-row epv-pulp-row epv-deduction-row">
                   <label>- Sold to Other Producers:</label>

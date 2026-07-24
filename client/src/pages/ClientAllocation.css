@@ -894,3 +894,30 @@
     padding: 20px;
   }
 }
+
+/* Assigned Inspector column */
+.ca-no-inspector {
+  color: #9ca3af;
+}
+
+.ca-inspector-cell {
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.ca-inline-inspector {
+  width: 180px;
+  min-width: 180px;
+  font-size: 0.8rem;
+  padding: 4px 22px 4px 8px;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b7280'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

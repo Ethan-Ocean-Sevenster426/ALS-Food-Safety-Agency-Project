@@ -105,6 +105,17 @@ class JWTAuthMiddleware:
         return self.get_response(request)
 
 
+def inspector_user_id(request):
+    """Scope helper: the requesting user's id if they are an Inspector, else None.
+
+    Inspectors only ever see facilities assigned to them (assigned_inspector_id),
+    regardless of any query params the client sends.
+    """
+    if getattr(request, 'jwt_user_role', None) == 'Inspector':
+        return getattr(request, 'jwt_user_id', None)
+    return None
+
+
 class RoleRequiredMixin:
     """Helper to check roles in views."""
 

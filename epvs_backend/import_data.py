@@ -21,6 +21,18 @@ from api.models import (
 
 EXPORTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'server', 'exports')
 
+def reset_sequence(table):
+    """Reset the id sequence after explicit-ID bulk inserts (Postgres only —
+    MySQL's AUTO_INCREMENT adjusts itself when higher explicit IDs are inserted)."""
+    from django.db import connection
+    if connection.vendor != 'postgresql':
+        return
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"SELECT setval(pg_get_serial_sequence('{table}', 'id'), COALESCE(MAX(id), 1)) FROM {table};"
+        )
+
+
 
 def parse_dt(val):
     """Parse a datetime value from Excel."""
@@ -125,9 +137,7 @@ def import_users():
         ))
     User.objects.bulk_create(batch, ignore_conflicts=True)
     # Reset sequence
-    from django.db import connection
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT setval(pg_get_serial_sequence('users', 'id'), COALESCE(MAX(id), 1)) FROM users;")
+    reset_sequence('users')
     print(f'  Imported {len(batch)} users')
 
 
@@ -167,9 +177,7 @@ def import_clients():
             epv_cycle_status=s(r.get('EPVCycleStatus')) or None,
         ))
     ClientRecord.objects.bulk_create(batch, ignore_conflicts=True)
-    from django.db import connection
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT setval(pg_get_serial_sequence('client_records', 'id'), COALESCE(MAX(id), 1)) FROM client_records;")
+    reset_sequence('client_records')
     print(f'  Imported {len(batch)} client records')
 
 
@@ -192,9 +200,7 @@ def import_audit_log():
             changed_at=parse_dt(r.get('ChangedAt')) or timezone.now(),
         ))
     ClientAuditLog.objects.bulk_create(batch, ignore_conflicts=True)
-    from django.db import connection
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT setval(pg_get_serial_sequence('client_audit_log', 'id'), COALESCE(MAX(id), 1)) FROM client_audit_log;")
+    reset_sequence('client_audit_log')
     print(f'  Imported {len(batch)} audit log entries')
 
 
@@ -218,9 +224,7 @@ def import_invitations():
             created_at=parse_dt(r.get('CreatedAt')) or timezone.now(),
         ))
     Invitation.objects.bulk_create(batch, ignore_conflicts=True)
-    from django.db import connection
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT setval(pg_get_serial_sequence('invitations', 'id'), COALESCE(MAX(id), 1)) FROM invitations;")
+    reset_sequence('invitations')
     print(f'  Imported {len(batch)} invitations')
 
 
@@ -313,9 +317,7 @@ def import_epvs():
         EggProductionVerification.objects.bulk_create(batch[i:i+BATCH_SIZE], ignore_conflicts=True)
         print(f'  ... {min(i+BATCH_SIZE, len(batch))}/{len(batch)}')
 
-    from django.db import connection
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT setval(pg_get_serial_sequence('egg_production_verifications', 'id'), COALESCE(MAX(id), 1)) FROM egg_production_verifications;")
+    reset_sequence('egg_production_verifications')
     print(f'  Imported {len(batch)} EPV records')
 
 
@@ -335,9 +337,7 @@ def import_support_categories():
             sort_order=parse_int(r.get('SortOrder')),
         ))
     SupportTicketCategory.objects.bulk_create(batch, ignore_conflicts=True)
-    from django.db import connection
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT setval(pg_get_serial_sequence('support_ticket_categories', 'id'), COALESCE(MAX(id), 1)) FROM support_ticket_categories;")
+    reset_sequence('support_ticket_categories')
     print(f'  Imported {len(batch)} categories')
 
 
@@ -365,9 +365,7 @@ def import_support_tickets():
             updated_at=parse_dt(r.get('UpdatedAt')) or timezone.now(),
         ))
     SupportTicket.objects.bulk_create(batch, ignore_conflicts=True)
-    from django.db import connection
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT setval(pg_get_serial_sequence('support_tickets', 'id'), COALESCE(MAX(id), 1)) FROM support_tickets;")
+    reset_sequence('support_tickets')
     print(f'  Imported {len(batch)} tickets')
 
 
@@ -387,9 +385,7 @@ def import_support_comments():
             created_at=parse_dt(r.get('CreatedAt')) or timezone.now(),
         ))
     SupportTicketComment.objects.bulk_create(batch, ignore_conflicts=True)
-    from django.db import connection
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT setval(pg_get_serial_sequence('support_ticket_comments', 'id'), COALESCE(MAX(id), 1)) FROM support_ticket_comments;")
+    reset_sequence('support_ticket_comments')
     print(f'  Imported {len(batch)} comments')
 
 
@@ -409,9 +405,7 @@ def import_kpi_targets():
             updated_by=s(r.get('UpdatedBy')) or None,
         ))
     KPITarget.objects.bulk_create(batch, ignore_conflicts=True)
-    from django.db import connection
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT setval(pg_get_serial_sequence('kpi_targets', 'id'), COALESCE(MAX(id), 1)) FROM kpi_targets;")
+    reset_sequence('kpi_targets')
     print(f'  Imported {len(batch)} KPI targets')
 
 

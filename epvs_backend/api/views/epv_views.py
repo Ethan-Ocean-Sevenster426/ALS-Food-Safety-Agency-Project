@@ -25,8 +25,25 @@ from api.services.helpers import (
     calculate_totals, log_company_audit, generate_reference_number, LEVY_RATE,
 )
 from api.services.email_service import send_email_to_each
+from api.middleware import inspector_user_id
 
 logger = logging.getLogger(__name__)
+
+
+def _inspector_company_block(request, client_record_id):
+    """403 Response if the requester is an Inspector not assigned to this facility, else None."""
+    insp_id = inspector_user_id(request)
+    if not insp_id:
+        return None
+    assigned = ClientRecord.objects.filter(
+        id=int(client_record_id), assigned_inspector_id=insp_id,
+    ).exists()
+    if assigned:
+        return None
+    return Response(
+        {'message': 'You are not assigned to this facility.'},
+        status=status.HTTP_403_FORBIDDEN,
+    )
 
 MONTH_NAMES = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -604,6 +621,9 @@ def edit_epv(request, id):
 @api_view(['GET'])
 def list_company_epvs(request, client_record_id):
     """List all EPVs for a company (Client type only) with inspector EPV map."""
+    blocked = _inspector_company_block(request, client_record_id)
+    if blocked:
+        return blocked
     try:
         client_epvs = EggProductionVerification.objects.filter(
             client_record_id=int(client_record_id),
@@ -1361,6 +1381,9 @@ def create_inspector_epv(request):
 @api_view(['GET'])
 def inspector_company_epvs(request, client_record_id):
     """Get both Client and Inspector EPVs for a company."""
+    blocked = _inspector_company_block(request, client_record_id)
+    if blocked:
+        return blocked
     inspector_id = request.query_params.get('inspectorId')
 
     try:
@@ -1456,11 +1479,20 @@ def inspector_not_completed(request):
             facilities_qs = ClientRecord.objects.filter(
                 facility_province__isnull=False,
             ).exclude(facility_province='')
-            if province:
+            insp_id = inspector_user_id(request)
+            inspector_filter = request.query_params.get('inspectorId')
+            if insp_id:
+                # Inspectors only see their own assigned facilities
+                facilities_qs = facilities_qs.filter(assigned_inspector_id=insp_id)
+            elif inspector_filter:
+                # Admin filtering the dashboard by a specific inspector
+                facilities_qs = facilities_qs.filter(assigned_inspector_id=int(inspector_filter))
+            elif province:
                 facilities_qs = facilities_qs.filter(facility_province=province)
 
             facilities = list(facilities_qs.values(
                 'id', 'business_name', 'facility_province', 'facility_type', 'town',
+                'assigned_inspector__first_name', 'assigned_inspector__last_name',
             ))
 
             for yr, mo in year_months:
@@ -1480,12 +1512,14 @@ def inspector_not_completed(request):
                     epv_info = epv_map.get(f['id'])
                     # Not completed = no EPV at all or status is Pending
                     if epv_info is None or epv_info['status'] == 'Pending':
+                        insp_name = f"{f['assigned_inspector__first_name'] or ''} {f['assigned_inspector__last_name'] or ''}".strip() or None
                         results.append({
                             'Id': f['id'],
                             'BusinessName': f['business_name'],
                             'FacilityProvince': f['facility_province'],
                             'FacilityType': f['facility_type'],
                             'Town': f['town'],
+                            'AssignedInspector': insp_name,
                             'EPVId': epv_info['id'] if epv_info else None,
                             'EPVStatus': epv_info['status'] if epv_info else None,
                             'ReferenceNumber': epv_info['reference_number'] if epv_info else None,
@@ -1528,8 +1562,16 @@ def inspector_pending_approvals(request):
         # Join with client records for province filter and business info
         client_ids_with_epv = base_qs.values_list('client_record_id', flat=True).distinct()
         client_map = {}
-        clients_qs = ClientRecord.objects.filter(id__in=client_ids_with_epv)
-        if province:
+        clients_qs = ClientRecord.objects.select_related('assigned_inspector').filter(id__in=client_ids_with_epv)
+        insp_id = inspector_user_id(request)
+        inspector_filter = request.query_params.get('inspectorId')
+        if insp_id:
+            # Inspectors only see their own assigned facilities
+            clients_qs = clients_qs.filter(assigned_inspector_id=insp_id)
+        elif inspector_filter:
+            # Admin filtering the dashboard by a specific inspector
+            clients_qs = clients_qs.filter(assigned_inspector_id=int(inspector_filter))
+        elif province:
             clients_qs = clients_qs.filter(facility_province=province)
         for c in clients_qs:
             client_map[c.id] = c
@@ -1556,6 +1598,7 @@ def inspector_pending_approvals(request):
             d['FacilityProvince'] = client.facility_province
             d['FacilityType'] = client.facility_type
             d['Town'] = client.town
+            d['AssignedInspector'] = client.assigned_inspector_name()
             d['InspEPVId'] = None
             d['InspEPVToken'] = None
             d['InspEPVStatus'] = None
@@ -1631,10 +1674,18 @@ def inspector_stats(request):
         date_q = _build_date_filter_q(request.query_params)
 
         # Province filter for client records
-        client_qs = ClientRecord.objects.filter(
+        client_qs = ClientRecord.objects.select_related('assigned_inspector').filter(
             facility_province__isnull=False,
         ).exclude(facility_province='')
-        if province:
+        insp_id = inspector_user_id(request)
+        inspector_filter = request.query_params.get('inspectorId')
+        if insp_id:
+            # Inspectors only see their own assigned facilities
+            client_qs = client_qs.filter(assigned_inspector_id=insp_id)
+        elif inspector_filter:
+            # Admin filtering the dashboard by a specific inspector
+            client_qs = client_qs.filter(assigned_inspector_id=int(inspector_filter))
+        elif province:
             client_qs = client_qs.filter(facility_province=province)
 
         # 1. Facility summary per province
@@ -1683,6 +1734,7 @@ def inspector_stats(request):
                     'Town': c.town,
                     'FacilityProvince': c.facility_province,
                     'FacilityType': c.facility_type,
+                    'AssignedInspector': c.assigned_inspector_name(),
                 })
 
         # 3. Outstanding amounts (not reconciled)
@@ -1721,6 +1773,7 @@ def inspector_stats(request):
                         'BusinessName': c.business_name,
                         'Town': c.town,
                         'FacilityProvince': c.facility_province,
+                        'AssignedInspector': c.assigned_inspector_name(),
                         'TotalBilled': round(amounts['TotalBilled'], 2),
                         'TotalPaid': round(amounts['TotalPaid'], 2),
                         'TotalOwing': round(owing, 2),
@@ -1754,10 +1807,12 @@ def inspector_stats(request):
 
         total_egg_levy = 0
         total_pulp_levy = 0
+        total_powder_levy = 0
         total_billed = 0
         total_paid = 0
         total_egg_dozens = 0
         total_pulp_dozens = 0
+        total_powder_dozens = 0
         total_rejections = 0
         pending_inspector_epvs = 0
         manual_inspections = 0
@@ -1766,12 +1821,16 @@ def inspector_stats(request):
         for epv in completed_qs:
             egg_levy = float(epv.levy_amount or 0)
             pulp_levy = float(epv.pulp_sold_to_trade or 0) * 1.7 * 0.018
+            powder_dozens = float(epv.powder_sold_to_trade or 0) * 6.7  # 1 kg powder ~ 6.7 doz
+            powder_levy = powder_dozens * 0.018
             total_egg_levy += egg_levy
             total_pulp_levy += pulp_levy
+            total_powder_levy += powder_levy
             total_billed += egg_levy + pulp_levy
             total_paid += float(epv.reconciled_amount or 0)
             total_egg_dozens += float(epv.sold_to_trade or 0)
             total_pulp_dozens += float(epv.pulp_sold_to_trade or 0)
+            total_powder_dozens += powder_dozens
             if epv.manual_inspection:
                 manual_inspections += 1
             if epv.is_verified:
@@ -1789,6 +1848,8 @@ def inspector_stats(request):
             'UnreconciledCount': unreconciled_count,
             'TotalEggLevy': round(total_egg_levy, 2),
             'TotalPulpLevy': round(total_pulp_levy, 2),
+            'TotalPowderLevy': round(total_powder_levy, 2),
+            'TotalPowderDozens': round(total_powder_dozens, 2),
             'TotalBilled': round(total_billed, 2),
             'TotalPaid': round(total_paid, 2),
             'TotalOutstanding': round(total_billed - total_paid, 2),
@@ -1811,25 +1872,30 @@ def inspector_stats(request):
                     'EPVCount': 0,
                     'EggLevy': 0,
                     'PulpLevy': 0,
+                    'PowderLevy': 0,
                     'TotalBilled': 0,
                     'TotalPaid': 0,
                     'PaidCount': 0,
                     'EggDozens': 0,
                     'PulpDozens': 0,
+                    'PowderDozens': 0,
                     'Rejections': 0,
                 }
             entry = monthly_map[key]
             entry['EPVCount'] += 1
             egg_levy = float(epv.levy_amount or 0)
             pulp_levy = float(epv.pulp_sold_to_trade or 0) * 1.7 * 0.018
+            powder_dozens = float(epv.powder_sold_to_trade or 0) * 6.7
             entry['EggLevy'] += egg_levy
             entry['PulpLevy'] += pulp_levy
+            entry['PowderLevy'] += powder_dozens * 0.018
             entry['TotalBilled'] += egg_levy + pulp_levy
             entry['TotalPaid'] += float(epv.reconciled_amount or 0)
             if epv.is_reconciled:
                 entry['PaidCount'] += 1
             entry['EggDozens'] += float(epv.sold_to_trade or 0)
             entry['PulpDozens'] += float(epv.pulp_sold_to_trade or 0)
+            entry['PowderDozens'] += powder_dozens
             if epv.id in inspector_epv_map:
                 entry['Rejections'] += 1
 
@@ -1842,6 +1908,8 @@ def inspector_stats(request):
         for m in monthly:
             m['EggLevy'] = round(m['EggLevy'], 2)
             m['PulpLevy'] = round(m['PulpLevy'], 2)
+            m['PowderLevy'] = round(m['PowderLevy'], 2)
+            m['PowderDozens'] = round(m['PowderDozens'], 2)
             m['TotalBilled'] = round(m['TotalBilled'], 2)
             m['TotalPaid'] = round(m['TotalPaid'], 2)
             m['EggDozens'] = round(m['EggDozens'], 2)

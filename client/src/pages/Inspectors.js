@@ -59,6 +59,8 @@ function Inspectors() {
   const [visitSearch, setVisitSearch] = useState('');
   const [owingSearch, setOwingSearch] = useState('');
   const [selectedProvince, setSelectedProvince] = useState(isInspectorRole ? assignedProvince : '');
+  const [selectedInspector, setSelectedInspector] = useState('');
+  const [inspectorList, setInspectorList] = useState([]);
   const [approvalSearch, setApprovalSearch] = useState('');
   const [approvalPeriod, setApprovalPeriod] = useState(0);
   const [incompletePeriod, setIncompletePeriod] = useState(0);
@@ -93,8 +95,30 @@ function Inspectors() {
     if (filterYear) p.year = filterYear;
     if (filterQuarter) p.quarter = filterQuarter;
     if (filterMonth) p.month = filterMonth;
+    if (isAdmin && selectedInspector) p.inspectorId = selectedInspector;
     return p;
-  }, [filterYear, filterQuarter, filterMonth]);
+  }, [filterYear, filterQuarter, filterMonth, isAdmin, selectedInspector]);
+
+  // Load inspector list for the admin filter dropdown
+  useEffect(() => {
+    if (!isAdmin) return;
+    (async () => {
+      try {
+        const res = await axios.get('/api/auth/users', { params: { role: 'Inspector' } });
+        const list = (res.data.users || [])
+          .filter(u => u.Role === 'Inspector' && u.IsActive !== false)
+          .map(u => ({
+            Id: u.Id,
+            name: `${u.FirstName || ''} ${u.LastName || ''}`.trim() || u.Email,
+            province: u.InspectorProvince || '',
+          }))
+          .sort((a, b) => a.name.localeCompare(b.name));
+        setInspectorList(list);
+      } catch (err) {
+        // filter dropdown just stays empty
+      }
+    })();
+  }, [isAdmin]);
 
   const fetchStats = useCallback(async () => {
     setLoading(true);
@@ -219,6 +243,7 @@ function Inspectors() {
         'Total Paid': +(m.TotalPaid || 0).toFixed(2),
         'Egg Levy': +(m.EggLevy || 0).toFixed(2),
         'Pulp Levy': +(m.PulpLevy || 0).toFixed(2),
+        'Powder Eggs Levy': +(m.PowderLevy || 0).toFixed(2),
         'Egg Dozens': m.EggDozens || 0,
         'Pulp Dozens': m.PulpDozens || 0,
         'Rejections': m.Rejections || 0,
@@ -341,10 +366,14 @@ function Inspectors() {
           </div>
           {isAdmin && (
             <div className="insp-province-filter">
-              <label>Province Filter:</label>
-              <select value={selectedProvince} onChange={e => setSelectedProvince(e.target.value)}>
-                <option value="">All Provinces</option>
-                {SA_PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
+              <label>Inspector Filter:</label>
+              <select value={selectedInspector} onChange={e => setSelectedInspector(e.target.value)}>
+                <option value="">All Inspectors</option>
+                {inspectorList.map(i => (
+                  <option key={i.Id} value={String(i.Id)}>
+                    {i.name}{i.province ? ` (${i.province})` : ''}
+                  </option>
+                ))}
               </select>
             </div>
           )}
@@ -530,6 +559,10 @@ function Inspectors() {
             <span className="insp-finance-label">Pulp Levy</span>
             <span className="insp-finance-value">{formatNum(s.TotalPulpDozens)} doz — {formatR(s.TotalPulpLevy)}</span>
           </div>
+          <div className="insp-finance-row">
+            <span className="insp-finance-label">Powder Eggs Levy</span>
+            <span className="insp-finance-value">{formatNum(s.TotalPowderDozens)} doz — {formatR(s.TotalPowderLevy)}</span>
+          </div>
         </div>
       </div>
       </div>
@@ -553,7 +586,7 @@ function Inspectors() {
           </ResponsiveContainer>
         </div>
         <div className="insp-chart-card">
-          <h3>Egg Levy vs Pulp Levy — Month Over Month</h3>
+          <h3>Egg Levy vs Pulp Levy vs Powder Eggs — Month Over Month</h3>
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -564,6 +597,7 @@ function Inspectors() {
               <Legend wrapperStyle={{ fontSize: 12 }} />
               <Line yAxisId="left" type="monotone" dataKey="Egg Levy" stroke="#0E7C7B" strokeWidth={3} dot={{ r: 5 }} />
               <Line yAxisId="right" type="monotone" dataKey="Pulp Levy" stroke="#d97706" strokeWidth={3} dot={{ r: 5 }} />
+              <Line yAxisId="right" type="monotone" dataKey="Powder Eggs Levy" stroke="#7c3aed" strokeWidth={3} dot={{ r: 5 }} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -634,12 +668,14 @@ function Inspectors() {
                       <th onClick={() => approvalSort.toggleSort('ReferenceNumber')} className="insp-sortable-th">Ref #<approvalSort.SortIcon col="ReferenceNumber" /></th>
                       <th onClick={() => approvalSort.toggleSort('BusinessName')} className="insp-sortable-th">Business Name<approvalSort.SortIcon col="BusinessName" /></th>
                       <th onClick={() => approvalSort.toggleSort('FacilityProvince')} className="insp-sortable-th">Province<approvalSort.SortIcon col="FacilityProvince" /></th>
+                      <th onClick={() => approvalSort.toggleSort('AssignedInspector')} className="insp-sortable-th">Inspector<approvalSort.SortIcon col="AssignedInspector" /></th>
                       <th onClick={() => approvalSort.toggleSort('PeriodMonth')} className="insp-sortable-th">Period<approvalSort.SortIcon col="PeriodMonth" /></th>
                       <th>Status</th>
                       <th onClick={() => approvalSort.toggleSort('CompletedAt')} className="insp-sortable-th">Completed<approvalSort.SortIcon col="CompletedAt" /></th>
                       <th>Facility EPV</th>
                       <th>Egg Dozens</th>
                       <th>Pulp Dozens</th>
+                      <th>Powder Dozens</th>
                       <th>Amount</th>
                       <th>Verified</th>
                       <th>Action</th>
@@ -653,6 +689,7 @@ function Inspectors() {
                           <td className="insp-epv-ref">{epv.ReferenceNumber || '—'}</td>
                           <td><strong>{epv.BusinessName}</strong></td>
                           <td>{epv.FacilityProvince}</td>
+                          <td>{epv.AssignedInspector || '—'}</td>
                           <td>{MONTH_NAMES[(epv.PeriodMonth || 1) - 1]} {epv.PeriodYear}</td>
                           <td><span className="insp-pct-badge insp-pct-good">Completed</span></td>
                           <td>{epv.CompletedAt ? new Date(epv.CompletedAt).toLocaleDateString('en-ZA') : '—'}</td>
@@ -663,6 +700,7 @@ function Inspectors() {
                           </td>
                           <td>{formatNum(epv.SoldToTrade)} doz</td>
                           <td>{formatNum(epv.PulpSoldToTrade)} doz</td>
+                          <td>{formatNum(Math.round((+epv.PowderSoldToTrade || 0) * 6.7))} doz</td>
                           <td><strong>{formatR(amount)}</strong></td>
                           <td onClick={e => e.stopPropagation()}>
                             <div className="insp-verify-actions">
@@ -728,6 +766,7 @@ function Inspectors() {
                       <th>Period</th>
                       <th>Facility Egg Dozens</th>
                       <th>Facility Pulp Dozens</th>
+                      <th>Facility Powder Dozens</th>
                       <th>Facility Amount</th>
                       <th>Inspector EPV</th>
                       <th>Company</th>
@@ -743,6 +782,7 @@ function Inspectors() {
                         <td>{MONTH_NAMES[(epv.PeriodMonth || 1) - 1]} {epv.PeriodYear}</td>
                         <td>{formatNum(epv.SoldToTrade)} doz</td>
                         <td>{formatNum(epv.PulpSoldToTrade)} doz</td>
+                        <td>{formatNum(Math.round((+epv.PowderSoldToTrade || 0) * 6.7))} doz</td>
                         <td><strong>{formatR(getEpvAmount(epv))}</strong></td>
                         <td>
                           <button className="insp-complete-action-btn" onClick={() => navigate(`/epv/${epv.InspEPVToken}`)}>
@@ -806,6 +846,7 @@ function Inspectors() {
                       <th onClick={() => notCompletedSort.toggleSort('BusinessName')} className="insp-sortable-th">Business Name<notCompletedSort.SortIcon col="BusinessName" /></th>
                       <th onClick={() => notCompletedSort.toggleSort('FacilityProvince')} className="insp-sortable-th">Province<notCompletedSort.SortIcon col="FacilityProvince" /></th>
                       <th onClick={() => notCompletedSort.toggleSort('FacilityType')} className="insp-sortable-th">Type<notCompletedSort.SortIcon col="FacilityType" /></th>
+                      <th onClick={() => notCompletedSort.toggleSort('AssignedInspector')} className="insp-sortable-th">Inspector<notCompletedSort.SortIcon col="AssignedInspector" /></th>
                       <th>Status</th>
                       <th>Action</th>
                     </tr>
@@ -817,6 +858,7 @@ function Inspectors() {
                         <td><strong>{f.BusinessName}</strong></td>
                         <td>{f.FacilityProvince}</td>
                         <td>{f.FacilityType || '—'}</td>
+                        <td>{f.AssignedInspector || '—'}</td>
                         <td>
                           {f.EPVId ? (
                             <span className="insp-pct-badge insp-pct-warn">Pending</span>
@@ -855,8 +897,10 @@ function Inspectors() {
                   <th>EPVs</th>
                   <th>Egg Dozens</th>
                   <th>Pulp Dozens</th>
+                  <th>Powder Dozens</th>
                   <th>Egg Levy</th>
                   <th>Pulp Levy</th>
+                  <th>Powder Levy</th>
                   <th>Total Billed</th>
                   <th>Total Paid</th>
                   <th>Paid %</th>
@@ -872,8 +916,10 @@ function Inspectors() {
                       <td>{formatNum(m.EPVCount)}</td>
                       <td>{formatNum(m.EggDozens)}</td>
                       <td>{formatNum(m.PulpDozens)}</td>
+                      <td>{formatNum(m.PowderDozens)}</td>
                       <td>{formatR(m.EggLevy)}</td>
                       <td>{formatR(m.PulpLevy)}</td>
+                      <td>{formatR(m.PowderLevy)}</td>
                       <td><strong>{formatR(m.TotalBilled)}</strong></td>
                       <td className="insp-paid-cell">{formatR(m.TotalPaid)}</td>
                       <td>
@@ -909,6 +955,7 @@ function Inspectors() {
                     <th onClick={() => visitSort.toggleSort('Town')} className="insp-sortable-th">Town<visitSort.SortIcon col="Town" /></th>
                     <th onClick={() => visitSort.toggleSort('FacilityProvince')} className="insp-sortable-th">Province<visitSort.SortIcon col="FacilityProvince" /></th>
                     <th onClick={() => visitSort.toggleSort('FacilityType')} className="insp-sortable-th">Facility Type<visitSort.SortIcon col="FacilityType" /></th>
+                    <th onClick={() => visitSort.toggleSort('AssignedInspector')} className="insp-sortable-th">Inspector<visitSort.SortIcon col="AssignedInspector" /></th>
                     <th>Action</th>
                   </tr>
                 </thead>
@@ -919,6 +966,7 @@ function Inspectors() {
                       <td>{f.Town || '—'}</td>
                       <td>{f.FacilityProvince}</td>
                       <td>{f.FacilityType || '—'}</td>
+                      <td>{f.AssignedInspector || '—'}</td>
                       <td><button className="insp-go-btn" onClick={() => navigate(`/company?companyId=${f.Id}`)}>Open Company</button></td>
                     </tr>
                   ))}
@@ -944,6 +992,7 @@ function Inspectors() {
                   <tr>
                     <th onClick={() => owingSort.toggleSort('BusinessName')} className="insp-sortable-th">Business Name<owingSort.SortIcon col="BusinessName" /></th>
                     <th onClick={() => owingSort.toggleSort('FacilityProvince')} className="insp-sortable-th">Province<owingSort.SortIcon col="FacilityProvince" /></th>
+                    <th onClick={() => owingSort.toggleSort('AssignedInspector')} className="insp-sortable-th">Inspector<owingSort.SortIcon col="AssignedInspector" /></th>
                     <th onClick={() => owingSort.toggleSort('TotalBilled')} className="insp-sortable-th">Total Billed<owingSort.SortIcon col="TotalBilled" /></th>
                     <th onClick={() => owingSort.toggleSort('TotalPaid')} className="insp-sortable-th">Total Paid<owingSort.SortIcon col="TotalPaid" /></th>
                     <th onClick={() => owingSort.toggleSort('TotalOwing')} className="insp-sortable-th">Outstanding<owingSort.SortIcon col="TotalOwing" /></th>
@@ -955,6 +1004,7 @@ function Inspectors() {
                     <tr key={f.ClientRecordId}>
                       <td><strong>{f.BusinessName}</strong></td>
                       <td>{f.FacilityProvince}</td>
+                      <td>{f.AssignedInspector || '—'}</td>
                       <td>{formatR(f.TotalBilled)}</td>
                       <td className="insp-paid-cell">{formatR(f.TotalPaid)}</td>
                       <td><strong className="insp-owing-amount">{formatR(f.TotalOwing)}</strong></td>

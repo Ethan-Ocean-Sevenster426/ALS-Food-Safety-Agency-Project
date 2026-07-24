@@ -8,7 +8,26 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 
-from api.models import ClientRecord, ClientAuditLog, Invitation, EggProductionVerification, SupportTicket
+from api.models import ClientRecord, ClientAuditLog, Invitation, EggProductionVerification, SupportTicket, User
+from api.middleware import inspector_user_id
+
+
+def _inspector_label(user_id):
+    """Readable name for an inspector id, for audit log entries."""
+    if not user_id:
+        return ''
+    try:
+        u = User.objects.get(id=user_id)
+        return f"{u.first_name} {u.last_name}".strip()
+    except User.DoesNotExist:
+        return f"User #{user_id}"
+
+
+def _parse_inspector_id(value):
+    """Coerce an incoming AssignedInspectorId ('' | None | '12' | 12) to int or None."""
+    if value in (None, '', 'null'):
+        return None
+    return int(value)
 
 
 @csrf_exempt
@@ -20,7 +39,12 @@ def list_clients(request):
         search = request.query_params.get('search', '')
         offset = (page - 1) * limit
 
-        queryset = ClientRecord.objects.all()
+        queryset = ClientRecord.objects.select_related('assigned_inspector')
+
+        # Inspectors only ever see their own assigned facilities
+        insp_id = inspector_user_id(request)
+        if insp_id:
+            queryset = queryset.filter(assigned_inspector_id=insp_id)
 
         if search:
             queryset = queryset.filter(
@@ -59,6 +83,8 @@ def list_clients(request):
                 'VerifiedAt': r.verified_at.isoformat() if r.verified_at else None,
                 'VerifiedBy': r.verified_by,
                 'EPVCycleStatus': r.epv_cycle_status,
+                'AssignedInspectorId': r.assigned_inspector_id,
+                'AssignedInspectorName': r.assigned_inspector_name(),
             })
 
         return Response({
@@ -87,6 +113,9 @@ def create_client(request):
         # Build kwargs from EDITABLE_FIELDS using FIELD_MAP
         kwargs = {}
         for js_field in ClientRecord.EDITABLE_FIELDS:
+            if js_field == 'AssignedInspectorId':
+                kwargs['assigned_inspector_id'] = _parse_inspector_id(client.get(js_field))
+                continue
             django_field = ClientRecord.FIELD_MAP.get(js_field)
             if django_field:
                 kwargs[django_field] = str(client.get(js_field, '') or '')
@@ -137,6 +166,23 @@ def _update_client(request, id):
 
         for js_field, new_value in updates.items():
             if js_field not in ClientRecord.EDITABLE_FIELDS:
+                continue
+
+            if js_field == 'AssignedInspectorId':
+                old_id = record.assigned_inspector_id
+                try:
+                    new_id = _parse_inspector_id(new_value)
+                except (ValueError, TypeError):
+                    continue
+                if old_id == new_id:
+                    continue
+                record.assigned_inspector_id = new_id
+                audit_entries.append({
+                    'field': 'AssignedInspector',
+                    'oldValue': _inspector_label(old_id) or '(none)',
+                    'newValue': _inspector_label(new_id) or '(none)',
+                })
+                changes_made = True
                 continue
 
             django_field = ClientRecord.FIELD_MAP.get(js_field)

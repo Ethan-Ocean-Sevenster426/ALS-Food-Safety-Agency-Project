@@ -11,6 +11,7 @@ const TABLE_FIELDS = [
   { key: 'Town', label: 'Town' },
   { key: 'FacilityType', label: 'Facility Type' },
   { key: 'FacilityProvince', label: 'Province' },
+  { key: 'AssignedInspectorId', label: 'Assigned Inspector' },
   { key: 'CompanyRegNumber', label: 'Reg No.' },
   { key: 'PhysicalAddress', label: 'Physical Address' },
   { key: 'VATNumber', label: 'VAT No.' },
@@ -89,6 +90,7 @@ function ClientAllocation() {
   const [inviteSending, setInviteSending] = useState(false);
   const [expandedRows, setExpandedRows] = useState({});
   const [epvSending, setEpvSending] = useState(null); // clientRecordId being sent
+  const [inspectors, setInspectors] = useState([]);
   const limit = 50;
 
   const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -130,6 +132,56 @@ function ClientAllocation() {
   useEffect(() => { fetchClients(); }, [fetchClients]);
   useEffect(() => { if (showAuditLog) fetchAuditLog(); }, [fetchAuditLog, showAuditLog]);
 
+  // Load all Inspector-role users for the Assigned Inspector dropdown
+  useEffect(() => {
+    const fetchInspectors = async () => {
+      try {
+        const res = await axios.get('/api/auth/users', { params: { role: 'Inspector' } });
+        const list = (res.data.users || [])
+          .filter(u => u.Role === 'Inspector' && u.IsActive !== false)
+          .map(u => ({
+            Id: u.Id,
+            name: `${u.FirstName || ''} ${u.LastName || ''}`.trim() || u.Email,
+            province: u.InspectorProvince || '',
+          }))
+          .sort((a, b) => a.name.localeCompare(b.name));
+        setInspectors(list);
+      } catch (err) {
+        // Dropdown just stays empty if inspectors can't be loaded
+      }
+    };
+    fetchInspectors();
+  }, []);
+
+  const inspectorSelect = (value, onChange, extraClass = '', disabled = false) => (
+    <select className={`ca-edit-input ${extraClass}`} value={value} onChange={onChange} disabled={disabled}>
+      <option value="">— No inspector —</option>
+      {inspectors.map(i => (
+        <option key={i.Id} value={String(i.Id)}>
+          {i.name}{i.province ? ` (${i.province})` : ''}
+        </option>
+      ))}
+    </select>
+  );
+
+  // Assign an inspector straight from the table (no Edit mode needed)
+  const quickAssignInspector = async (client, value) => {
+    try {
+      await axios.put(`/api/clients/${client.Id}`, {
+        updates: { AssignedInspectorId: value },
+        changedBy: userLabel,
+      });
+      const picked = inspectors.find(i => String(i.Id) === value);
+      setClients(prev => prev.map(x => x.Id === client.Id
+        ? { ...x, AssignedInspectorId: value === '' ? null : parseInt(value, 10), AssignedInspectorName: picked ? picked.name : null }
+        : x));
+      setSuccessMsg('Inspector assignment updated.');
+    } catch (err) {
+      setError('Failed to update inspector assignment.');
+      fetchClients();
+    }
+  };
+
   // Auto-clear success message
   useEffect(() => {
     if (successMsg) {
@@ -148,7 +200,7 @@ function ClientAllocation() {
   const startEdit = (client) => {
     setEditingId(client.Id);
     const values = {};
-    ALL_FIELDS.forEach(f => { values[f.key] = client[f.key] || ''; });
+    ALL_FIELDS.forEach(f => { values[f.key] = client[f.key] == null ? '' : String(client[f.key]); });
     setEditValues(values);
     setOriginalValues({ ...values });
     // Expand the row so detail fields are visible for editing
@@ -495,8 +547,10 @@ function ClientAllocation() {
                         </td>
                         <td></td>
                         {TABLE_FIELDS.map(f => (
-                          <td key={f.key}>
-                            {f.key === 'FacilityProvince' ? (
+                          <td key={f.key} className={f.key === 'AssignedInspectorId' ? 'ca-inspector-cell' : undefined}>
+                            {f.key === 'AssignedInspectorId' ? (
+                              inspectorSelect(newRow[f.key], (e) => handleNewRowChange(f.key, e.target.value), 'ca-new-input')
+                            ) : f.key === 'FacilityProvince' ? (
                               <select
                                 className="ca-edit-input ca-new-input"
                                 value={newRow[f.key]}
@@ -589,9 +643,15 @@ function ClientAllocation() {
                             )}
                           </td>
                           {TABLE_FIELDS.map(f => (
-                            <td key={f.key}>
+                            <td key={f.key} className={f.key === 'AssignedInspectorId' ? 'ca-inspector-cell' : undefined}>
                               {editingId === c.Id && !f.readOnly ? (
-                                f.key === 'FacilityProvince' ? (
+                                f.key === 'AssignedInspectorId' ? (
+                                  inspectorSelect(
+                                    editValues[f.key],
+                                    (e) => handleFieldChange(f.key, e.target.value),
+                                    editValues[f.key] !== originalValues[f.key] ? 'ca-changed' : ''
+                                  )
+                                ) : f.key === 'FacilityProvince' ? (
                                   <select
                                     className={`ca-edit-input ${editValues[f.key] !== originalValues[f.key] ? 'ca-changed' : ''}`}
                                     value={editValues[f.key]}
@@ -609,6 +669,13 @@ function ClientAllocation() {
                                     value={editValues[f.key]}
                                     onChange={(e) => handleFieldChange(f.key, e.target.value)}
                                   />
+                                )
+                              ) : f.key === 'AssignedInspectorId' ? (
+                                inspectorSelect(
+                                  c.AssignedInspectorId == null ? '' : String(c.AssignedInspectorId),
+                                  (e) => quickAssignInspector(c, e.target.value),
+                                  'ca-inline-inspector',
+                                  editingId !== null || showAddRow
                                 )
                               ) : (
                                 c[f.key]

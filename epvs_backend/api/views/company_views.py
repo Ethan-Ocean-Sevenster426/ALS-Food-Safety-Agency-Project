@@ -11,14 +11,31 @@ from rest_framework import status
 
 from api.models import User, ClientRecord, Invitation, ClientAuditLog
 from api.services.email_service import send_email, build_invite_email
+from api.middleware import inspector_user_id
 
 logger = logging.getLogger(__name__)
+
+
+def _inspector_block(request, client_record_id):
+    """403 Response if the requester is an Inspector not assigned to this facility, else None."""
+    insp_id = inspector_user_id(request)
+    if not insp_id:
+        return None
+    if ClientRecord.objects.filter(id=client_record_id, assigned_inspector_id=insp_id).exists():
+        return None
+    return Response(
+        {'message': 'You are not assigned to this facility.'},
+        status=status.HTTP_403_FORBIDDEN,
+    )
 
 
 @csrf_exempt
 @api_view(['GET'])
 def get_company(request, client_record_id):
     """GET /api/company/:clientRecordId - get company details."""
+    blocked = _inspector_block(request, client_record_id)
+    if blocked:
+        return blocked
     try:
         try:
             record = ClientRecord.objects.get(id=client_record_id)
@@ -114,6 +131,9 @@ def update_company(request, client_record_id):
 @csrf_exempt
 @api_view(['GET'])
 def get_company_users(request, client_record_id):
+    blocked = _inspector_block(request, client_record_id)
+    if blocked:
+        return blocked
     """GET /api/company/:clientRecordId/users - list users allocated to this company."""
     try:
         # Get accepted invitation emails for this company
@@ -287,6 +307,9 @@ def delete_company_user(request, client_record_id, user_id):
 @csrf_exempt
 @api_view(['GET'])
 def get_company_audit_log(request, client_record_id):
+    blocked = _inspector_block(request, client_record_id)
+    if blocked:
+        return blocked
     """GET /api/company/:clientRecordId/audit-log - paginated audit log."""
     try:
         page = int(request.query_params.get('page', 1))
