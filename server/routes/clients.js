@@ -1,5 +1,6 @@
 const express = require('express');
 const { sql, getPool } = require('../config/db');
+const { sendEmail } = require('../services/emailService');
 
 const router = express.Router();
 
@@ -49,18 +50,16 @@ router.get('/', async (req, res) => {
               c.AbattoirOwnerName, c.AbattoirOwnerCell, c.AbattoirOwnerEmail,
               c.AccountsContactName, c.AccountsTelephone, c.AccountsEmail,
               c.AbattoirManagerName, c.AbattoirManagerCell, c.AbattoirManagerEmail,
-              c.EPVCycleStatus,
+              c.EPVCycleStatus, c.ApprovalStatus,
               onboarding.AcceptedAt    AS OnboardedAt,
               onboarding.Email         AS OnboardedBy
        FROM ConsolidatedMasterAbattoirDatabase c
-       OUTER APPLY (
-         SELECT TOP 1 AcceptedAt, Email
+       LEFT JOIN (
+         SELECT ClientRecordId, AcceptedAt, Email,
+                ROW_NUMBER() OVER (PARTITION BY ClientRecordId ORDER BY AcceptedAt ASC) AS rn
          FROM Invitations
-         WHERE ClientRecordId = c.Id
-           AND Role = 'Company Admin'
-           AND Status = 'Accepted'
-         ORDER BY AcceptedAt ASC
-       ) onboarding
+         WHERE Role = 'Company Admin' AND Status = 'Accepted'
+       ) onboarding ON onboarding.ClientRecordId = c.Id AND onboarding.rn = 1
        ${whereClauseQualified}
        ORDER BY c.Id
        OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`
@@ -280,6 +279,202 @@ router.delete('/:id', async (req, res) => {
   } catch (err) {
     console.error('Client delete error:', err);
     res.status(500).json({ message: 'Server error deleting client.' });
+  }
+});
+
+// GET /api/clients/pending - list pending company registrations
+router.get('/pending', async (req, res) => {
+  try {
+    const pool = await getPool();
+    const result = await pool.request().query(
+      `SELECT Id, BusinessName, AccountCode, Email, Town, FacilityType, FacilityProvince,
+              CompanyRegNumber, PhysicalAddress, VATNumber,
+              AbattoirOwnerName, AbattoirOwnerCell, AbattoirOwnerEmail,
+              AccountsContactName, AccountsTelephone, AccountsEmail,
+              AbattoirManagerName, AbattoirManagerCell, AbattoirManagerEmail,
+              ApprovalStatus
+       FROM ConsolidatedMasterAbattoirDatabase
+       WHERE ApprovalStatus = 'Pending'
+       ORDER BY Id DESC`
+    );
+    res.json({ data: result.recordset });
+  } catch (err) {
+    console.error('Pending clients fetch error:', err);
+    res.status(500).json({ message: 'Server error.' });
+  }
+});
+
+// PUT /api/clients/approve/:id - approve a pending company registration
+router.put('/approve/:id', async (req, res) => {
+  const { id } = req.params;
+  const { approvedBy } = req.body;
+
+  if (!approvedBy) {
+    return res.status(400).json({ message: 'approvedBy is required.' });
+  }
+
+  try {
+    const pool = await getPool();
+
+    const client = await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .query('SELECT * FROM ConsolidatedMasterAbattoirDatabase WHERE Id = @id');
+
+    if (client.recordset.length === 0) {
+      return res.status(404).json({ message: 'Company not found.' });
+    }
+
+    const record = client.recordset[0];
+
+    if (record.ApprovalStatus !== 'Pending') {
+      return res.status(400).json({ message: `Company is already ${record.ApprovalStatus}.` });
+    }
+
+    // Update approval status
+    await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .query("UPDATE ConsolidatedMasterAbattoirDatabase SET ApprovalStatus = 'Approved' WHERE Id = @id");
+
+    // Activate the user account
+    const userEmail = record.Email;
+    if (userEmail) {
+      await pool.request()
+        .input('email', sql.NVarChar, userEmail)
+        .query('UPDATE Users SET IsActive = 1 WHERE LOWER(Email) = LOWER(@email) AND IsActive = 0');
+    }
+
+    // Send approval notification email
+    if (userEmail) {
+      try {
+        await sendEmail({
+          to: userEmail,
+          subject: 'EPVS - Your Company Registration Has Been Approved',
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+              <div style="background: linear-gradient(135deg, #0E7C7B 0%, #065f5e 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+                <h1 style="color: #fff; margin: 0; font-size: 28px;">EPVS</h1>
+                <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">Egg Production Verification System</p>
+              </div>
+              <div style="background: #fff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+                <h2 style="color: #059669; margin-top: 0;">Registration Approved</h2>
+                <p style="color: #555; font-size: 15px; line-height: 1.6;">
+                  Your company <strong>${record.BusinessName}</strong> has been approved on the Egg Production Verification System. You can now log in and access your account.
+                </p>
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="https://egg-production-verification.fsa-pty.co.za/login" style="display: inline-block; background-color: #0E7C7B; color: #ffffff; padding: 14px 40px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: 600;">
+                    Sign In
+                  </a>
+                </div>
+              </div>
+            </div>
+          `,
+        });
+      } catch (emailErr) {
+        console.error('Approval email failed:', emailErr.message);
+      }
+    }
+
+    // Audit log
+    await pool.request()
+      .input('recordId', sql.Int, parseInt(id))
+      .input('fieldName', sql.NVarChar, 'ApprovalStatus')
+      .input('oldValue', sql.NVarChar, 'Pending')
+      .input('newValue', sql.NVarChar, 'Approved')
+      .input('changedBy', sql.NVarChar, approvedBy)
+      .query(
+        `INSERT INTO ClientAuditLog (RecordId, FieldName, OldValue, NewValue, ChangedBy)
+         VALUES (@recordId, @fieldName, @oldValue, @newValue, @changedBy)`
+      );
+
+    res.json({ message: `${record.BusinessName} has been approved. Notification sent to ${userEmail}.` });
+  } catch (err) {
+    console.error('Approval error:', err);
+    res.status(500).json({ message: 'Server error approving company.' });
+  }
+});
+
+// PUT /api/clients/reject/:id - reject a pending company registration
+router.put('/reject/:id', async (req, res) => {
+  const { id } = req.params;
+  const { rejectedBy, reason } = req.body;
+
+  if (!rejectedBy) {
+    return res.status(400).json({ message: 'rejectedBy is required.' });
+  }
+
+  try {
+    const pool = await getPool();
+
+    const client = await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .query('SELECT * FROM ConsolidatedMasterAbattoirDatabase WHERE Id = @id');
+
+    if (client.recordset.length === 0) {
+      return res.status(404).json({ message: 'Company not found.' });
+    }
+
+    const record = client.recordset[0];
+
+    if (record.ApprovalStatus !== 'Pending') {
+      return res.status(400).json({ message: `Company is already ${record.ApprovalStatus}.` });
+    }
+
+    // Send rejection notification email before deleting
+    const userEmail = record.Email;
+    if (userEmail) {
+      try {
+        await sendEmail({
+          to: userEmail,
+          subject: 'EPVS - Company Registration Update',
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+              <div style="background: linear-gradient(135deg, #0E7C7B 0%, #065f5e 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+                <h1 style="color: #fff; margin: 0; font-size: 28px;">EPVS</h1>
+                <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">Egg Production Verification System</p>
+              </div>
+              <div style="background: #fff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+                <h2 style="color: #dc2626; margin-top: 0;">Registration Not Approved</h2>
+                <p style="color: #555; font-size: 15px; line-height: 1.6;">
+                  Your registration for <strong>${record.BusinessName}</strong> has not been approved.${reason ? ` Reason: ${reason}` : ''}
+                </p>
+                <p style="color: #555; font-size: 15px; line-height: 1.6;">
+                  If you believe this is an error, please contact the EPVS administration team.
+                </p>
+              </div>
+            </div>
+          `,
+        });
+      } catch (emailErr) {
+        console.error('Rejection email failed:', emailErr.message);
+      }
+    }
+
+    // Delete related invitations
+    await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .query('DELETE FROM Invitations WHERE ClientRecordId = @id');
+
+    // Delete related user account (created during self-registration)
+    if (userEmail) {
+      await pool.request()
+        .input('email', sql.NVarChar, userEmail)
+        .query('DELETE FROM Users WHERE LOWER(Email) = LOWER(@email)');
+    }
+
+    // Delete audit log entries for this record
+    await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .query('DELETE FROM ClientAuditLog WHERE RecordId = @id');
+
+    // Delete the client record itself
+    await pool.request()
+      .input('id', sql.Int, parseInt(id))
+      .query('DELETE FROM ConsolidatedMasterAbattoirDatabase WHERE Id = @id');
+
+    res.json({ message: `${record.BusinessName} has been rejected and removed.` });
+  } catch (err) {
+    console.error('Rejection error:', err);
+    res.status(500).json({ message: 'Server error rejecting company.' });
   }
 });
 

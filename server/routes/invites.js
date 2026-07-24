@@ -67,7 +67,7 @@ router.post('/', async (req, res) => {
       );
 
     // Send invite email
-    const inviteUrl = `http://localhost:3000/accept-invite/${token}`;
+    const inviteUrl = `https://egg-production-verification.fsa-pty.co.za/accept-invite/${token}`;
     const emailContent = buildInviteEmail({
       businessName: record.BusinessName,
       role,
@@ -171,8 +171,9 @@ router.post('/:token/accept', async (req, res) => {
       .input('email', sql.NVarChar, invite.Email)
       .input('passwordHash', sql.NVarChar, passwordHash)
       .input('role', sql.NVarChar, invite.Role)
+      .input('isActive', sql.Bit, true)
       .query(
-        'INSERT INTO Users (FirstName, LastName, Email, PasswordHash, Role) VALUES (@firstName, @lastName, @email, @passwordHash, @role)'
+        'INSERT INTO Users (FirstName, LastName, Email, PasswordHash, Role, IsActive) VALUES (@firstName, @lastName, @email, @passwordHash, @role, @isActive)'
       );
 
     // Mark invite as accepted

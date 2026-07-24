@@ -366,7 +366,7 @@ def forgot_password(request):
         }
         reset_token = jwt.encode(payload, settings.SECRET_KEY, algorithm='HS256')
 
-        reset_url = f'http://localhost:3000/reset-password/{reset_token}'
+        reset_url = f'https://egg-production-verification.fsa-pty.co.za/reset-password/{reset_token}'
 
         html = f'''
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">

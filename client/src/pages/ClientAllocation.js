@@ -91,6 +91,10 @@ function ClientAllocation() {
   const [expandedRows, setExpandedRows] = useState({});
   const [epvSending, setEpvSending] = useState(null); // clientRecordId being sent
   const [inspectors, setInspectors] = useState([]);
+  const [approvingId, setApprovingId] = useState(null);
+  const [rejectingId, setRejectingId] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [showRejectModal, setShowRejectModal] = useState(null);
   const limit = 50;
 
   const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -128,6 +132,36 @@ function ClientAllocation() {
       setAuditLoading(false);
     }
   }, [auditPage, auditRecordFilter]);
+
+
+  const handleApprove = async (client) => {
+    setApprovingId(client.Id);
+    try {
+      const res = await axios.put(`/api/clients/approve/${client.Id}`, { approvedBy: userLabel });
+      setSuccessMsg(res.data.message);
+      fetchClients();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to approve.');
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!showRejectModal) return;
+    setRejectingId(showRejectModal.Id);
+    try {
+      const res = await axios.put(`/api/clients/reject/${showRejectModal.Id}`, { rejectedBy: userLabel, reason: rejectReason });
+      setSuccessMsg(res.data.message);
+      setShowRejectModal(null);
+      setRejectReason('');
+      fetchClients();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to reject.');
+    } finally {
+      setRejectingId(null);
+    }
+  };
 
   useEffect(() => { fetchClients(); }, [fetchClients]);
   useEffect(() => { if (showAuditLog) fetchAuditLog(); }, [fetchAuditLog, showAuditLog]);
@@ -409,6 +443,32 @@ function ClientAllocation() {
         {error && <p className="ca-error">{error}</p>}
         {successMsg && <p className="ca-success">{successMsg}</p>}
 
+        {/* Reject confirmation modal */}
+        {showRejectModal && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+            <div style={{ background: '#fff', borderRadius: 12, padding: 24, maxWidth: 440, width: '90%' }}>
+              <h3 style={{ margin: '0 0 12px', color: '#dc2626' }}>Reject Registration</h3>
+              <p style={{ color: '#555', fontSize: 14 }}>
+                Reject <strong>{showRejectModal.BusinessName}</strong>? This will notify them via email.
+              </p>
+              <label style={{ display: 'block', margin: '12px 0 6px', fontWeight: 600, fontSize: 14, color: '#333' }}>Reason (optional):</label>
+              <textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Enter rejection reason..."
+                rows={3}
+                style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #d1d5db', fontSize: 14 }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+                <button onClick={() => setShowRejectModal(null)} style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer' }}>Cancel</button>
+                <button onClick={handleReject} disabled={rejectingId} style={{ padding: '8px 16px', borderRadius: 6, border: 'none', background: '#dc2626', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>
+                  {rejectingId ? 'Rejecting...' : 'Confirm Reject'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ===== DELETE CONFIRMATION MODAL ===== */}
         {deleteConfirm && (
           <div className="ca-modal-overlay">
@@ -610,9 +670,11 @@ function ClientAllocation() {
                   ) : clients.length === 0 ? (
                     <tr><td colSpan={TABLE_FIELDS.length + 4} className="ca-loading">No records found.</td></tr>
                   ) : (
-                    clients.map((c) => (
+                    clients.map((c) => {
+                      const isPending = c.ApprovalStatus === 'Pending';
+                      return (
                       <React.Fragment key={c.Id}>
-                        <tr className={editingId === c.Id ? 'ca-editing-row' : ''}>
+                        <tr className={editingId === c.Id ? 'ca-editing-row' : ''} style={isPending ? { background: '#fffbeb', borderLeft: '4px solid #f59e0b' } : {}}>
                           <td className="ca-actions-cell">
                             {editingId === c.Id ? (
                               <div className="ca-edit-actions">
@@ -630,7 +692,12 @@ function ClientAllocation() {
                             )}
                           </td>
                           <td className="ca-status-cell">
-                            {c.OnboardedAt && (
+                            {isPending && (
+                              <span className="ca-pending-badge" title="Pending approval" style={{ display: 'inline-block', background: '#f59e0b', color: '#fff', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700 }}>
+                                Pending
+                              </span>
+                            )}
+                            {c.OnboardedAt && !isPending && (
                               <span
                                 className="ca-verified-badge"
                                 title={`Onboarding completed by ${c.OnboardedBy || 'Unknown'} on ${new Date(c.OnboardedAt).toLocaleDateString()}`}
@@ -704,7 +771,7 @@ function ClientAllocation() {
                         </tr>
                         {/* Expandable detail row */}
                         {expandedRows[c.Id] && (
-                          <tr className={`ca-detail-row ${editingId === c.Id ? 'ca-editing-row' : ''}`}>
+                          <tr className={`ca-detail-row ${editingId === c.Id ? 'ca-editing-row' : ''}`} style={isPending ? { background: '#fffef5' } : {}}>
                             <td colSpan={TABLE_FIELDS.length + 4}>
                               <div className="ca-detail-groups">
                                 {DETAIL_GROUPS.map(group => (
@@ -730,11 +797,30 @@ function ClientAllocation() {
                                   </div>
                                 ))}
                               </div>
+                              {isPending && editingId !== c.Id && (
+                                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', padding: '12px 0 4px', borderTop: '1px solid #fde68a', marginTop: 12 }}>
+                                  <button
+                                    onClick={() => handleApprove(c)}
+                                    disabled={approvingId === c.Id}
+                                    style={{ background: '#059669', color: '#fff', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 14 }}
+                                  >
+                                    {approvingId === c.Id ? 'Approving...' : 'Approve'}
+                                  </button>
+                                  <button
+                                    onClick={() => { setShowRejectModal(c); setRejectReason(''); }}
+                                    disabled={rejectingId === c.Id}
+                                    style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 14 }}
+                                  >
+                                    Reject
+                                  </button>
+                                </div>
+                              )}
                             </td>
                           </tr>
                         )}
                       </React.Fragment>
-                    ))
+                      );
+                    })
                   )}
                 </tbody>
               </table>

@@ -4,9 +4,22 @@ const jwt = require('jsonwebtoken');
 const { sql, getPool } = require('../config/db');
 const { sendEmail } = require('../services/emailService');
 
+const crypto = require('crypto');
+
 const router = express.Router();
 
-const VALID_ROLES = ['Super Admin', 'Admin', 'Inspector', 'Company Admin', 'User'];
+const VALID_ROLES = ['Super Admin', 'Admin', 'Super', 'Inspector', 'Company Admin', 'User'];
+
+// In-memory OTP store: { email -> { code, expiresAt, verified } }
+const otpStore = new Map();
+
+// Clean up expired OTPs every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [email, entry] of otpStore) {
+    if (now > entry.expiresAt) otpStore.delete(email);
+  }
+}, 5 * 60 * 1000);
 
 // POST /api/auth/signup
 router.post('/signup', async (req, res) => {
@@ -41,13 +54,13 @@ router.post('/signup', async (req, res) => {
       .input('passwordHash', sql.NVarChar, passwordHash)
       .input('role', sql.NVarChar, assignedRole)
       .input('inspectorProvince', sql.NVarChar, assignedRole === 'Inspector' ? (inspectorProvince || null) : null)
+      .input('isActive', sql.Bit, true)
       .query(
-        'INSERT INTO Users (FirstName, LastName, Email, PasswordHash, Role, InspectorProvince) VALUES (@firstName, @lastName, @email, @passwordHash, @role, @inspectorProvince)'
+        'INSERT INTO Users (FirstName, LastName, Email, PasswordHash, Role, InspectorProvince, IsActive) VALUES (@firstName, @lastName, @email, @passwordHash, @role, @inspectorProvince, @isActive)'
       );
 
     // If a clientRecordId is provided for Company Admin or User, create an accepted invitation link
     if (clientRecordId && (assignedRole === 'Company Admin' || assignedRole === 'User')) {
-      const crypto = require('crypto');
       const token = crypto.randomBytes(32).toString('hex');
       await pool.request()
         .input('clientRecordId', sql.Int, parseInt(clientRecordId))
@@ -118,8 +131,21 @@ router.post('/login', async (req, res) => {
     const user = result.recordset[0];
 
     if (user.IsActive === false || user.IsActive === 0) {
-      await logLoginAttempt(pool, { userId: user.Id, email: user.Email, success: false, reason: 'Account deactivated', req });
-      return res.status(403).json({ message: 'Your account has been deactivated. Please contact an administrator.' });
+      // Check if this is a pending self-registration
+      const pendingCheck = await pool.request()
+        .input('pendingEmail', sql.NVarChar, user.Email)
+        .query(
+          `SELECT TOP 1 c.ApprovalStatus FROM Invitations i
+           JOIN ConsolidatedMasterAbattoirDatabase c ON i.ClientRecordId = c.Id
+           WHERE LOWER(i.Email) = LOWER(@pendingEmail) AND i.Status = 'Accepted'
+           ORDER BY i.AcceptedAt DESC`
+        );
+      const isPending = pendingCheck.recordset.length > 0 && pendingCheck.recordset[0].ApprovalStatus === 'Pending';
+      const msg = isPending
+        ? 'Your company registration is pending approval. You will receive an email once approved.'
+        : 'Your account has been deactivated. Please contact an administrator.';
+      await logLoginAttempt(pool, { userId: user.Id, email: user.Email, success: false, reason: isPending ? 'Pending approval' : 'Account deactivated', req });
+      return res.status(403).json({ message: msg });
     }
 
     const isMatch = await bcrypt.compare(password, user.PasswordHash);
@@ -409,6 +435,223 @@ router.delete('/users/:id', async (req, res) => {
   }
 });
 
+// POST /api/auth/send-otp - send a 6-digit OTP to verify email during registration
+router.post('/send-otp', async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ message: 'Email is required.' });
+  }
+
+  try {
+    // Rate limit: don't allow resend within 60 seconds
+    const prev = otpStore.get(email.toLowerCase());
+    if (prev && Date.now() - (prev.createdAt || 0) < 60000) {
+      return res.status(429).json({ message: 'Please wait before requesting a new code.' });
+    }
+
+    // Generate 6-digit code
+    const code = crypto.randomInt(100000, 999999).toString();
+    otpStore.set(email.toLowerCase(), {
+      code,
+      expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes
+      createdAt: Date.now(),
+      verified: false,
+    });
+
+    // Send OTP email
+    await sendEmail({
+      to: email,
+      subject: 'EPVS - Email Verification Code',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #0E7C7B 0%, #065f5e 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+            <h1 style="color: #fff; margin: 0; font-size: 28px;">EPVS</h1>
+            <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">Egg Production Verification System</p>
+          </div>
+          <div style="background: #fff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+            <h2 style="color: #333; margin-top: 0;">Verify Your Email</h2>
+            <p style="color: #555; font-size: 15px; line-height: 1.6;">
+              Your verification code for company registration is:
+            </p>
+            <div style="text-align: center; margin: 24px 0;">
+              <span style="display: inline-block; background: #f3f4f6; border: 2px solid #0E7C7B; border-radius: 12px; padding: 16px 32px; font-size: 32px; font-weight: 700; letter-spacing: 8px; color: #0E7C7B;">${code}</span>
+            </div>
+            <p style="color: #999; font-size: 13px; text-align: center;">
+              This code expires in <strong>10 minutes</strong>. Do not share it with anyone.
+            </p>
+          </div>
+        </div>
+      `,
+    });
+
+    res.json({ message: 'Verification code sent to your email.' });
+  } catch (err) {
+    console.error('Send OTP error:', err);
+    res.status(500).json({ message: 'Failed to send verification code. Please try again.' });
+  }
+});
+
+// POST /api/auth/verify-otp - verify the 6-digit OTP
+router.post('/verify-otp', async (req, res) => {
+  const { email, code } = req.body;
+
+  if (!email || !code) {
+    return res.status(400).json({ message: 'Email and verification code are required.' });
+  }
+
+  const entry = otpStore.get(email.toLowerCase());
+
+  if (!entry) {
+    return res.status(400).json({ message: 'No verification code found. Please request a new one.' });
+  }
+
+  if (Date.now() > entry.expiresAt) {
+    otpStore.delete(email.toLowerCase());
+    return res.status(400).json({ message: 'Verification code has expired. Please request a new one.' });
+  }
+
+  if (entry.code !== code.toString().trim()) {
+    return res.status(400).json({ message: 'Invalid verification code.' });
+  }
+
+  // Mark as verified and generate a token
+  entry.verified = true;
+  const otpToken = jwt.sign(
+    { email: email.toLowerCase(), purpose: 'otp-verified' },
+    process.env.JWT_SECRET,
+    { expiresIn: '30m' }
+  );
+
+  res.json({ message: 'Email verified successfully.', otpToken });
+});
+
+// POST /api/auth/register-company - self-registration for companies
+router.post('/register-company', async (req, res) => {
+  const {
+    firstName, lastName, email, password, otpToken,
+    businessName, facilityProvince, companyRegNumber, physicalAddress, vatNumber,
+    facilityType, town,
+    abattoirOwnerName, abattoirOwnerCell, abattoirOwnerEmail,
+    accountsContactName, accountsTelephone, accountsEmail,
+    abattoirManagerName, abattoirManagerCell, abattoirManagerEmail
+  } = req.body;
+
+  if (!firstName || !lastName || !email || !password || !businessName) {
+    return res.status(400).json({ message: 'First name, last name, email, password, and business name are required.' });
+  }
+
+  if (password.length < 6) {
+    return res.status(400).json({ message: 'Password must be at least 6 characters.' });
+  }
+
+  // Verify OTP token
+  if (!otpToken) {
+    return res.status(400).json({ message: 'Email verification is required.' });
+  }
+  try {
+    const decoded = jwt.verify(otpToken, process.env.JWT_SECRET);
+    if (decoded.purpose !== 'otp-verified' || decoded.email !== email.toLowerCase()) {
+      return res.status(400).json({ message: 'Invalid email verification. Please verify your email again.' });
+    }
+  } catch (e) {
+    return res.status(400).json({ message: 'Email verification expired. Please verify your email again.' });
+  }
+
+  try {
+    const pool = await getPool();
+
+    // Check if user already exists
+    const existing = await pool.request()
+      .input('email', sql.NVarChar, email)
+      .query('SELECT Id FROM Users WHERE LOWER(Email) = LOWER(@email)');
+    if (existing.recordset.length > 0) {
+      return res.status(409).json({ message: 'An account with this email already exists.' });
+    }
+
+    // Create client_record with ApprovalStatus = 'Pending'
+    const clientResult = await pool.request()
+      .input('businessName', sql.NVarChar, businessName)
+      .input('email', sql.NVarChar, email)
+      .input('facilityProvince', sql.NVarChar, facilityProvince || '')
+      .input('companyRegNumber', sql.NVarChar, companyRegNumber || '')
+      .input('physicalAddress', sql.NVarChar, physicalAddress || '')
+      .input('vatNumber', sql.NVarChar, vatNumber || '')
+      .input('facilityType', sql.NVarChar, facilityType || '')
+      .input('town', sql.NVarChar, town || '')
+      .input('abattoirOwnerName', sql.NVarChar, abattoirOwnerName || '')
+      .input('abattoirOwnerCell', sql.NVarChar, abattoirOwnerCell || '')
+      .input('abattoirOwnerEmail', sql.NVarChar, abattoirOwnerEmail || '')
+      .input('accountsContactName', sql.NVarChar, accountsContactName || '')
+      .input('accountsTelephone', sql.NVarChar, accountsTelephone || '')
+      .input('accountsEmail', sql.NVarChar, accountsEmail || '')
+      .input('abattoirManagerName', sql.NVarChar, abattoirManagerName || '')
+      .input('abattoirManagerCell', sql.NVarChar, abattoirManagerCell || '')
+      .input('abattoirManagerEmail', sql.NVarChar, abattoirManagerEmail || '')
+      .input('approvalStatus', sql.NVarChar, 'Pending')
+      .query(
+        `INSERT INTO ConsolidatedMasterAbattoirDatabase
+         (BusinessName, Email, FacilityProvince, CompanyRegNumber, PhysicalAddress, VATNumber,
+          FacilityType, Town,
+          AbattoirOwnerName, AbattoirOwnerCell, AbattoirOwnerEmail,
+          AccountsContactName, AccountsTelephone, AccountsEmail,
+          AbattoirManagerName, AbattoirManagerCell, AbattoirManagerEmail,
+          ApprovalStatus)
+         OUTPUT INSERTED.Id
+         VALUES (@businessName, @email, @facilityProvince, @companyRegNumber, @physicalAddress, @vatNumber,
+                 @facilityType, @town,
+                 @abattoirOwnerName, @abattoirOwnerCell, @abattoirOwnerEmail,
+                 @accountsContactName, @accountsTelephone, @accountsEmail,
+                 @abattoirManagerName, @abattoirManagerCell, @abattoirManagerEmail,
+                 @approvalStatus)`
+      );
+
+    const clientRecordId = clientResult.recordset[0].Id;
+
+    // Create user account with IsActive = FALSE (blocked until approved)
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(password, salt);
+
+    await pool.request()
+      .input('firstName', sql.NVarChar, firstName)
+      .input('lastName', sql.NVarChar, lastName)
+      .input('email', sql.NVarChar, email)
+      .input('passwordHash', sql.NVarChar, passwordHash)
+      .input('role', sql.NVarChar, 'Company Admin')
+      .input('isActive', sql.Bit, false)
+      .query('INSERT INTO Users (FirstName, LastName, Email, PasswordHash, Role, IsActive) VALUES (@firstName, @lastName, @email, @passwordHash, @role, @isActive)');
+
+    // Create an accepted invitation to link user to client_record
+    const inviteToken = crypto.randomBytes(32).toString('hex');
+    await pool.request()
+      .input('clientRecordId', sql.Int, clientRecordId)
+      .input('email', sql.NVarChar, email)
+      .input('role', sql.NVarChar, 'Company Admin')
+      .input('token', sql.NVarChar, inviteToken)
+      .input('invitedBy', sql.NVarChar, 'Self-Registration')
+      .query(
+        `INSERT INTO Invitations (ClientRecordId, Email, Role, Token, InvitedBy, Status, AcceptedAt)
+         VALUES (@clientRecordId, @email, @role, @token, @invitedBy, 'Accepted', GETDATE())`
+      );
+
+    // Audit log
+    await pool.request()
+      .input('recordId', sql.Int, clientRecordId)
+      .input('fieldName', sql.NVarChar, '_SELF_REGISTERED')
+      .input('newValue', sql.NVarChar, `Self-registered by ${firstName} ${lastName} (${email})`)
+      .input('changedBy', sql.NVarChar, `${firstName} ${lastName}`)
+      .query(
+        `INSERT INTO ClientAuditLog (RecordId, FieldName, OldValue, NewValue, ChangedBy)
+         VALUES (@recordId, @fieldName, '', @newValue, @changedBy)`
+      );
+
+    res.status(201).json({ message: 'Registration submitted. Your account is pending approval. You will receive an email once approved.' });
+  } catch (err) {
+    console.error('Self-registration error:', err);
+    res.status(500).json({ message: 'Server error. Please try again.' });
+  }
+});
+
 // POST /api/auth/forgot-password - send password reset email
 router.post('/forgot-password', async (req, res) => {
   const { email } = req.body;
@@ -436,14 +679,14 @@ router.post('/forgot-password', async (req, res) => {
       { expiresIn: '1h' }
     );
 
-    const resetUrl = `http://localhost:3000/reset-password/${resetToken}`;
+    const resetUrl = `https://egg-production-verification.fsa-pty.co.za/reset-password/${resetToken}`;
 
     await sendEmail({
       to: user.Email,
       subject: 'EPVS - Password Reset Request',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+          <div style="background: linear-gradient(135deg, #0E7C7B 0%, #065f5e 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
             <h1 style="color: #fff; margin: 0; font-size: 28px;">EPVS</h1>
             <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">Egg Production Verification System</p>
           </div>
@@ -456,13 +699,13 @@ router.post('/forgot-password', async (req, res) => {
               Click the button below to set a new password. This link expires in <strong>1 hour</strong>.
             </p>
             <div style="text-align: center; margin: 30px 0;">
-              <a href="${resetUrl}" style="display: inline-block; background-color: #4f46e5; color: #ffffff; padding: 14px 40px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: 600;">
+              <a href="${resetUrl}" style="display: inline-block; background-color: #0E7C7B; color: #ffffff; padding: 14px 40px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: 600;">
                 Reset Password
               </a>
             </div>
             <p style="color: #999; font-size: 12px; text-align: center;">
               If you didn't request this, you can safely ignore this email.<br>
-              <a href="${resetUrl}" style="color: #667eea;">${resetUrl}</a>
+              <a href="${resetUrl}" style="color: #0E7C7B;">${resetUrl}</a>
             </p>
           </div>
         </div>

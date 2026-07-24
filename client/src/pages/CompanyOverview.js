@@ -53,7 +53,7 @@ const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'Ju
 // Check if an EPV has a completed inspector EPV
 const hasInspectorAmount = (epv) => epv.inspectorEPV && epv.inspectorEPV.Status === 'Completed';
 
-const LEVY_RATE = 0.018;
+const LEVY_RATE = 0.020;
 
 // Calculate total owed from a single EPV record
 const calcTotalOwed = (record) => {
@@ -148,7 +148,7 @@ const SA_PROVINCES = [
 
 function CompanyOverview() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const isAdmin = user.role === 'Super Admin' || user.role === 'Admin';
+  const isAdmin = user.role === 'Super Admin' || user.role === 'Admin' || user.role === 'Super';
   const isInspector = user.role === 'Inspector';
   const canSelectCompany = isAdmin || isInspector;
   const userLabel = `${user.firstName || ''} ${user.lastName || ''} (${user.email || 'unknown'})`.trim();

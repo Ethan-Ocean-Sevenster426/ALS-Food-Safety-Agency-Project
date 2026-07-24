@@ -7,6 +7,7 @@ const router = express.Router();
 const MANUAL_BY_ROLE = {
   'Super Admin':   'EPVS Super Admin User Manual',
   'Admin':         'EPVS Admin User Manual',
+  'Super':         'EPVS Admin User Manual',
   'Inspector':     'EPVS Inspector User Manual',
   'Company Admin': 'EPVS Company Admin User Manual',
   'User':          'EPVS User Manual',

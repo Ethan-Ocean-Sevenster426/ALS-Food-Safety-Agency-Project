@@ -15,12 +15,18 @@ router.get('/stats', async (req, res) => {
 
     // Users by role
     const roleResult = await pool.request().query(
-      "SELECT Role, COUNT(*) AS count FROM Users GROUP BY Role ORDER BY CASE Role WHEN 'Super Admin' THEN 1 WHEN 'Admin' THEN 2 WHEN 'Company Admin' THEN 3 ELSE 4 END"
+      "SELECT Role, COUNT(*) AS count FROM Users GROUP BY Role ORDER BY CASE Role WHEN 'Super Admin' THEN 1 WHEN 'Admin' THEN 2 WHEN 'Super' THEN 3 WHEN 'Company Admin' THEN 4 ELSE 5 END"
     );
 
-    // Total clients
+    // Total clients — "verified" = has an accepted Company Admin invitation
     const clientsResult = await pool.request().query(
-      'SELECT COUNT(*) AS total, SUM(CASE WHEN VerifiedAt IS NOT NULL THEN 1 ELSE 0 END) AS verified FROM ConsolidatedMasterAbattoirDatabase'
+      `SELECT COUNT(*) AS total,
+        SUM(CASE WHEN vi.ClientRecordId IS NOT NULL THEN 1 ELSE 0 END) AS verified
+       FROM ConsolidatedMasterAbattoirDatabase c
+       LEFT JOIN (
+         SELECT DISTINCT ClientRecordId FROM Invitations
+         WHERE Role = 'Company Admin' AND Status = 'Accepted'
+       ) vi ON vi.ClientRecordId = c.Id`
     );
 
     // EPV stats
@@ -124,14 +130,14 @@ router.get('/epv-overview', async (req, res) => {
     // 1. Aggregate stats
     const statsResult = await pool.request().query(`
       SELECT
-        COUNT(DISTINCT e.ClientRecordId) AS TotalFacilitiesWithEPV,
-        COUNT(e.Id) AS TotalEPVs,
+        COUNT(DISTINCT e.ClientRecordId) AS FacilitiesWithEpv,
+        COUNT(e.Id) AS TotalEpvs,
         SUM(CASE WHEN e.IsReconciled = 1 THEN 1 ELSE 0 END) AS ReconciledCount,
         SUM(ISNULL(e.LevyAmount, 0)) AS TotalEggLevy,
-        SUM(ISNULL(e.PulpSoldToTrade, 0) * 1.7 * 0.018) AS TotalPulpLevy,
-        SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.018, 0)) AS TotalBilled,
+        SUM(ISNULL(e.PulpSoldToTrade, 0) * 1.7 * 0.02) AS TotalPulpLevy,
+        SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.02, 0)) AS TotalBilled,
         SUM(ISNULL(e.ReconciledAmount, 0)) AS TotalPaid,
-        SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.018, 0) - ISNULL(e.ReconciledAmount, 0)) AS TotalOutstanding,
+        SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.02, 0) - ISNULL(e.ReconciledAmount, 0)) AS TotalOutstanding,
         SUM(ISNULL(e.SoldToTrade, 0)) AS TotalEggDozens,
         SUM(ISNULL(e.PulpSoldToTrade, 0)) AS TotalPulpDozens,
         SUM(CASE WHEN ie.Id IS NOT NULL THEN 1 ELSE 0 END) AS TotalRejections,
@@ -147,10 +153,10 @@ router.get('/epv-overview', async (req, res) => {
     const monthlyResult = await pool.request().query(`
       SELECT
         e.PeriodMonth, e.PeriodYear,
-        COUNT(e.Id) AS EPVCount,
+        COUNT(e.Id) AS EpvCount,
         SUM(ISNULL(e.LevyAmount, 0)) AS EggLevy,
-        SUM(ISNULL(e.PulpSoldToTrade, 0) * 1.7 * 0.018) AS PulpLevy,
-        SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.018, 0)) AS TotalBilled,
+        SUM(ISNULL(e.PulpSoldToTrade, 0) * 1.7 * 0.02) AS PulpLevy,
+        SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.02, 0)) AS TotalBilled,
         SUM(ISNULL(e.ReconciledAmount, 0)) AS TotalPaid,
         SUM(CASE WHEN e.IsReconciled = 1 THEN 1 ELSE 0 END) AS PaidCount,
         SUM(ISNULL(e.SoldToTrade, 0)) AS EggDozens,
@@ -204,7 +210,7 @@ router.get('/epv-overview', async (req, res) => {
       JOIN ConsolidatedMasterAbattoirDatabase c ON e.ClientRecordId = c.Id
       WHERE e.EPVType = 'Client' AND e.Status = 'Completed'${dateWhere}
         AND (e.IsReconciled = 0 OR e.IsReconciled IS NULL)
-        AND (ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.018, 0) - ISNULL(e.ReconciledAmount, 0)) > 0
+        AND (ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.02, 0) - ISNULL(e.ReconciledAmount, 0)) > 0
     `);
 
     // 6. Pending approvals count

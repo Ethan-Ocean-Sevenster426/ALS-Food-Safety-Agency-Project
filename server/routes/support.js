@@ -160,7 +160,7 @@ router.get('/tickets', async (req, res) => {
 
     if (role === 'Super Admin') {
       query += ' ORDER BY t.CreatedAt DESC';
-    } else if (role === 'Admin') {
+    } else if (role === 'Admin' || role === 'Super') {
       query += " WHERE t.CategoryType = 'Administration' ORDER BY t.CreatedAt DESC";
     } else {
       query += ' WHERE (t.CreatedByUserId = @userId';

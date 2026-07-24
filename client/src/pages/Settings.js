@@ -3,7 +3,7 @@ import axios from 'axios';
 import './PageStyles.css';
 import './Settings.css';
 
-const ROLES = ['Super Admin', 'Admin', 'Inspector', 'Company Admin', 'User'];
+const ROLES = ['Super Admin', 'Admin', 'Super', 'Inspector', 'Company Admin', 'User'];
 
 const SA_PROVINCES = [
   'Eastern Cape', 'Free State', 'Gauteng', 'KwaZulu-Natal', 'Limpopo',
@@ -12,7 +12,7 @@ const SA_PROVINCES = [
 
 function Settings() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const isAdmin = user.role === 'Super Admin' || user.role === 'Admin';
+  const isAdmin = user.role === 'Super Admin' || user.role === 'Admin' || user.role === 'Super';
 
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -181,7 +181,7 @@ function Settings() {
       return;
     }
     if (role === 'Inspector' && !inspectorProvince) {
-      setError('Please select a province for the inspector.');
+      setError('Please select at least one province for the inspector.');
       return;
     }
     if ((role === 'Company Admin' || role === 'User') && !clientRecordId) {
@@ -426,15 +426,28 @@ function Settings() {
                   </div>
                   {editData.role === 'Inspector' && (
                     <div className="settings-edit-row">
-                      <label>Allocated Province</label>
-                      <select
-                        value={editData.inspectorProvince}
-                        onChange={(e) => setEditData({ ...editData, inspectorProvince: e.target.value })}
-                        className="settings-edit-select"
-                      >
-                        <option value="">-- Select Province --</option>
-                        {SA_PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
-                      </select>
+                      <label>Allocated Provinces</label>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                        {SA_PROVINCES.map(p => {
+                          const selected = (editData.inspectorProvince || '').split(',').map(s => s.trim()).filter(Boolean);
+                          const isChecked = selected.includes(p);
+                          return (
+                            <label key={p} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 4, border: isChecked ? '2px solid #0E7C7B' : '1px solid #d1d5db', background: isChecked ? '#e6f7f7' : '#fff', cursor: 'pointer', fontSize: 13, fontWeight: isChecked ? 600 : 400, color: isChecked ? '#0E7C7B' : '#374151' }}>
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => {
+                                  const current = (editData.inspectorProvince || '').split(',').map(s => s.trim()).filter(Boolean);
+                                  const updated = isChecked ? current.filter(x => x !== p) : [...current, p];
+                                  setEditData({ ...editData, inspectorProvince: updated.join(', ') });
+                                }}
+                                style={{ display: 'none' }}
+                              />
+                              {p}
+                            </label>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -511,15 +524,28 @@ function Settings() {
                   {/* Inspector: Province selector */}
                   {addUserData.role === 'Inspector' && (
                     <div className="settings-edit-row">
-                      <label>Allocated Province</label>
-                      <select
-                        value={addUserData.inspectorProvince}
-                        onChange={(e) => setAddUserData({ ...addUserData, inspectorProvince: e.target.value })}
-                        className="settings-edit-select"
-                      >
-                        <option value="">-- Select Province --</option>
-                        {SA_PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
-                      </select>
+                      <label>Allocated Provinces</label>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                        {SA_PROVINCES.map(p => {
+                          const selected = (addUserData.inspectorProvince || '').split(',').map(s => s.trim()).filter(Boolean);
+                          const isChecked = selected.includes(p);
+                          return (
+                            <label key={p} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 4, border: isChecked ? '2px solid #0E7C7B' : '1px solid #d1d5db', background: isChecked ? '#e6f7f7' : '#fff', cursor: 'pointer', fontSize: 13, fontWeight: isChecked ? 600 : 400, color: isChecked ? '#0E7C7B' : '#374151' }}>
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => {
+                                  const current = (addUserData.inspectorProvince || '').split(',').map(s => s.trim()).filter(Boolean);
+                                  const updated = isChecked ? current.filter(x => x !== p) : [...current, p];
+                                  setAddUserData({ ...addUserData, inspectorProvince: updated.join(', ') });
+                                }}
+                                style={{ display: 'none' }}
+                              />
+                              {p}
+                            </label>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
 
@@ -641,7 +667,11 @@ function Settings() {
                       </td>
                       <td>
                         {u.Role === 'Inspector' && u.InspectorProvince ? (
-                          <span className="settings-province-badge">{u.InspectorProvince}</span>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                            {u.InspectorProvince.split(',').map(p => p.trim()).filter(Boolean).map(p => (
+                              <span key={p} className="settings-province-badge">{p}</span>
+                            ))}
+                          </div>
                         ) : u.Role === 'Inspector' ? (
                           <span className="settings-no-allocation" style={{ color: '#dc2626' }}>Not Assigned</span>
                         ) : (

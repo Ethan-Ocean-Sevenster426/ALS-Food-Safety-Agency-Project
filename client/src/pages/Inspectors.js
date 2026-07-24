@@ -45,7 +45,7 @@ function Inspectors() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const navigate = useNavigate();
   const isInspectorRole = user.role === 'Inspector';
-  const isAdmin = user.role === 'Super Admin' || user.role === 'Admin';
+  const isAdmin = user.role === 'Super Admin' || user.role === 'Admin' || user.role === 'Super';
   const assignedProvince = user.inspectorProvince || null;
 
   const [stats, setStats] = useState(null);
@@ -82,7 +82,7 @@ function Inspectors() {
   };
 
   const userLabel = `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Unknown';
-  const LEVY_RATE = 0.018;
+  const LEVY_RATE = 0.020;
 
   const getProvinceParam = useCallback(() => {
     if (isInspectorRole && assignedProvince) return assignedProvince;
@@ -427,7 +427,7 @@ function Inspectors() {
         const curPct = curBilled > 0 ? +((curPaid / curBilled) * 100).toFixed(1) : 0;
         const curMonthName = MONTH_NAMES[curMonth - 1];
 
-        const approvalPct = s.TotalEPVs > 0 ? +((s.VerifiedCount / s.TotalEPVs) * 100).toFixed(1) : 0;
+        const approvalPct = s.TotalEpvs > 0 ? +((s.VerifiedCount / s.TotalEpvs) * 100).toFixed(1) : 0;
         const visitedTotal = totalFacilities;
         const visitedDone = totalFacilities - needVisit.length;
         const visitedPct = visitedTotal > 0 ? +((visitedDone / visitedTotal) * 100).toFixed(1) : 0;
@@ -438,7 +438,7 @@ function Inspectors() {
         const kpis = [
           { label: `Collection — ${prevMonthNames || 'Prior Months'}`, value: prevPct, target: ct, suffix: '%', detail: `${formatR(prevPaid)} of ${formatR(prevBilled)}`, color: prevPct >= ct ? '#16a34a' : prevPct >= ct * 0.75 ? '#d97706' : '#dc2626' },
           { label: `Collection — ${curMonthName} (Current)`, value: curPct, target: ct, suffix: '%', detail: `${formatR(curPaid)} of ${formatR(curBilled)}`, color: curPct >= ct ? '#16a34a' : curPct >= ct * 0.75 ? '#d97706' : '#dc2626' },
-          { label: 'Approvals Actioned', value: approvalPct, target: at, suffix: '%', detail: `${formatNum(s.VerifiedCount)} of ${formatNum(s.TotalEPVs)} EPVs`, color: approvalPct >= at ? '#16a34a' : approvalPct >= at * 0.78 ? '#d97706' : '#dc2626' },
+          { label: 'Approvals Actioned', value: approvalPct, target: at, suffix: '%', detail: `${formatNum(s.VerifiedCount)} of ${formatNum(s.TotalEpvs)} EPVs`, color: approvalPct >= at ? '#16a34a' : approvalPct >= at * 0.78 ? '#d97706' : '#dc2626' },
           { label: 'Facilities Visited', value: visitedPct, target: ft, suffix: '%', detail: `${formatNum(visitedDone)} of ${formatNum(visitedTotal)} (Q${q.quarter})`, color: visitedPct >= ft ? '#16a34a' : visitedPct >= ft * 0.75 ? '#d97706' : '#dc2626' },
         ];
 
@@ -517,7 +517,7 @@ function Inspectors() {
             <span className="insp-stat-label">Facilities</span>
           </div>
           <div className="insp-stat-card insp-stat-info">
-            <span className="insp-stat-number">{formatNum(s.TotalEPVs)}</span>
+            <span className="insp-stat-number">{formatNum(s.TotalEpvs)}</span>
             <span className="insp-stat-label">EPVs</span>
           </div>
           <div className="insp-stat-card insp-stat-danger">
@@ -913,7 +913,7 @@ function Inspectors() {
                   return (
                     <tr key={`${m.PeriodMonth}-${m.PeriodYear}`}>
                       <td><strong>{MONTH_NAMES[m.PeriodMonth - 1]} {m.PeriodYear}</strong></td>
-                      <td>{formatNum(m.EPVCount)}</td>
+                      <td>{formatNum(m.EpvCount)}</td>
                       <td>{formatNum(m.EggDozens)}</td>
                       <td>{formatNum(m.PulpDozens)}</td>
                       <td>{formatNum(m.PowderDozens)}</td>

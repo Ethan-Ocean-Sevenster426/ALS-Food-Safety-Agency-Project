@@ -7,60 +7,14 @@ const { sendEmail, sendEmailToEach } = require('../services/emailService');
 
 const router = express.Router();
 
-const LEVY_RATE = 0.018;
+const LEVY_RATE = 0.020;
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
-// Ensure EPVInvoices table exists
-async function ensureInvoicesTable(pool) {
-  await pool.request().query(`
-    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='EPVInvoices' AND xtype='U')
-    BEGIN
-      CREATE TABLE EPVInvoices (
-        Id INT IDENTITY(1,1) PRIMARY KEY,
-        VerificationId INT NOT NULL,
-        ClientRecordId INT NOT NULL,
-        InvoiceNumber NVARCHAR(50) NOT NULL,
-        ReferenceNumber NVARCHAR(50) NULL,
-        Amount DECIMAL(18,2) NOT NULL,
-        FilePath NVARCHAR(500) NOT NULL,
-        GeneratedBy NVARCHAR(255) NOT NULL,
-        GeneratedAt DATETIME DEFAULT GETDATE(),
-        SentAt DATETIME NULL,
-        SentTo NVARCHAR(MAX) NULL,
-        SentBy NVARCHAR(255) NULL,
-        CONSTRAINT FK_Invoice_EPV FOREIGN KEY (VerificationId)
-          REFERENCES EggProductionVerifications(Id)
-      )
-    END
-  `);
-}
+// Tables already exist in PostgreSQL — no-op
+async function ensureInvoicesTable(pool) {}
+async function ensureEmailSendLog(pool) {}
 
-// Ensure EmailSendLog table exists for tracking per-recipient email results
-async function ensureEmailSendLog(pool) {
-  await pool.request().query(`
-    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='EmailSendLog' AND xtype='U')
-    BEGIN
-      CREATE TABLE EmailSendLog (
-        Id INT IDENTITY(1,1) PRIMARY KEY,
-        ClientRecordId INT NOT NULL,
-        EmailAddress NVARCHAR(255) NOT NULL,
-        EmailType NVARCHAR(50) NOT NULL,
-        Subject NVARCHAR(500) NULL,
-        Status NVARCHAR(20) NOT NULL,
-        ErrorMessage NVARCHAR(MAX) NULL,
-        SentAt DATETIME DEFAULT GETDATE(),
-        SentBy NVARCHAR(255) NULL
-      )
-    END
-  `);
-}
-
-// Ensure ClientAuditLog has UserRole column for audit logging
 async function logCompanyAudit(pool, recordId, fieldName, oldValue, newValue, changedBy, userRole) {
-  await pool.request().query(
-    `IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ClientAuditLog') AND name = 'UserRole')
-     BEGIN ALTER TABLE ClientAuditLog ADD UserRole NVARCHAR(50) NULL END`
-  );
   await pool.request()
     .input('recordId', sql.Int, recordId)
     .input('fieldName', sql.NVarChar, fieldName)
@@ -103,7 +57,7 @@ function buildInvoicePDF(invoiceData) {
     doc.pipe(stream);
 
     // Header bar
-    doc.rect(0, 0, 595, 100).fill('#4f46e5');
+    doc.rect(0, 0, 595, 100).fill('#0E7C7B');
     doc.fontSize(28).fillColor('#fff').text('EPVS', 50, 25, { align: 'left' });
     doc.fontSize(10).fillColor('rgba(255,255,255,0.85)').text('Egg Production Verification System', 50, 58);
     doc.fontSize(22).fillColor('#fff').text('PRO FORMA INVOICE', 300, 35, { align: 'right' });
@@ -134,7 +88,7 @@ function buildInvoicePDF(invoiceData) {
     doc.font('Helvetica');
     if (invoiceData.tradingName) doc.text(`t/a ${invoiceData.tradingName}`, 350, y1 + 33);
     if (invoiceData.province) doc.text(invoiceData.province, 350, y1 + 48);
-    if (invoiceData.email) doc.fillColor('#4f46e5').text(invoiceData.email, 350, y1 + 63);
+    if (invoiceData.email) doc.fillColor('#0E7C7B').text(invoiceData.email, 350, y1 + 63);
 
     doc.fillColor('#333');
 
@@ -187,7 +141,7 @@ function buildInvoicePDF(invoiceData) {
 
     // Total line
     doc.moveTo(350, rowY + 5).lineTo(545, rowY + 5).stroke('#ddd');
-    doc.rect(350, rowY + 10, 195, 30).fill('#4f46e5');
+    doc.rect(350, rowY + 10, 195, 30).fill('#0E7C7B');
     doc.fillColor('#fff').font('Helvetica-Bold').fontSize(12);
     doc.text('TOTAL DUE:', 360, rowY + 18);
     doc.text(`R ${invoiceData.total.toFixed(2)}`, 460, rowY + 18, { align: 'right', width: 75 });
@@ -389,7 +343,7 @@ router.post('/send/:id', async (req, res) => {
 
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+        <div style="background: linear-gradient(135deg, #0E7C7B 0%, #065f5e 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
           <h1 style="color: #fff; margin: 0; font-size: 28px;">EPVS</h1>
           <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">Egg Production Verification System</p>
         </div>
@@ -400,7 +354,7 @@ router.post('/send/:id', async (req, res) => {
           </p>
           <p style="color: #555; font-size: 15px; line-height: 1.6;">
             Please find attached the Pro Forma Invoice for the Egg Production Levy for
-            <strong style="color: #4f46e5;">${period}</strong>.
+            <strong style="color: #0E7C7B;">${period}</strong>.
           </p>
           <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px; margin: 20px 0;">
             <table style="width: 100%; font-size: 14px; color: #555;">
@@ -414,7 +368,7 @@ router.post('/send/:id', async (req, res) => {
             and upload your Proof of Payment (POP) to the EPVS system.
           </p>
           <div style="text-align: center; margin: 25px 0;">
-            <a href="http://localhost:3000/company" style="display: inline-block; background-color: #4f46e5; color: #ffffff; padding: 14px 40px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: 600;">
+            <a href="https://egg-production-verification.fsa-pty.co.za/company" style="display: inline-block; background-color: #0E7C7B; color: #ffffff; padding: 14px 40px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: 600;">
               Go to EPVS Portal
             </a>
           </div>

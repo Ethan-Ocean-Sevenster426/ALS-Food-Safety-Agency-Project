@@ -7,15 +7,10 @@ const { sendEmail, sendEmailToEach } = require('../services/emailService');
 
 const router = express.Router();
 
-const LEVY_RATE = 0.018;
+const LEVY_RATE = 0.02;
 
 // Helper: log to ClientAuditLog for company-level change log
 async function logCompanyAudit(pool, recordId, fieldName, oldValue, newValue, changedBy, userRole) {
-  // Ensure UserRole column exists
-  await pool.request().query(
-    `IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ClientAuditLog') AND name = 'UserRole')
-     BEGIN ALTER TABLE ClientAuditLog ADD UserRole NVARCHAR(50) NULL END`
-  );
   await pool.request()
     .input('recordId', sql.Int, recordId)
     .input('fieldName', sql.NVarChar, fieldName)
@@ -83,12 +78,15 @@ async function generateReferenceNumber(pool, month, year) {
 
 // All numeric fields that can be submitted
 const NUMERIC_FIELDS = [
-  'OpeningStock', 'GradedEggsPurchased', 'UngradedEggsPurchased',
+  'OpeningStock', 'EggsProducedDuringMonth', 'GradedEggsPurchased', 'UngradedEggsPurchased',
+  'TransferredOrPurchasedFromProducers',
   'MarketReturns', 'MachineLoss', 'SentToPulp', 'Destroyed', 'Exported',
   'SoldToTrade', 'SoldToStaff', 'SoldThroughFarmStall',
   'TransferredToOtherProducers',
   'PulpOpeningStock', 'PulpPurchased', 'PulpConverted',
   'PulpSoldToTrade', 'PulpSoldToProducers', 'PulpConversionLoss',
+  'PowderOpeningStock', 'PowderPurchased', 'PowderConverted',
+  'PowderSoldToTrade', 'PowderSoldToProducers', 'PowderConversionLoss',
 ];
 
 // All text fields that can be submitted
@@ -97,14 +95,16 @@ const TEXT_FIELDS = [
   'AuthorizedPersonName', 'PositionInCompany',
   'TelephoneNumber', 'CellPhoneNumber', 'EmailAddress',
   'VarianceReason',
-  'EggPurchaseComment', 'PulpPurchaseComment',
+  'EggPurchaseComment', 'PulpPurchaseComment', 'PowderPurchaseComment', 'TransferPurchaseComment',
 ];
 
 const ALL_FIELDS = [...TEXT_FIELDS, ...NUMERIC_FIELDS];
 
 function calculateTotals(data) {
-  // A = Opening Stock
-  const totalA = parseFloat(data.OpeningStock) || 0;
+  // A = Opening Stock + Eggs Produced
+  const openingStock = parseFloat(data.OpeningStock) || 0;
+  const eggsProduced = parseFloat(data.EggsProducedDuringMonth) || 0;
+  const totalA = openingStock + eggsProduced;
 
   // B = Purchases (Graded + Ungraded)
   const graded = parseFloat(data.GradedEggsPurchased) || 0;
@@ -126,8 +126,10 @@ function calculateTotals(data) {
   const totalD = soldToTrade + soldToStaff + soldThroughFarmStall;
   const levyAmount = totalD * LEVY_RATE;
 
-  // E = Transfers
-  const totalE = parseFloat(data.TransferredToOtherProducers) || 0;
+  // E = Transfers (out minus in)
+  const transferredTo = parseFloat(data.TransferredToOtherProducers) || 0;
+  const transferredFrom = parseFloat(data.TransferredOrPurchasedFromProducers) || 0;
+  const totalE = transferredTo - transferredFrom;
 
   // Closing Stock (Theoretical) = A + B - C - D - E
   const closingStock = totalA + totalB - totalC - totalD - totalE;
@@ -213,7 +215,7 @@ async function sendEPVForFacility({ pool, client, periodMonth, periodYear, sentB
     .filter(e => e && String(e).trim() && emailRegex.test(String(e).trim()));
   const uniqueEmails = [...new Set(allEmails.map(e => String(e).trim().toLowerCase()))];
 
-  const formUrl = `http://localhost:3000/epv/${token}`;
+  const formUrl = `https://egg-production-verification.fsa-pty.co.za/epv/${token}`;
   const emailSubject = `EPVS - Egg Production Verification Due: ${monthLabel}`;
   const emailHtml = buildEPVEmail({
     businessName: client.BusinessName,
@@ -229,22 +231,6 @@ async function sendEPVForFacility({ pool, client, periodMonth, periodYear, sentB
     html: emailHtml,
   });
 
-  await pool.request().query(`
-    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='EmailSendLog' AND xtype='U')
-    BEGIN
-      CREATE TABLE EmailSendLog (
-        Id INT IDENTITY(1,1) PRIMARY KEY,
-        ClientRecordId INT NOT NULL,
-        EmailAddress NVARCHAR(255) NOT NULL,
-        EmailType NVARCHAR(50) NOT NULL,
-        Subject NVARCHAR(500) NULL,
-        Status NVARCHAR(20) NOT NULL,
-        ErrorMessage NVARCHAR(MAX) NULL,
-        SentAt DATETIME DEFAULT GETDATE(),
-        SentBy NVARCHAR(255) NULL
-      )
-    END
-  `);
   const logSend = (addr, status) => pool.request()
     .input('crid', sql.Int, client.Id)
     .input('addr', sql.NVarChar, addr)
@@ -344,7 +330,7 @@ router.post('/:id/resend', async (req, res) => {
     const client = clientResult.recordset[0];
 
     const monthLabel = `${MONTH_NAMES[(epv.PeriodMonth || 1) - 1]} ${epv.PeriodYear}`;
-    const formUrl = `http://localhost:3000/epv/${epv.Token}`;
+    const formUrl = `https://egg-production-verification.fsa-pty.co.za/epv/${epv.Token}`;
     const emailSubject = `EPVS - Egg Production Verification Reminder: ${monthLabel}`;
     const emailHtml = buildEPVEmail({
       businessName: client.BusinessName,
@@ -540,8 +526,8 @@ router.post('/token/:token/attachment', purchaseUpload.single('file'), async (re
   const category = (req.query.category || '').toLowerCase();
   const uploadedBy = (req.body && req.body.uploadedBy) || 'Unknown';
 
-  if (!['egg', 'pulp'].includes(category)) {
-    return res.status(400).json({ message: 'category must be "egg" or "pulp".' });
+  if (!['egg', 'pulp', 'transfer'].includes(category)) {
+    return res.status(400).json({ message: 'category must be "egg", "pulp", or "transfer".' });
   }
   if (!req.file) {
     return res.status(400).json({ message: 'No file uploaded.' });
@@ -560,7 +546,7 @@ router.post('/token/:token/attachment', purchaseUpload.single('file'), async (re
 
     const inserted = await pool.request()
       .input('vid', sql.Int, epv.Id)
-      .input('cat', sql.NVarChar, category === 'egg' ? 'EggPurchase' : 'PulpPurchase')
+      .input('cat', sql.NVarChar, category === 'egg' ? 'EggPurchase' : category === 'transfer' ? 'TransferPurchase' : 'PulpPurchase')
       .input('fn', sql.NVarChar, req.file.filename)
       .input('orig', sql.NVarChar, req.file.originalname)
       .input('size', sql.Int, req.file.size)
@@ -818,22 +804,6 @@ router.get('/company/:clientRecordId', async (req, res) => {
   try {
     const pool = await getPool();
 
-    // Ensure verification columns exist
-    for (const col of [
-      { name: 'IsVerified', type: 'BIT NOT NULL DEFAULT 0' },
-      { name: 'VerifiedBy', type: 'NVARCHAR(255) NULL' },
-      { name: 'VerifiedAt', type: 'DATETIME NULL' },
-      { name: 'InspectorComment', type: 'NVARCHAR(MAX) NULL' },
-      { name: 'ReconciledAmount', type: 'DECIMAL(18,2) NULL' },
-      { name: 'POPComment', type: 'NVARCHAR(MAX) NULL' },
-      { name: 'ClientPaymentStatus', type: 'NVARCHAR(50) NULL' },
-    ]) {
-      await pool.request().query(
-        `IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = '${col.name}')
-         BEGIN ALTER TABLE EggProductionVerifications ADD ${col.name} ${col.type} END`
-      );
-    }
-
     // Get client EPVs
     const result = await pool.request()
       .input('clientRecordId', sql.Int, parseInt(clientRecordId))
@@ -1007,7 +977,7 @@ router.put('/:id/reconcile', async (req, res) => {
 
     // Admin/Super Admin can reconcile without POP; other roles require it
     const userRole = req.body.userRole || '';
-    const isAdminRole = userRole === 'Super Admin' || userRole === 'Admin';
+    const isAdminRole = userRole === 'Super Admin' || userRole === 'Admin' || userRole === 'Super';
     if (reconciled && !existing.recordset[0].POPFilePath && !isAdminRole) {
       return res.status(400).json({ message: 'Cannot reconcile without a Proof of Payment uploaded.' });
     }
@@ -1039,19 +1009,6 @@ router.put('/:id/verify', async (req, res) => {
 
   try {
     const pool = await getPool();
-
-    // Ensure verification columns exist
-    const verifyCols = [
-      { name: 'IsVerified', type: 'BIT NOT NULL DEFAULT 0' },
-      { name: 'VerifiedBy', type: 'NVARCHAR(255) NULL' },
-      { name: 'VerifiedAt', type: 'DATETIME NULL' },
-    ];
-    for (const col of verifyCols) {
-      await pool.request().query(
-        `IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = '${col.name}')
-         BEGIN ALTER TABLE EggProductionVerifications ADD ${col.name} ${col.type} END`
-      );
-    }
 
     const existing = await pool.request()
       .input('id', sql.Int, parseInt(id))
@@ -1093,19 +1050,6 @@ router.put('/:id/manual-inspection', async (req, res) => {
   try {
     const pool = await getPool();
 
-    // Ensure columns exist
-    const cols = [
-      { name: 'ManualInspection', type: 'BIT NOT NULL DEFAULT 0' },
-      { name: 'ManualInspectionBy', type: 'NVARCHAR(255) NULL' },
-      { name: 'ManualInspectionAt', type: 'DATETIME NULL' },
-    ];
-    for (const col of cols) {
-      await pool.request().query(
-        `IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = '${col.name}')
-         BEGIN ALTER TABLE EggProductionVerifications ADD ${col.name} ${col.type} END`
-      );
-    }
-
     const existing = await pool.request()
       .input('id', sql.Int, parseInt(id))
       .query('SELECT Id, ClientRecordId, ReferenceNumber, ManualInspection FROM EggProductionVerifications WHERE Id = @id');
@@ -1143,12 +1087,6 @@ router.put('/:id/reconciled-amount', async (req, res) => {
   try {
     const pool = await getPool();
 
-    // Ensure column exists
-    await pool.request().query(
-      `IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = 'ReconciledAmount')
-       BEGIN ALTER TABLE EggProductionVerifications ADD ReconciledAmount DECIMAL(18,2) NULL END`
-    );
-
     // Get old value and ClientRecordId for audit
     const prev = await pool.request()
       .input('id', sql.Int, parseInt(id))
@@ -1183,12 +1121,6 @@ router.put('/:id/comment', async (req, res) => {
   try {
     const pool = await getPool();
 
-    // Ensure column exists
-    await pool.request().query(
-      `IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = 'InspectorComment')
-       BEGIN ALTER TABLE EggProductionVerifications ADD InspectorComment NVARCHAR(MAX) NULL END`
-    );
-
     // Get old value and ClientRecordId for audit
     const prev = await pool.request()
       .input('id', sql.Int, parseInt(id))
@@ -1221,12 +1153,6 @@ router.put('/:id/pop-comment', async (req, res) => {
   try {
     const pool = await getPool();
 
-    // Ensure column exists
-    await pool.request().query(
-      `IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = 'POPComment')
-       BEGIN ALTER TABLE EggProductionVerifications ADD POPComment NVARCHAR(MAX) NULL END`
-    );
-
     // Get old value and ClientRecordId for audit
     const prev = await pool.request()
       .input('id', sql.Int, parseInt(id))
@@ -1258,12 +1184,6 @@ router.put('/:id/payment-status', async (req, res) => {
 
   try {
     const pool = await getPool();
-
-    // Ensure column exists
-    await pool.request().query(
-      `IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EggProductionVerifications') AND name = 'ClientPaymentStatus')
-       BEGIN ALTER TABLE EggProductionVerifications ADD ClientPaymentStatus NVARCHAR(50) NULL END`
-    );
 
     // Get old value and ClientRecordId for audit
     const prev = await pool.request()
@@ -1349,7 +1269,7 @@ router.delete('/:id/pop', async (req, res) => {
 function buildEPVEmail({ businessName, month, year, formUrl, openingStock }) {
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+      <div style="background: linear-gradient(135deg, #0E7C7B 0%, #065f5e 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
         <h1 style="color: #fff; margin: 0; font-size: 28px;">EPVS</h1>
         <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">Egg Production Verification System</p>
       </div>
@@ -1357,7 +1277,7 @@ function buildEPVEmail({ businessName, month, year, formUrl, openingStock }) {
         <h2 style="color: #333; margin-top: 0;">Egg Production Verification Due</h2>
         <p style="color: #555; font-size: 15px; line-height: 1.6;">
           The monthly Egg Production Verification for <strong>${businessName}</strong> is due for
-          <strong style="color: #4f46e5;">${month} ${year}</strong>.
+          <strong style="color: #0E7C7B;">${month} ${year}</strong>.
         </p>
         ${openingStock > 0 ? `
         <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 14px; margin: 16px 0;">
@@ -1370,13 +1290,13 @@ function buildEPVEmail({ businessName, month, year, formUrl, openingStock }) {
           Please click the button below to complete the verification form:
         </p>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${formUrl}" style="display: inline-block; background-color: #4f46e5; color: #ffffff; padding: 14px 40px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: 600;">
+          <a href="${formUrl}" style="display: inline-block; background-color: #0E7C7B; color: #ffffff; padding: 14px 40px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: 600;">
             Complete Verification
           </a>
         </div>
         <p style="color: #999; font-size: 12px; text-align: center;">
           If the button doesn't work, copy and paste this link into your browser:<br>
-          <a href="${formUrl}" style="color: #667eea;">${formUrl}</a>
+          <a href="${formUrl}" style="color: #0E7C7B;">${formUrl}</a>
         </p>
       </div>
       <p style="color: #aaa; font-size: 11px; text-align: center; margin-top: 20px;">
@@ -1488,12 +1408,15 @@ router.post('/inspector/create', async (req, res) => {
       .input('telephoneNumber', sql.NVarChar, epv.TelephoneNumber || '')
       .input('cellPhoneNumber', sql.NVarChar, epv.CellPhoneNumber || '')
       .input('openingStock', sql.Decimal(18, 2), parseFloat(epv.OpeningStock) || 0)
+      .input('eggsProducedDuringMonth', sql.Decimal(18, 2), parseFloat(epv.EggsProducedDuringMonth) || 0)
       .input('gradedEggsPurchased', sql.Decimal(18, 2), parseFloat(epv.GradedEggsPurchased) || 0)
       .input('ungradedEggsPurchased', sql.Decimal(18, 2), parseFloat(epv.UngradedEggsPurchased) || 0)
+      .input('transferredOrPurchasedFromProducers', sql.Decimal(18, 2), parseFloat(epv.TransferredOrPurchasedFromProducers) || 0)
       .input('marketReturns', sql.Decimal(18, 2), parseFloat(epv.MarketReturns) || 0)
       .input('machineLoss', sql.Decimal(18, 2), parseFloat(epv.MachineLoss) || 0)
       .input('sentToPulp', sql.Decimal(18, 2), parseFloat(epv.SentToPulp) || 0)
       .input('destroyed', sql.Decimal(18, 2), parseFloat(epv.Destroyed) || 0)
+      .input('exported', sql.Decimal(18, 2), parseFloat(epv.Exported) || 0)
       .input('soldToTrade', sql.Decimal(18, 2), parseFloat(epv.SoldToTrade) || 0)
       .input('soldToStaff', sql.Decimal(18, 2), parseFloat(epv.SoldToStaff) || 0)
       .input('soldThroughFarmStall', sql.Decimal(18, 2), parseFloat(epv.SoldThroughFarmStall) || 0)
@@ -1504,7 +1427,11 @@ router.post('/inspector/create', async (req, res) => {
       .input('pulpConverted', sql.Decimal(18, 2), parseFloat(epv.PulpConverted) || 0)
       .input('pulpSoldToTrade', sql.Decimal(18, 2), parseFloat(epv.PulpSoldToTrade) || 0)
       .input('pulpSoldToProducers', sql.Decimal(18, 2), parseFloat(epv.PulpSoldToProducers) || 0)
+      .input('pulpConversionLoss', sql.Decimal(18, 2), parseFloat(epv.PulpConversionLoss) || 0)
       .input('varianceReason', sql.NVarChar, epv.VarianceReason || '')
+      .input('eggPurchaseComment', sql.NVarChar, epv.EggPurchaseComment || '')
+      .input('pulpPurchaseComment', sql.NVarChar, epv.PulpPurchaseComment || '')
+      .input('transferPurchaseComment', sql.NVarChar, epv.TransferPurchaseComment || '')
       .input('levyAmount', sql.Decimal(18, 2), parseFloat(epv.LevyAmount) || 0)
       .input('inspectorId', sql.Int, parseInt(inspectorId))
       .input('linkedEPVId', sql.Int, parseInt(clientEpvId))
@@ -1514,22 +1441,24 @@ router.post('/inspector/create', async (req, res) => {
          (ClientRecordId, PeriodMonth, PeriodYear, Token, ReferenceNumber, Status,
           BusinessName, FacilityType, FacilityProvince, EmailAddress, AuthorizedPersonName,
           TradingName, PositionInCompany, TelephoneNumber, CellPhoneNumber,
-          OpeningStock, GradedEggsPurchased, UngradedEggsPurchased,
-          MarketReturns, MachineLoss, SentToPulp, Destroyed,
+          OpeningStock, EggsProducedDuringMonth, GradedEggsPurchased, UngradedEggsPurchased,
+          TransferredOrPurchasedFromProducers,
+          MarketReturns, MachineLoss, SentToPulp, Destroyed, Exported,
           SoldToTrade, SoldToStaff, SoldThroughFarmStall, TransferredToOtherProducers,
           ActualClosingStock,
-          PulpOpeningStock, PulpPurchased, PulpConverted, PulpSoldToTrade, PulpSoldToProducers,
-          VarianceReason, LevyAmount,
+          PulpOpeningStock, PulpPurchased, PulpConverted, PulpSoldToTrade, PulpSoldToProducers, PulpConversionLoss,
+          VarianceReason, EggPurchaseComment, PulpPurchaseComment, TransferPurchaseComment, LevyAmount,
           EPVType, InspectorId, LinkedEPVId)
          VALUES (@clientRecordId, @month, @year, @token, @refNumber, 'Pending',
                  @businessName, @facilityType, @facilityProvince, @email, @ownerName,
                  @tradingName, @positionInCompany, @telephoneNumber, @cellPhoneNumber,
-                 @openingStock, @gradedEggsPurchased, @ungradedEggsPurchased,
-                 @marketReturns, @machineLoss, @sentToPulp, @destroyed,
+                 @openingStock, @eggsProducedDuringMonth, @gradedEggsPurchased, @ungradedEggsPurchased,
+                 @transferredOrPurchasedFromProducers,
+                 @marketReturns, @machineLoss, @sentToPulp, @destroyed, @exported,
                  @soldToTrade, @soldToStaff, @soldThroughFarmStall, @transferredToOtherProducers,
                  @actualClosingStock,
-                 @pulpOpeningStock, @pulpPurchased, @pulpConverted, @pulpSoldToTrade, @pulpSoldToProducers,
-                 @varianceReason, @levyAmount,
+                 @pulpOpeningStock, @pulpPurchased, @pulpConverted, @pulpSoldToTrade, @pulpSoldToProducers, @pulpConversionLoss,
+                 @varianceReason, @eggPurchaseComment, @pulpPurchaseComment, @transferPurchaseComment, @levyAmount,
                  'Inspector', @inspectorId, @linkedEPVId)`
       );
 
@@ -1713,7 +1642,7 @@ router.get('/inspector/pending-approvals', async (req, res) => {
         e.Token, e.ReferenceNumber, e.LevyAmount, e.PulpSoldToTrade, e.SoldToTrade,
         e.IsVerified, e.VerifiedBy, e.VerifiedAt, e.InspectorComment,
         e.ManualInspection, e.ManualInspectionBy, e.ManualInspectionAt,
-        e.POPFilePath, e.POPUploadedAt, e.IsReconciled, e.ReconciledAmount,
+        e.pop_file_path AS "POPFilePath", e.pop_uploaded_at AS "POPUploadedAt", e.IsReconciled, e.ReconciledAmount,
         c.BusinessName, c.FacilityProvince, c.FacilityType, c.Town,
         ie.Id AS InspEPVId, ie.Token AS InspEPVToken, ie.Status AS InspEPVStatus,
         ie.ReferenceNumber AS InspEPVRef, ie.LevyAmount AS InspLevyAmount,
@@ -1834,15 +1763,15 @@ router.get('/inspector/stats', async (req, res) => {
       return r.query(`
         SELECT
           c.Id AS ClientRecordId, c.BusinessName, c.Town, c.FacilityProvince,
-          SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.018, 0)) AS TotalBilled,
+          SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.02, 0)) AS TotalBilled,
           SUM(ISNULL(e.ReconciledAmount, 0)) AS TotalPaid,
-          SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.018, 0) - ISNULL(e.ReconciledAmount, 0)) AS TotalOwing
+          SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.02, 0) - ISNULL(e.ReconciledAmount, 0)) AS TotalOwing
         FROM EggProductionVerifications e
         JOIN ConsolidatedMasterAbattoirDatabase c ON e.ClientRecordId = c.Id
         WHERE e.EPVType = 'Client' AND e.Status = 'Completed' AND (e.IsReconciled = 0 OR e.IsReconciled IS NULL)
           ${provFilter}${dateWhere}
         GROUP BY c.Id, c.BusinessName, c.Town, c.FacilityProvince
-        HAVING SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.018, 0) - ISNULL(e.ReconciledAmount, 0)) > 0
+        HAVING SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.02, 0) - ISNULL(e.ReconciledAmount, 0)) > 0
         ORDER BY TotalOwing DESC
       `);
     })();
@@ -1853,15 +1782,15 @@ router.get('/inspector/stats', async (req, res) => {
       if (province) r.input('province', sql.NVarChar, province);
       return r.query(`
         SELECT
-          COUNT(DISTINCT e.ClientRecordId) AS TotalFacilitiesWithEPV,
-          COUNT(e.Id) AS TotalEPVs,
+          COUNT(DISTINCT e.ClientRecordId) AS FacilitiesWithEpv,
+          COUNT(e.Id) AS TotalEpvs,
           SUM(CASE WHEN e.IsReconciled = 1 THEN 1 ELSE 0 END) AS ReconciledCount,
           SUM(CASE WHEN e.IsReconciled = 0 OR e.IsReconciled IS NULL THEN 1 ELSE 0 END) AS UnreconciledCount,
           SUM(ISNULL(e.LevyAmount, 0)) AS TotalEggLevy,
-          SUM(ISNULL(e.PulpSoldToTrade, 0) * 1.7 * 0.018) AS TotalPulpLevy,
-          SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.018, 0)) AS TotalBilled,
+          SUM(ISNULL(e.PulpSoldToTrade, 0) * 1.7 * 0.02) AS TotalPulpLevy,
+          SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.02, 0)) AS TotalBilled,
           SUM(ISNULL(e.ReconciledAmount, 0)) AS TotalPaid,
-          SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.018, 0) - ISNULL(e.ReconciledAmount, 0)) AS TotalOutstanding,
+          SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.02, 0) - ISNULL(e.ReconciledAmount, 0)) AS TotalOutstanding,
           SUM(ISNULL(e.SoldToTrade, 0)) AS TotalEggDozens,
           SUM(ISNULL(e.PulpSoldToTrade, 0)) AS TotalPulpDozens,
           SUM(CASE WHEN ie.Id IS NOT NULL THEN 1 ELSE 0 END) AS TotalRejections,
@@ -1883,10 +1812,10 @@ router.get('/inspector/stats', async (req, res) => {
       return r.query(`
         SELECT
           e.PeriodMonth, e.PeriodYear,
-          COUNT(e.Id) AS EPVCount,
+          COUNT(e.Id) AS EpvCount,
           SUM(ISNULL(e.LevyAmount, 0)) AS EggLevy,
-          SUM(ISNULL(e.PulpSoldToTrade, 0) * 1.7 * 0.018) AS PulpLevy,
-          SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.018, 0)) AS TotalBilled,
+          SUM(ISNULL(e.PulpSoldToTrade, 0) * 1.7 * 0.02) AS PulpLevy,
+          SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.02, 0)) AS TotalBilled,
           SUM(ISNULL(e.ReconciledAmount, 0)) AS TotalPaid,
           SUM(CASE WHEN e.IsReconciled = 1 THEN 1 ELSE 0 END) AS PaidCount,
           SUM(ISNULL(e.SoldToTrade, 0)) AS EggDozens,

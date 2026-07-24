@@ -1,0 +1,374 @@
+/**
+ * Postgres translator shim — emulates the mssql API used throughout the
+ * codebase against a real Postgres backend.
+ *
+ * This file is the prod-only adapter. The codebase is written in T-SQL
+ * (PascalCase tables/columns, NVARCHAR types, SET IDENTITY_INSERT, etc.)
+ * but production runs Postgres, so every query is rewritten on the fly:
+ *
+ *   - PascalCase identifiers        -> snake_case
+ *   - GETDATE() / ISNULL / TOP / OUTER APPLY / OFFSET..FETCH NEXT
+ *   - Boolean = 1/0 comparisons     -> = true/false
+ *   - @param placeholders           -> $1 $2 …
+ *
+ * Result rows are mapped back so callers can still read PascalCase keys
+ * (`row.PasswordHash`, `row.Id`) AND the underlying snake_case keys.
+ *
+ * NOTE: this is intentionally a shim, not a full T-SQL parser. New
+ *       T-SQL constructs may need patches added below as they surface.
+ */
+
+const { Pool, types } = require('pg');
+require('dotenv').config();
+
+// pg returns NUMERIC/DECIMAL and BIGINT as strings by default (to preserve
+// precision past JS's Number range). The codebase was written against the
+// mssql driver which returns these as native numbers, and many React pages
+// call .toFixed() on them. Coerce back to Number to match mssql semantics.
+types.setTypeParser(1700, (v) => v === null ? null : parseFloat(v)); // NUMERIC / DECIMAL
+types.setTypeParser(20,   (v) => v === null ? null : parseInt(v, 10)); // INT8 / BIGINT
+
+const pool = new Pool({
+  host: process.env.DB_HOST,
+  port: parseInt(process.env.DB_PORT, 10) || 5432,
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+});
+
+pool.on('error', (err) => {
+  console.error('PG pool error:', err.message);
+});
+
+// -----------------------------------------------------------------------------
+// Identifier maps
+// -----------------------------------------------------------------------------
+
+// PascalCase table -> snake_case table.
+const TABLE_MAP = {
+  Users: 'users',
+  Invitations: 'invitations',
+  ConsolidatedMasterAbattoirDatabase: 'client_records',
+  ClientRecords: 'client_records',
+  EggProductionVerifications: 'egg_production_verifications',
+  EPVAuditLog: 'epv_audit_log',
+  EPVAttachments: 'epv_attachments',
+  EPVInvoices: 'epv_invoices',
+  ClientAuditLog: 'client_audit_log',
+  LoginLog: 'login_log',
+  EmailSendLog: 'email_send_log',
+  KPITargets: 'kpi_targets',
+  SupportTicketCategories: 'support_ticket_categories',
+  SupportTickets: 'support_tickets',
+  SupportTicketComments: 'support_ticket_comments',
+};
+
+// Explicit overrides where the heuristic snake_case isn't right.
+// (Add entries here as new mismatches surface.)
+const COLUMN_OVERRIDES = {
+  POPFilePath: 'pop_file_path',
+  POPUploadedAt: 'pop_uploaded_at',
+  POPUploadedBy: 'pop_uploaded_by',
+  POPComment: 'pop_comment',
+  EPVType: 'epv_type',
+  EPVCycleStatus: 'epv_cycle_status',
+  VATNumber: 'vat_number',
+  IPAddress: 'ipaddress',
+  ClientRecordId: 'client_record_id',
+  LinkedEPVId: 'linked_epv_id',
+  InspEPVId: 'insp_epv_id',
+  InspEPVToken: 'insp_epv_token',
+  InspEPVStatus: 'insp_epv_status',
+  InspEPVRef: 'insp_epv_ref',
+  KPI: 'kpi',
+  TransferredOrPurchasedFromProducers: 'transferred_or_purchased_from_producers',
+  TransferPurchaseComment: 'transfer_purchase_comment',
+  ApprovalStatus: 'approval_status',
+};
+
+// snake_case -> PascalCase for result mapping.
+const REVERSE_COL = {};
+for (const [pascal, snake] of Object.entries({ ...TABLE_MAP, ...COLUMN_OVERRIDES })) {
+  REVERSE_COL[snake] = pascal;
+}
+
+// Generic PascalCase -> snake_case converter.
+function pascalToSnake(name) {
+  if (COLUMN_OVERRIDES[name]) return COLUMN_OVERRIDES[name];
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
+    .toLowerCase();
+}
+
+// snake_case -> PascalCase. Used to expose result rows as both snake_case
+// (the actual Postgres column) AND PascalCase (what the route handlers
+// destructure: `user.PasswordHash`, `row.BusinessName`).
+function snakeToPascal(name) {
+  return name.replace(/(^|_)([a-z])/g, (_, _u, c) => c.toUpperCase());
+}
+
+// Boolean columns we coerce 0/1 comparisons against.
+const BOOLEAN_COLS = [
+  'is_active', 'is_reconciled', 'is_verified', 'is_paid', 'is_manual',
+  'manual_inspection', 'completed', 'success',
+];
+
+// -----------------------------------------------------------------------------
+// Query rewriter
+// -----------------------------------------------------------------------------
+
+// Run `transformFn` on every code segment of the SQL while leaving single-
+// quoted string literals untouched. Without this, identifier rewrites
+// trash literal values like 'Company Admin' -> 'company_admin'.
+function withQuotedStringsPreserved(sqlStr, transformFn) {
+  const out = [];
+  let i = 0;
+  while (i < sqlStr.length) {
+    if (sqlStr[i] === "'") {
+      let j = i + 1;
+      while (j < sqlStr.length) {
+        if (sqlStr[j] === "'") {
+          if (sqlStr[j + 1] === "'") { j += 2; continue; }
+          j++;
+          break;
+        }
+        j++;
+      }
+      out.push(sqlStr.slice(i, j));
+      i = j;
+    } else {
+      let j = i;
+      while (j < sqlStr.length && sqlStr[j] !== "'") j++;
+      out.push(transformFn(sqlStr.slice(i, j)));
+      i = j;
+    }
+  }
+  return out.join('');
+}
+
+// Per-segment transforms — these are safe to run on each non-string-literal
+// chunk of the tokenized query (identifier renames, simple replacements).
+function convertCodeSegment(q) {
+  // Datetime helpers.
+  q = q.replace(/GETDATE\(\)/gi, 'NOW()');
+  q = q.replace(/ISNULL\s*\(/gi, 'COALESCE(');
+
+  // [Bracketed] identifiers -> bare; later snake-casing handles them.
+  q = q.replace(/\[([A-Za-z_][A-Za-z0-9_]*)\]/g, '$1');
+
+  // Table renames (BEFORE column renames so qualified columns still work).
+  for (const [pascal, snake] of Object.entries(TABLE_MAP)) {
+    q = q.replace(new RegExp('\\b' + pascal + '\\b', 'g'), snake);
+  }
+
+  // Explicit column overrides for things the heuristic gets wrong.
+  for (const [pascal, snake] of Object.entries(COLUMN_OVERRIDES)) {
+    q = q.replace(new RegExp('\\b' + pascal + '\\b', 'g'), snake);
+  }
+
+  // Generic PascalCase identifier conversion - matches "alias.PascalIdent" or
+  // bare "PascalIdent". String literals are already excluded by the outer
+  // tokeniser, so we don't need to worry about them here.
+  q = q.replace(
+    /(\b[a-z_][a-z0-9_]*\.)?\b([A-Z][A-Za-z0-9]*)\b/g,
+    (match, alias, ident) => {
+      if (KEYWORDS.has(ident.toUpperCase())) return match;
+      const snake = pascalToSnake(ident);
+      return (alias || '') + snake;
+    },
+  );
+
+  // Boolean column comparisons against 0/1 — safe per-segment because no
+  // string literal can appear between `col = ` and the boolean number.
+  for (const col of BOOLEAN_COLS) {
+    q = q.replace(new RegExp(`\\b${col}\\s*=\\s*1\\b`, 'gi'), `${col} = true`);
+    q = q.replace(new RegExp(`\\b${col}\\s*=\\s*0\\b`, 'gi'), `${col} = false`);
+    q = q.replace(
+      new RegExp(`COALESCE\\(([^)]*\\.?${col}[^,]*),\\s*1\\)`, 'gi'),
+      'COALESCE($1, true)',
+    );
+    q = q.replace(
+      new RegExp(`COALESCE\\(([^)]*\\.?${col}[^,]*),\\s*0\\)`, 'gi'),
+      'COALESCE($1, false)',
+    );
+  }
+
+  return q;
+}
+
+// Whole-query transforms — these MUST run on the full reassembled SQL,
+// not per-segment, because they cross string-literal boundaries (TOP N at
+// the start with later LIMIT; OFFSET/FETCH spanning subqueries; APPLY
+// constructs containing string literals).
+function applyWholeQueryTransforms(q) {
+  // SELECT TOP N -> drop, add LIMIT N at end if no LIMIT already.
+  const topMatch = q.match(/\bSELECT\s+TOP\s+(\d+)\b/i);
+  if (topMatch) {
+    q = q.replace(/\bSELECT\s+TOP\s+\d+\b/i, 'SELECT');
+    if (!/\bLIMIT\s+\d+/i.test(q)) {
+      q = q.trim().replace(/;?\s*$/, '') + ` LIMIT ${topMatch[1]}`;
+    }
+  }
+
+  // OFFSET N ROWS FETCH NEXT M ROWS ONLY -> LIMIT M OFFSET N.
+  q = q.replace(
+    /OFFSET\s+(@?\$?\w+|\d+)\s+ROWS\s+FETCH\s+NEXT\s+(@?\$?\w+|\d+)\s+ROWS\s+ONLY/gi,
+    'LIMIT $2 OFFSET $1',
+  );
+
+  // T-SQL `OUTPUT INSERTED.col1, INSERTED.col2, …` (between column list
+  // and VALUES) -> Postgres `RETURNING col1, col2, …` (appended at end).
+  const outputMatch = q.match(/\bOUTPUT\s+(INSERTED\.\w+(?:\s*,\s*INSERTED\.\w+)*)/i);
+  if (outputMatch) {
+    const cols = outputMatch[1].match(/INSERTED\.(\w+)/gi).map(m => m.replace(/INSERTED\./i, ''));
+    q = q.replace(/\bOUTPUT\s+INSERTED\.\w+(?:\s*,\s*INSERTED\.\w+)*/gi, '');
+    if (!/\bRETURNING\b/i.test(q)) {
+      q = q.replace(/;?\s*$/, ` RETURNING ${cols.join(', ')}`);
+    }
+  }
+
+  // OUTER/CROSS APPLY -> LATERAL joins.
+  q = q.replace(/\bOUTER\s+APPLY\b/gi, 'LEFT JOIN LATERAL');
+  q = q.replace(/\bCROSS\s+APPLY\b/gi, 'JOIN LATERAL');
+  // Add `ON true` after a LATERAL subquery's alias when missing. Use a
+  // callback + (?!\w) word-end anchor to prevent regex backtracking from
+  // chopping the alias into prefixes (which produced things like
+  // "onboardi ON true n ON true g ON true").
+  q = q.replace(
+    /(\bLEFT JOIN LATERAL[\s\S]*?\)\s+)([A-Za-z_]\w*)(?!\w)/g,
+    (m, prefix, alias, offset) => {
+      const after = q.slice(offset + m.length);
+      if (/^\s+ON\b/i.test(after)) return m;
+      return m + ' ON true';
+    },
+  );
+  q = q.replace(
+    /(\b(?<!LEFT )JOIN LATERAL[\s\S]*?\)\s+)([A-Za-z_]\w*)(?!\w)/g,
+    (m, prefix, alias, offset) => {
+      const after = q.slice(offset + m.length);
+      if (/^\s+ON\b/i.test(after)) return m;
+      return m + ' ON true';
+    },
+  );
+
+  return q;
+}
+
+const KEYWORDS = new Set([
+  'SELECT', 'FROM', 'WHERE', 'AND', 'OR', 'NOT', 'NULL', 'IS', 'IN',
+  'JOIN', 'INNER', 'LEFT', 'RIGHT', 'OUTER', 'FULL', 'CROSS', 'ON',
+  'AS', 'BY', 'GROUP', 'ORDER', 'HAVING', 'LIMIT', 'OFFSET', 'ASC',
+  'DESC', 'INSERT', 'UPDATE', 'DELETE', 'INTO', 'VALUES', 'SET',
+  'CREATE', 'ALTER', 'DROP', 'TABLE', 'COLUMN', 'INDEX', 'CONSTRAINT',
+  'PRIMARY', 'KEY', 'FOREIGN', 'REFERENCES', 'CHECK', 'DEFAULT',
+  'TRUE', 'FALSE', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END', 'IF',
+  'EXISTS', 'BETWEEN', 'LIKE', 'ILIKE', 'UNION', 'ALL', 'DISTINCT',
+  'WITH', 'RETURNING', 'BEGIN', 'COMMIT', 'ROLLBACK', 'TRANSACTION',
+  'COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'COALESCE', 'NULLIF', 'CAST',
+  'TOP', 'FETCH', 'NEXT', 'ROWS', 'ONLY', 'NOW', 'LATERAL',
+  'INT', 'INTEGER', 'BIGINT', 'BOOLEAN', 'TEXT', 'VARCHAR',
+  'NVARCHAR', 'DATETIME', 'TIMESTAMP', 'DECIMAL', 'NUMERIC',
+  'OVER', 'PARTITION', 'WINDOW', 'ROW_NUMBER', 'RANK',
+]);
+
+function convertQuery(sqlStr) {
+  let q = sqlStr.replace(/^\s*;\s*/, '');
+
+  // 1. Per-segment transforms (identifier rewrites etc), preserving string
+  //    literals so we don't munge values like 'Company Admin'.
+  q = withQuotedStringsPreserved(q, convertCodeSegment);
+
+  // 2. Whole-query transforms (TOP/OFFSET-FETCH/APPLY) — these must run on
+  //    the reassembled query, not per-segment, otherwise `LIMIT N` ends up
+  //    appended at the end of a code chunk in the middle of the query.
+  q = applyWholeQueryTransforms(q);
+
+  // 3. T-SQL `+` -> Postgres `||` for string concatenation. Whenever a `+`
+  //    is adjacent to a string literal we know it's concat, not arithmetic.
+  //    Iterate until no more matches so chains like `a + ' ' + b` fully
+  //    convert.
+  let prev;
+  do {
+    prev = q;
+    q = q.replace(/('[^']*')\s*\+\s*/g, '$1 || ');
+    q = q.replace(/\s*\+\s*('[^']*')/g, ' || $1');
+  } while (q !== prev);
+
+  return q;
+}
+
+// -----------------------------------------------------------------------------
+// mssql-compatible Request shim
+// -----------------------------------------------------------------------------
+
+class Request {
+  constructor() {
+    this.params = {};
+    this.paramOrder = [];
+  }
+
+  input(name, typeOrValue, value) {
+    if (value === undefined) value = typeOrValue;
+    this.params[name] = value;
+    if (!this.paramOrder.includes(name)) this.paramOrder.push(name);
+    return this;
+  }
+
+  async query(sqlStr) {
+    let converted = convertQuery(sqlStr);
+    const usedParams = [];
+    converted = converted.replace(/@(\w+)/g, (m, name) => {
+      let idx = usedParams.indexOf(name);
+      if (idx === -1) {
+        usedParams.push(name);
+        idx = usedParams.length - 1;
+      }
+      return '$' + (idx + 1);
+    });
+    const values = usedParams.map((n) => this.params[n]);
+
+    try {
+      const result = await pool.query(converted, values);
+      const mappedRows = result.rows.map((row) => {
+        const mapped = {};
+        for (const [key, val] of Object.entries(row)) {
+          const pascalKey = REVERSE_COL[key] || snakeToPascal(key);
+          mapped[pascalKey] = val;
+          mapped[key] = val;
+        }
+        return mapped;
+      });
+      return { recordset: mappedRows, rowsAffected: [result.rowCount] };
+    } catch (err) {
+      console.error('PG Query Error:', err.message);
+      console.error('Converted SQL:', converted);
+      console.error('Values:', values);
+      throw err;
+    }
+  }
+}
+
+// mssql `sql` type stub. Routes use these in two ways:
+//   request.input('x', sql.NVarChar, value)   // type as identifier
+//   request.input('x', sql.Decimal(18, 2), v) // type as constructor
+// Our Request.input ignores the type entirely, so we just need every
+// access to return something that's both a string-like and callable.
+// A Proxy handles any future additions without us enumerating them.
+const sql = new Proxy({}, {
+  get: (_, name) => {
+    if (typeof name !== 'string') return undefined;
+    const fn = () => name;
+    fn.toString = () => name;
+    return fn;
+  },
+});
+
+async function getPool() {
+  return { request: () => new Request() };
+}
+
+module.exports = { sql, getPool, pool, config: {} };
