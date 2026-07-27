@@ -83,6 +83,7 @@ def list_clients(request):
                 'VerifiedAt': r.verified_at.isoformat() if r.verified_at else None,
                 'VerifiedBy': r.verified_by,
                 'EPVCycleStatus': r.epv_cycle_status,
+                'ApprovalStatus': r.approval_status,
                 'AssignedInspectorId': r.assigned_inspector_id,
                 'AssignedInspectorName': r.assigned_inspector_name(),
             })
@@ -277,6 +278,71 @@ def _delete_client(request, id):
     except Exception as e:
         print(f'Client delete error: {e}')
         return Response({'message': 'Server error deleting client.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@csrf_exempt
+@api_view(['PUT'])
+def approve_client(request, id):
+    """PUT /api/clients/approve/<id> — approve a pending company registration."""
+    approved_by = request.data.get('approvedBy')
+    if not approved_by:
+        return Response({'message': 'approvedBy is required.'}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        try:
+            record = ClientRecord.objects.get(id=id)
+        except ClientRecord.DoesNotExist:
+            return Response({'message': 'Company not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if record.approval_status != 'Pending':
+            return Response({'message': f'Company is already {record.approval_status}.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        record.approval_status = 'Approved'
+        record.save(update_fields=['approval_status'])
+
+        if record.email:
+            User.objects.filter(email__iexact=record.email, is_active=False).update(is_active=True)
+
+        ClientAuditLog.objects.create(
+            record_id=record.id, field_name='ApprovalStatus',
+            old_value='Pending', new_value='Approved', changed_by=approved_by,
+        )
+        return Response({'message': f'{record.business_name} approved.'})
+    except Exception as e:
+        print(f'Client approve error: {e}')
+        return Response({'message': 'Server error approving company.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@csrf_exempt
+@api_view(['PUT'])
+def reject_client(request, id):
+    """PUT /api/clients/reject/<id> — reject a pending company registration."""
+    rejected_by = request.data.get('rejectedBy')
+    reason = request.data.get('reason') or ''
+    if not rejected_by:
+        return Response({'message': 'rejectedBy is required.'}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        try:
+            record = ClientRecord.objects.get(id=id)
+        except ClientRecord.DoesNotExist:
+            return Response({'message': 'Company not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if record.approval_status != 'Pending':
+            return Response({'message': f'Company is already {record.approval_status}.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        record.approval_status = 'Rejected'
+        record.save(update_fields=['approval_status'])
+
+        ClientAuditLog.objects.create(
+            record_id=record.id, field_name='ApprovalStatus',
+            old_value='Pending', new_value=f'Rejected{" — " + reason if reason else ""}',
+            changed_by=rejected_by,
+        )
+        return Response({'message': f'{record.business_name} rejected.'})
+    except Exception as e:
+        print(f'Client reject error: {e}')
+        return Response({'message': 'Server error rejecting company.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @csrf_exempt

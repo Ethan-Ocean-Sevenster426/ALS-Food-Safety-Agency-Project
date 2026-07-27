@@ -1,7 +1,7 @@
 from decimal import Decimal
 from api.models import ClientAuditLog, EggProductionVerification
 
-LEVY_RATE = Decimal('0.018')
+LEVY_RATE = Decimal('0.020')
 
 
 def _to_decimal(value):

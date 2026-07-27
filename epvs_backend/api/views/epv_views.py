@@ -1484,6 +1484,8 @@ def inspector_not_completed(request):
             if insp_id:
                 # Inspectors only see their own assigned facilities
                 facilities_qs = facilities_qs.filter(assigned_inspector_id=insp_id)
+            elif inspector_filter == 'unassigned':
+                facilities_qs = facilities_qs.filter(assigned_inspector__isnull=True)
             elif inspector_filter:
                 # Admin filtering the dashboard by a specific inspector
                 facilities_qs = facilities_qs.filter(assigned_inspector_id=int(inspector_filter))
@@ -1568,6 +1570,8 @@ def inspector_pending_approvals(request):
         if insp_id:
             # Inspectors only see their own assigned facilities
             clients_qs = clients_qs.filter(assigned_inspector_id=insp_id)
+        elif inspector_filter == 'unassigned':
+            clients_qs = clients_qs.filter(assigned_inspector__isnull=True)
         elif inspector_filter:
             # Admin filtering the dashboard by a specific inspector
             clients_qs = clients_qs.filter(assigned_inspector_id=int(inspector_filter))
@@ -1682,6 +1686,8 @@ def inspector_stats(request):
         if insp_id:
             # Inspectors only see their own assigned facilities
             client_qs = client_qs.filter(assigned_inspector_id=insp_id)
+        elif inspector_filter == 'unassigned':
+            client_qs = client_qs.filter(assigned_inspector__isnull=True)
         elif inspector_filter:
             # Admin filtering the dashboard by a specific inspector
             client_qs = client_qs.filter(assigned_inspector_id=int(inspector_filter))
@@ -1753,7 +1759,7 @@ def inspector_stats(request):
             if cid not in outstanding_map:
                 outstanding_map[cid] = {'TotalBilled': 0, 'TotalPaid': 0}
             levy = float(epv.levy_amount or 0)
-            pulp_levy = float(epv.pulp_sold_to_trade or 0) * 1.7 * 0.018
+            pulp_levy = float(epv.pulp_sold_to_trade or 0) * 1.7 * 0.02
             reconciled = float(epv.reconciled_amount or 0)
             outstanding_map[cid]['TotalBilled'] += levy + pulp_levy
             outstanding_map[cid]['TotalPaid'] += reconciled
@@ -1820,9 +1826,9 @@ def inspector_stats(request):
 
         for epv in completed_qs:
             egg_levy = float(epv.levy_amount or 0)
-            pulp_levy = float(epv.pulp_sold_to_trade or 0) * 1.7 * 0.018
-            powder_dozens = float(epv.powder_sold_to_trade or 0) * 6.7  # 1 kg powder ~ 6.7 doz
-            powder_levy = powder_dozens * 0.018
+            pulp_levy = float(epv.pulp_sold_to_trade or 0) * 1.7 * 0.02
+            powder_dozens = float(epv.powder_sold_to_trade or 0) * 7  # display: 1 kg powder ~ 7 doz
+            powder_levy = float(epv.powder_sold_to_trade or 0) * 0.02  # kg-based levy
             total_egg_levy += egg_levy
             total_pulp_levy += pulp_levy
             total_powder_levy += powder_levy
@@ -1885,11 +1891,11 @@ def inspector_stats(request):
             entry = monthly_map[key]
             entry['EPVCount'] += 1
             egg_levy = float(epv.levy_amount or 0)
-            pulp_levy = float(epv.pulp_sold_to_trade or 0) * 1.7 * 0.018
-            powder_dozens = float(epv.powder_sold_to_trade or 0) * 6.7
+            pulp_levy = float(epv.pulp_sold_to_trade or 0) * 1.7 * 0.02
+            powder_dozens = float(epv.powder_sold_to_trade or 0) * 7
             entry['EggLevy'] += egg_levy
             entry['PulpLevy'] += pulp_levy
-            entry['PowderLevy'] += powder_dozens * 0.018
+            entry['PowderLevy'] += float(epv.powder_sold_to_trade or 0) * 0.02
             entry['TotalBilled'] += egg_levy + pulp_levy
             entry['TotalPaid'] += float(epv.reconciled_amount or 0)
             if epv.is_reconciled:

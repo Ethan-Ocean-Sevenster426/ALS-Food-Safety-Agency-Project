@@ -19,7 +19,7 @@ from api.models import (
 from api.services.helpers import log_company_audit, LEVY_RATE
 from api.services.email_service import send_email, send_email_to_each
 
-LEVY_RATE_FLOAT = 0.018
+LEVY_RATE_FLOAT = 0.02
 MONTH_NAMES = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December',

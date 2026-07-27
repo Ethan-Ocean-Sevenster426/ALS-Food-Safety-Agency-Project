@@ -1550,7 +1550,9 @@ router.get('/inspector/not-completed', async (req, res) => {
     const curYear = new Date().getFullYear();
     const curMonth = new Date().getMonth() + 1;
     const provFilter = province ? "AND c.FacilityProvince = @province" : "";
-    const inspFilter = inspectorId ? "AND c.AssignedInspectorId = @inspectorId" : "";
+    const inspFilter = inspectorId === 'unassigned'
+      ? "AND c.AssignedInspectorId IS NULL"
+      : (inspectorId ? "AND c.AssignedInspectorId = @inspectorId" : "");
 
     // Date filters
     const filterYear = req.query.year ? parseInt(req.query.year) : null;
@@ -1593,7 +1595,7 @@ router.get('/inspector/not-completed', async (req, res) => {
       const monthValues = yearMonths.map(ym => `(${ym.year}, ${ym.month})`).join(',');
       const r = pool.request();
       if (province) r.input('province', sql.NVarChar, province);
-      if (inspectorId) r.input('inspectorId', sql.Int, parseInt(inspectorId));
+      if (inspectorId && inspectorId !== 'unassigned') r.input('inspectorId', sql.Int, parseInt(inspectorId));
 
       const result = await r.query(`
         SELECT c.Id, c.BusinessName, c.FacilityProvince, c.FacilityType, c.Town,
@@ -1629,7 +1631,9 @@ router.get('/inspector/pending-approvals', async (req, res) => {
   try {
     const pool = await getPool();
     const provFilter = province ? "AND c.FacilityProvince = @province" : "";
-    const inspFilter = inspectorId ? "AND c.AssignedInspectorId = @inspectorId" : "";
+    const inspFilter = inspectorId === 'unassigned'
+      ? "AND c.AssignedInspectorId IS NULL"
+      : (inspectorId ? "AND c.AssignedInspectorId = @inspectorId" : "");
 
     // Date filters
     const curYear = new Date().getFullYear();
@@ -1649,7 +1653,7 @@ router.get('/inspector/pending-approvals', async (req, res) => {
 
     const r = pool.request();
     if (province) r.input('province', sql.NVarChar, province);
-    if (inspectorId) r.input('inspectorId', sql.Int, parseInt(inspectorId));
+    if (inspectorId && inspectorId !== 'unassigned') r.input('inspectorId', sql.Int, parseInt(inspectorId));
 
     const result = await r.query(`
       SELECT
@@ -1678,7 +1682,7 @@ router.get('/inspector/pending-approvals', async (req, res) => {
     // Also get EPVs where inspector EPV is pending (rejected, needs inspector to complete)
     const r2 = pool.request();
     if (province) r2.input('province', sql.NVarChar, province);
-    if (inspectorId) r2.input('inspectorId', sql.Int, parseInt(inspectorId));
+    if (inspectorId && inspectorId !== 'unassigned') r2.input('inspectorId', sql.Int, parseInt(inspectorId));
 
     const inspPending = await r2.query(`
       SELECT
@@ -1739,10 +1743,12 @@ router.get('/inspector/stats', async (req, res) => {
 
     // Build province + assigned-inspector filters
     const provFilter = province ? "AND c.FacilityProvince = @province" : "";
-    const inspFilter = inspectorId ? "AND c.AssignedInspectorId = @inspectorId" : "";
+    const inspFilter = inspectorId === 'unassigned'
+      ? "AND c.AssignedInspectorId IS NULL"
+      : (inspectorId ? "AND c.AssignedInspectorId = @inspectorId" : "");
     const applyFilters = (r) => {
       if (province) r.input('province', sql.NVarChar, province);
-      if (inspectorId) r.input('inspectorId', sql.Int, parseInt(inspectorId));
+      if (inspectorId && inspectorId !== 'unassigned') r.input('inspectorId', sql.Int, parseInt(inspectorId));
       return r;
     };
 

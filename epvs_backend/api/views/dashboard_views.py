@@ -25,7 +25,7 @@ from api.models import (
 
 logger = logging.getLogger(__name__)
 
-LEVY_RATE = 0.018
+LEVY_RATE = 0.02
 
 
 # ---------------------------------------------------------------------------

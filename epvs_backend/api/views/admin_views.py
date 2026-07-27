@@ -14,7 +14,7 @@ from rest_framework import status
 from api.models import EggProductionVerification, ClientRecord, ClientAuditLog
 from api.services.helpers import log_company_audit, LEVY_RATE
 
-LEVY_RATE_FLOAT = 0.018
+LEVY_RATE_FLOAT = 0.02
 
 
 def _calc_total_billed(epv):

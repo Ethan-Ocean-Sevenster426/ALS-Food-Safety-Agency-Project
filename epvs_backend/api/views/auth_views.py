@@ -16,7 +16,7 @@ from rest_framework import status
 from api.models import User, Invitation, ClientRecord
 
 
-VALID_ROLES = ['Super Admin', 'Admin', 'Inspector', 'Company Admin', 'User']
+VALID_ROLES = ['Super Admin', 'Super', 'Admin', 'Inspector', 'Company Admin', 'User']
 
 
 def _send_email(to, subject, html):

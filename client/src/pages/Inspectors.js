@@ -370,6 +370,7 @@ function Inspectors() {
               <label>Inspector Filter:</label>
               <select value={selectedInspector} onChange={e => setSelectedInspector(e.target.value)}>
                 <option value="">All Inspectors</option>
+                <option value="unassigned">Unassigned</option>
                 {inspectorList.map(i => (
                   <option key={i.Id} value={String(i.Id)}>{i.name}</option>
                 ))}
@@ -699,7 +700,7 @@ function Inspectors() {
                           </td>
                           <td>{formatNum(epv.SoldToTrade)} doz</td>
                           <td>{formatNum(epv.PulpSoldToTrade)} doz</td>
-                          <td>{formatNum(Math.round((+epv.PowderSoldToTrade || 0) * 6.7))} doz</td>
+                          <td>{formatNum(Math.round((+epv.PowderSoldToTrade || 0) * 7))} doz</td>
                           <td><strong>{formatR(amount)}</strong></td>
                           <td onClick={e => e.stopPropagation()}>
                             <div className="insp-verify-actions">
@@ -781,7 +782,7 @@ function Inspectors() {
                         <td>{MONTH_NAMES[(epv.PeriodMonth || 1) - 1]} {epv.PeriodYear}</td>
                         <td>{formatNum(epv.SoldToTrade)} doz</td>
                         <td>{formatNum(epv.PulpSoldToTrade)} doz</td>
-                        <td>{formatNum(Math.round((+epv.PowderSoldToTrade || 0) * 6.7))} doz</td>
+                        <td>{formatNum(Math.round((+epv.PowderSoldToTrade || 0) * 7))} doz</td>
                         <td><strong>{formatR(getEpvAmount(epv))}</strong></td>
                         <td>
                           <button className="insp-complete-action-btn" onClick={() => navigate(`/epv/${epv.InspEPVToken}`)}>

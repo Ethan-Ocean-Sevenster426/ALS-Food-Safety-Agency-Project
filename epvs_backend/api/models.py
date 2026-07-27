@@ -43,6 +43,7 @@ class ClientRecord(models.Model):
     verified_at = models.DateTimeField(null=True, blank=True)
     verified_by = models.CharField(max_length=255, null=True, blank=True)
     epv_cycle_status = models.CharField(max_length=50, null=True, blank=True)
+    approval_status = models.CharField(max_length=50, null=True, blank=True)
     assigned_inspector = models.ForeignKey(
         User, null=True, blank=True, on_delete=models.SET_NULL,
         db_column='assigned_inspector_id', related_name='assigned_facilities',
@@ -119,6 +120,7 @@ class ClientRecord(models.Model):
             'VerifiedAt': self.verified_at.isoformat() if self.verified_at else None,
             'VerifiedBy': self.verified_by,
             'EPVCycleStatus': self.epv_cycle_status,
+            'ApprovalStatus': self.approval_status,
             'AssignedInspectorId': self.assigned_inspector_id,
             'AssignedInspectorName': self.assigned_inspector_name(),
         }
@@ -184,8 +186,15 @@ class EggProductionVerification(models.Model):
     cell_phone_number = models.CharField(max_length=50, blank=True, default='')
     email_address = models.CharField(max_length=255, blank=True, default='')
     variance_reason = models.TextField(blank=True, default='')
+    egg_purchase_comment = models.TextField(blank=True, default='')
+    pulp_purchase_comment = models.TextField(blank=True, default='')
+    powder_purchase_comment = models.TextField(blank=True, default='')
+    transfer_purchase_comment = models.TextField(blank=True, default='')
     # Numeric fields - Eggs
     opening_stock = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    eggs_produced_during_month = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    transferred_or_purchased_from_producers = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    exported = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     graded_eggs_purchased = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     ungraded_eggs_purchased = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     market_returns = models.DecimalField(max_digits=18, decimal_places=2, default=0)
@@ -201,9 +210,15 @@ class EggProductionVerification(models.Model):
     pulp_purchased = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     pulp_converted = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     pulp_sold_to_trade = models.DecimalField(max_digits=18, decimal_places=2, default=0)
-    # Egg powder sold to trade, in KG (1 kg whole egg powder ~ 6.7 dozen eggs)
-    powder_sold_to_trade = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     pulp_sold_to_producers = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    pulp_conversion_loss = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    # Numeric fields - Egg powder (KG; levy is kg-based, display dozens = kg x 7)
+    powder_opening_stock = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    powder_purchased = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    powder_converted = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    powder_sold_to_trade = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    powder_sold_to_producers = models.DecimalField(max_digits=18, decimal_places=2, default=0)
+    powder_conversion_loss = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     # Calculated totals
     total_b = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     total_c = models.DecimalField(max_digits=18, decimal_places=2, default=0)
@@ -254,10 +269,17 @@ class EggProductionVerification(models.Model):
         'CellPhoneNumber': 'cell_phone_number',
         'EmailAddress': 'email_address',
         'VarianceReason': 'variance_reason',
+        'EggPurchaseComment': 'egg_purchase_comment',
+        'PulpPurchaseComment': 'pulp_purchase_comment',
+        'PowderPurchaseComment': 'powder_purchase_comment',
+        'TransferPurchaseComment': 'transfer_purchase_comment',
     }
 
     NUMERIC_FIELD_MAP = {
         'OpeningStock': 'opening_stock',
+        'EggsProducedDuringMonth': 'eggs_produced_during_month',
+        'TransferredOrPurchasedFromProducers': 'transferred_or_purchased_from_producers',
+        'Exported': 'exported',
         'GradedEggsPurchased': 'graded_eggs_purchased',
         'UngradedEggsPurchased': 'ungraded_eggs_purchased',
         'MarketReturns': 'market_returns',
@@ -272,8 +294,14 @@ class EggProductionVerification(models.Model):
         'PulpPurchased': 'pulp_purchased',
         'PulpConverted': 'pulp_converted',
         'PulpSoldToTrade': 'pulp_sold_to_trade',
-        'PowderSoldToTrade': 'powder_sold_to_trade',
         'PulpSoldToProducers': 'pulp_sold_to_producers',
+        'PulpConversionLoss': 'pulp_conversion_loss',
+        'PowderOpeningStock': 'powder_opening_stock',
+        'PowderPurchased': 'powder_purchased',
+        'PowderConverted': 'powder_converted',
+        'PowderSoldToTrade': 'powder_sold_to_trade',
+        'PowderSoldToProducers': 'powder_sold_to_producers',
+        'PowderConversionLoss': 'powder_conversion_loss',
     }
 
     def to_js_dict(self):
@@ -343,6 +371,13 @@ class EggProductionVerification(models.Model):
             'InspectorId': self.inspector_id,
             'LinkedEPVId': self.linked_epv_id,
         }
+        # Fill any mapped fields not listed explicitly above (newer form fields)
+        for js_name, django_name in self.TEXT_FIELD_MAP.items():
+            if js_name not in d:
+                d[js_name] = getattr(self, django_name, '') or ''
+        for js_name, django_name in self.NUMERIC_FIELD_MAP.items():
+            if js_name not in d:
+                d[js_name] = float(getattr(self, django_name, 0) or 0)
         return d
 
 
