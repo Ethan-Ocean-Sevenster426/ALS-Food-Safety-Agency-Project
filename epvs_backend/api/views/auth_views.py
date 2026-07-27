@@ -153,7 +153,9 @@ def get_users(request):
         users_qs = User.objects.all().order_by('-created_at')
         role = request.query_params.get('role')
         if role:
-            users_qs = users_qs.filter(role=role)
+            # Supports a single role or a comma-separated list (e.g. "Inspector,Super Admin")
+            roles = [r.strip() for r in role.split(',') if r.strip()]
+            users_qs = users_qs.filter(role__in=roles)
         users = list(users_qs)
 
         # Batch-load allocated clients: latest accepted invitation per email,

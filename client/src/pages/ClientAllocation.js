@@ -176,13 +176,14 @@ function ClientAllocation() {
   useEffect(() => {
     const fetchInspectors = async () => {
       try {
-        const res = await axios.get('/api/auth/users', { params: { role: 'Inspector' } });
+        // Super Admins can also carry inspections (e.g. oom Ben), so they are selectable too
+        const res = await axios.get('/api/auth/users', { params: { role: 'Inspector,Super Admin' } });
         const list = (res.data.users || [])
-          .filter(u => u.Role === 'Inspector' && u.IsActive !== false)
+          .filter(u => (u.Role === 'Inspector' || u.Role === 'Super Admin') && u.IsActive !== false)
           .map(u => ({
             Id: u.Id,
             name: `${u.FirstName || ''} ${u.LastName || ''}`.trim() || u.Email,
-            province: u.InspectorProvince || '',
+            isSuperAdmin: u.Role === 'Super Admin',
           }))
           .sort((a, b) => a.name.localeCompare(b.name));
         setInspectors(list);
@@ -197,7 +198,7 @@ function ClientAllocation() {
     <select className={`ca-edit-input ${extraClass}`} value={value} onChange={onChange} disabled={disabled}>
       <option value="">— No inspector —</option>
       {inspectors.map(i => (
-        <option key={i.Id} value={String(i.Id)}>{i.name}</option>
+        <option key={i.Id} value={String(i.Id)}>{i.name}{i.isSuperAdmin ? ' (Super Admin)' : ''}</option>
       ))}
     </select>
   );
