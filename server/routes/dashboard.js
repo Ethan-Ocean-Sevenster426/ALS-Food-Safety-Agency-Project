@@ -185,10 +185,15 @@ router.get('/epv-overview', async (req, res) => {
     const visitQYear = filterYear || curYear;
     const visitQStart = filterQuarter ? (filterQuarter - 1) * 3 + 1 : (filterMonth ? filterMonth : qStartMonth);
     const visitQEnd = filterQuarter ? (filterQuarter - 1) * 3 + 3 : (filterMonth ? filterMonth : qStartMonth + 2);
+    // Visited = inspection PERFORMED in the window (ManualInspectionAt) —
+    // EPV periods lag a month behind the visit date. Legacy rows without a
+    // timestamp fall back to the EPV period.
     const needVisitResult = await pool.request()
       .input('qStart', sql.Int, visitQStart)
       .input('qEnd', sql.Int, visitQEnd)
       .input('year', sql.Int, visitQYear)
+      .input('visitStart', sql.DateTime, new Date(visitQYear, visitQStart - 1, 1))
+      .input('visitEnd', sql.DateTime, new Date(visitQYear, visitQEnd, 1))
       .query(`
         SELECT COUNT(*) AS NeedVisitCount
         FROM ConsolidatedMasterAbattoirDatabase c
@@ -197,9 +202,15 @@ router.get('/epv-overview', async (req, res) => {
             SELECT 1 FROM EggProductionVerifications e
             WHERE e.ClientRecordId = c.Id
               AND e.EPVType = 'Client'
-              AND e.PeriodYear = @year
-              AND e.PeriodMonth BETWEEN @qStart AND @qEnd
               AND e.ManualInspection = 1
+              AND (
+                (e.ManualInspectionAt IS NOT NULL
+                  AND e.ManualInspectionAt >= @visitStart
+                  AND e.ManualInspectionAt < @visitEnd)
+                OR (e.ManualInspectionAt IS NULL
+                  AND e.PeriodYear = @year
+                  AND e.PeriodMonth BETWEEN @qStart AND @qEnd)
+              )
           )
       `);
 
