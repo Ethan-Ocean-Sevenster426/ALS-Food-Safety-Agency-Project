@@ -10,7 +10,6 @@ const TABLE_FIELDS = [
   { key: 'Email', label: 'Email' },
   { key: 'Town', label: 'Town' },
   { key: 'FacilityType', label: 'Facility Type' },
-  { key: 'FacilityProvince', label: 'Province' },
   { key: 'AssignedInspectorId', label: 'Assigned Inspector' },
   { key: 'CompanyRegNumber', label: 'Reg No.' },
   { key: 'PhysicalAddress', label: 'Physical Address' },
@@ -19,6 +18,13 @@ const TABLE_FIELDS = [
 
 // Expandable detail groups (shown below the row)
 const DETAIL_GROUPS = [
+  {
+    key: 'facility',
+    label: 'Facility',
+    fields: [
+      { key: 'FacilityProvince', label: 'Province' },
+    ],
+  },
   {
     key: 'owner',
     label: 'Owner',
