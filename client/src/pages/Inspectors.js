@@ -688,7 +688,7 @@ function Inspectors() {
                           <td className="insp-epv-ref">{epv.ReferenceNumber || '—'}</td>
                           <td><strong>{epv.BusinessName}</strong></td>
                           <td>{epv.FacilityProvince}</td>
-                          <td>{epv.AssignedInspector || '—'}</td>
+                          <td>{epv.AssignedInspector || 'Unassigned'}</td>
                           <td>{MONTH_NAMES[(epv.PeriodMonth || 1) - 1]} {epv.PeriodYear}</td>
                           <td><span className="insp-pct-badge insp-pct-good">Completed</span></td>
                           <td>{epv.CompletedAt ? new Date(epv.CompletedAt).toLocaleDateString('en-ZA') : '—'}</td>
@@ -857,7 +857,7 @@ function Inspectors() {
                         <td><strong>{f.BusinessName}</strong></td>
                         <td>{f.FacilityProvince}</td>
                         <td>{f.FacilityType || '—'}</td>
-                        <td>{f.AssignedInspector || '—'}</td>
+                        <td>{f.AssignedInspector || 'Unassigned'}</td>
                         <td>
                           {f.EPVId ? (
                             <span className="insp-pct-badge insp-pct-warn">Pending</span>
@@ -965,7 +965,7 @@ function Inspectors() {
                       <td>{f.Town || '—'}</td>
                       <td>{f.FacilityProvince}</td>
                       <td>{f.FacilityType || '—'}</td>
-                      <td>{f.AssignedInspector || '—'}</td>
+                      <td>{f.AssignedInspector || 'Unassigned'}</td>
                       <td><button className="insp-go-btn" onClick={() => navigate(`/company?companyId=${f.Id}`)}>Open Company</button></td>
                     </tr>
                   ))}
@@ -1003,7 +1003,7 @@ function Inspectors() {
                     <tr key={f.ClientRecordId}>
                       <td><strong>{f.BusinessName}</strong></td>
                       <td>{f.FacilityProvince}</td>
-                      <td>{f.AssignedInspector || '—'}</td>
+                      <td>{f.AssignedInspector || 'Unassigned'}</td>
                       <td>{formatR(f.TotalBilled)}</td>
                       <td className="insp-paid-cell">{formatR(f.TotalPaid)}</td>
                       <td><strong className="insp-owing-amount">{formatR(f.TotalOwing)}</strong></td>
