@@ -324,14 +324,20 @@ def epv_overview(request):
             visit_q_start = q_start_month
             visit_q_end = q_start_month + 2
 
+        # Visited = inspection performed in the window (manual_inspection_at);
+        # legacy rows without a timestamp fall back to the EPV period.
+        from api.views.epv_views import _visit_window
+        visit_start, visit_end = _visit_window(visit_q_year, visit_q_start, visit_q_end)
         visited_client_ids = (
             EggProductionVerification.objects
+            .filter(epv_type='Client', manual_inspection=True)
             .filter(
-                epv_type='Client',
-                period_year=visit_q_year,
-                period_month__gte=visit_q_start,
-                period_month__lte=visit_q_end,
-                manual_inspection=True,
+                Q(manual_inspection_at__gte=visit_start,
+                  manual_inspection_at__lt=visit_end)
+                | Q(manual_inspection_at__isnull=True,
+                    period_year=visit_q_year,
+                    period_month__gte=visit_q_start,
+                    period_month__lte=visit_q_end)
             )
             .values_list('client_record_id', flat=True)
             .distinct()

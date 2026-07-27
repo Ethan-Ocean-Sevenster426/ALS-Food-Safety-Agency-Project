@@ -30,6 +30,17 @@ from api.middleware import inspector_user_id
 logger = logging.getLogger(__name__)
 
 
+def _visit_window(year, start_month, end_month):
+    """Aware [start, end) datetime range for a month window — range comparisons
+    work on MySQL without timezone tables, unlike __year/__month lookups."""
+    from datetime import datetime as _dt
+    end_y, end_m = (year + 1, 1) if end_month >= 12 else (year, end_month + 1)
+    return (
+        timezone.make_aware(_dt(year, start_month, 1)),
+        timezone.make_aware(_dt(end_y, end_m, 1)),
+    )
+
+
 def _inspector_company_block(request, client_record_id):
     """403 Response if the requester is an Inspector not assigned to this facility, else None."""
     insp_id = inspector_user_id(request)
@@ -1721,13 +1732,22 @@ def inspector_stats(request):
             visit_q_start = q_start_month
             visit_q_end = q_start_month + 2
 
+        # A facility counts as visited when the inspection was PERFORMED in the
+        # window (manual_inspection_at) — EPV periods lag a month behind, so
+        # matching on period alone misses inspections done this quarter.
+        # Legacy rows without a timestamp fall back to the EPV period.
+        visit_start, visit_end = _visit_window(visit_q_year, visit_q_start, visit_q_end)
         inspected_client_ids = set(
             EggProductionVerification.objects.filter(
                 epv_type='Client',
-                period_year=visit_q_year,
-                period_month__gte=visit_q_start,
-                period_month__lte=visit_q_end,
                 manual_inspection=True,
+            ).filter(
+                Q(manual_inspection_at__gte=visit_start,
+                  manual_inspection_at__lt=visit_end)
+                | Q(manual_inspection_at__isnull=True,
+                    period_year=visit_q_year,
+                    period_month__gte=visit_q_start,
+                    period_month__lte=visit_q_end)
             ).values_list('client_record_id', flat=True)
         )
 

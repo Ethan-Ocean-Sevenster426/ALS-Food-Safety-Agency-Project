@@ -1773,6 +1773,11 @@ router.get('/inspector/stats', async (req, res) => {
       r.input('qStart', sql.Int, visitQStart);
       r.input('qEnd', sql.Int, visitQEnd);
       r.input('year', sql.Int, visitQYear);
+      // Visited = inspection PERFORMED in the window (ManualInspectionAt);
+      // EPV periods lag a month behind the visit date. Legacy rows without a
+      // timestamp fall back to the EPV period.
+      r.input('visitStart', sql.DateTime, new Date(visitQYear, visitQStart - 1, 1));
+      r.input('visitEnd', sql.DateTime, new Date(visitQYear, visitQEnd, 1));
       return r.query(`
         SELECT c.Id, c.BusinessName, c.Town, c.FacilityProvince, c.FacilityType,
                ai.FirstName AS AiFirstName, ai.LastName AS AiLastName
@@ -1783,9 +1788,15 @@ router.get('/inspector/stats', async (req, res) => {
             SELECT 1 FROM EggProductionVerifications e
             WHERE e.ClientRecordId = c.Id
               AND e.EPVType = 'Client'
-              AND e.PeriodYear = @year
-              AND e.PeriodMonth BETWEEN @qStart AND @qEnd
               AND e.ManualInspection = 1
+              AND (
+                (e.ManualInspectionAt IS NOT NULL
+                  AND e.ManualInspectionAt >= @visitStart
+                  AND e.ManualInspectionAt < @visitEnd)
+                OR (e.ManualInspectionAt IS NULL
+                  AND e.PeriodYear = @year
+                  AND e.PeriodMonth BETWEEN @qStart AND @qEnd)
+              )
           )
         ORDER BY c.FacilityProvince, c.BusinessName
       `);
