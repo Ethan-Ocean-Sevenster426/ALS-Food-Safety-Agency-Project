@@ -440,7 +440,7 @@ function Inspectors() {
           { label: `Collection — ${prevMonthNames || 'Prior Months'}`, value: prevPct, target: ct, suffix: '%', detail: `${formatR(prevPaid)} of ${formatR(prevBilled)}`, color: prevPct >= ct ? '#16a34a' : prevPct >= ct * 0.75 ? '#d97706' : '#dc2626' },
           { label: `Collection — ${curMonthName} (Current)`, value: curPct, target: ct, suffix: '%', detail: `${formatR(curPaid)} of ${formatR(curBilled)}`, color: curPct >= ct ? '#16a34a' : curPct >= ct * 0.75 ? '#d97706' : '#dc2626' },
           { label: 'Approvals Actioned', value: approvalPct, target: at, suffix: '%', detail: `${formatNum(s.VerifiedCount)} of ${formatNum(s.TotalEpvs)} EPVs`, color: approvalPct >= at ? '#16a34a' : approvalPct >= at * 0.78 ? '#d97706' : '#dc2626' },
-          { label: 'Facilities Visited', value: visitedPct, target: ft, suffix: '%', detail: `${formatNum(visitedDone)} of ${formatNum(visitedTotal)} (Q${q.quarter})`, color: visitedPct >= ft ? '#16a34a' : visitedPct >= ft * 0.75 ? '#d97706' : '#dc2626' },
+          { label: 'Facilities Visited', value: visitedPct, target: ft, suffix: '%', detail: `${formatNum(visitedDone)} of ${formatNum(visitedTotal)} (Q${filterQuarter || q.quarter})`, color: visitedPct >= ft ? '#16a34a' : visitedPct >= ft * 0.75 ? '#d97706' : '#dc2626' },
         ];
 
         return (
@@ -499,7 +499,7 @@ function Inspectors() {
             <span className="insp-action-count insp-action-count-warning">{needVisit.length}</span>
             <div className="insp-action-detail">
               <div className="insp-action-title">Facilities Need Visit</div>
-              <div className="insp-action-desc">Q{q.quarter} — no inspection yet</div>
+              <div className="insp-action-desc">Q{filterQuarter || q.quarter} — no inspection yet</div>
             </div>
           </div>
           <div className="insp-action-card insp-action-card-info" onClick={() => setActiveTab('owing')}>
