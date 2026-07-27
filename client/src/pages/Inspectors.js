@@ -85,10 +85,11 @@ function Inspectors() {
   const LEVY_RATE = 0.020;
 
   const getProvinceParam = useCallback(() => {
-    if (isInspectorRole && assignedProvince) return assignedProvince;
+    // Inspectors are scoped by assigned facilities (inspectorId), not province
+    if (isInspectorRole) return '';
     if (selectedProvince) return selectedProvince;
     return '';
-  }, [isInspectorRole, assignedProvince, selectedProvince]);
+  }, [isInspectorRole, selectedProvince]);
 
   const getDateParams = useCallback(() => {
     const p = {};
@@ -96,8 +97,9 @@ function Inspectors() {
     if (filterQuarter) p.quarter = filterQuarter;
     if (filterMonth) p.month = filterMonth;
     if (isAdmin && selectedInspector) p.inspectorId = selectedInspector;
+    else if (isInspectorRole && user.id) p.inspectorId = user.id;
     return p;
-  }, [filterYear, filterQuarter, filterMonth, isAdmin, selectedInspector]);
+  }, [filterYear, filterQuarter, filterMonth, isAdmin, selectedInspector, isInspectorRole, user.id]);
 
   // Load inspector list for the admin filter dropdown
   useEffect(() => {
@@ -360,8 +362,7 @@ function Inspectors() {
             <h2>Inspector Dashboard</h2>
             <p className="insp-subtitle">
               {isInspectorRole ? `Inspector: ${user.firstName} ${user.lastName}` : `${user.role}: ${user.firstName} ${user.lastName}`}
-              {isInspectorRole && assignedProvince && <> — <strong>{assignedProvince}</strong></>}
-              {isInspectorRole && !assignedProvince && <> — <span className="insp-no-province">No province assigned</span></>}
+              {isInspectorRole && <> — <strong>Assigned facilities</strong></>}
             </p>
           </div>
           {isAdmin && (
@@ -370,9 +371,7 @@ function Inspectors() {
               <select value={selectedInspector} onChange={e => setSelectedInspector(e.target.value)}>
                 <option value="">All Inspectors</option>
                 {inspectorList.map(i => (
-                  <option key={i.Id} value={String(i.Id)}>
-                    {i.name}{i.province ? ` (${i.province})` : ''}
-                  </option>
+                  <option key={i.Id} value={String(i.Id)}>{i.name}</option>
                 ))}
               </select>
             </div>

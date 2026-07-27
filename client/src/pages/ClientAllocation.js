@@ -191,9 +191,7 @@ function ClientAllocation() {
     <select className={`ca-edit-input ${extraClass}`} value={value} onChange={onChange} disabled={disabled}>
       <option value="">— No inspector —</option>
       {inspectors.map(i => (
-        <option key={i.Id} value={String(i.Id)}>
-          {i.name}{i.province ? ` (${i.province})` : ''}
-        </option>
+        <option key={i.Id} value={String(i.Id)}>{i.name}</option>
       ))}
     </select>
   );

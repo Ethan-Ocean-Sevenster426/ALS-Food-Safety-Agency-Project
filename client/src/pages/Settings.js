@@ -180,7 +180,7 @@ function Settings() {
       setError('Password must be at least 6 characters.');
       return;
     }
-    if (role === 'Inspector' && !inspectorProvince) {
+    if (false) { // province no longer required for inspectors — scoping is by assigned facilities
       setError('Please select at least one province for the inspector.');
       return;
     }
@@ -424,32 +424,7 @@ function Settings() {
                       {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                     </select>
                   </div>
-                  {editData.role === 'Inspector' && (
-                    <div className="settings-edit-row">
-                      <label>Allocated Provinces</label>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
-                        {SA_PROVINCES.map(p => {
-                          const selected = (editData.inspectorProvince || '').split(',').map(s => s.trim()).filter(Boolean);
-                          const isChecked = selected.includes(p);
-                          return (
-                            <label key={p} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 4, border: isChecked ? '2px solid #0E7C7B' : '1px solid #d1d5db', background: isChecked ? '#e6f7f7' : '#fff', cursor: 'pointer', fontSize: 13, fontWeight: isChecked ? 600 : 400, color: isChecked ? '#0E7C7B' : '#374151' }}>
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={() => {
-                                  const current = (editData.inspectorProvince || '').split(',').map(s => s.trim()).filter(Boolean);
-                                  const updated = isChecked ? current.filter(x => x !== p) : [...current, p];
-                                  setEditData({ ...editData, inspectorProvince: updated.join(', ') });
-                                }}
-                                style={{ display: 'none' }}
-                              />
-                              {p}
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+                  {/* Inspectors are scoped by assigned facilities (Clients page), not provinces */}
                 </div>
                 <div className="settings-modal-actions">
                   <button className="settings-reset-confirm" onClick={executeEdit} disabled={editSubmitting}>
@@ -521,33 +496,7 @@ function Settings() {
                     </select>
                   </div>
 
-                  {/* Inspector: Province selector */}
-                  {addUserData.role === 'Inspector' && (
-                    <div className="settings-edit-row">
-                      <label>Allocated Provinces</label>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
-                        {SA_PROVINCES.map(p => {
-                          const selected = (addUserData.inspectorProvince || '').split(',').map(s => s.trim()).filter(Boolean);
-                          const isChecked = selected.includes(p);
-                          return (
-                            <label key={p} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 4, border: isChecked ? '2px solid #0E7C7B' : '1px solid #d1d5db', background: isChecked ? '#e6f7f7' : '#fff', cursor: 'pointer', fontSize: 13, fontWeight: isChecked ? 600 : 400, color: isChecked ? '#0E7C7B' : '#374151' }}>
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={() => {
-                                  const current = (addUserData.inspectorProvince || '').split(',').map(s => s.trim()).filter(Boolean);
-                                  const updated = isChecked ? current.filter(x => x !== p) : [...current, p];
-                                  setAddUserData({ ...addUserData, inspectorProvince: updated.join(', ') });
-                                }}
-                                style={{ display: 'none' }}
-                              />
-                              {p}
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+                  {/* Inspectors are scoped by assigned facilities (Clients page), not provinces */}
 
                   {/* Company Admin / User: Company selector */}
                   {(addUserData.role === 'Company Admin' || addUserData.role === 'User') && (
@@ -627,7 +576,6 @@ function Settings() {
                   <th>Email</th>
                   <th>Role</th>
                   <th>Status</th>
-                  <th>Province</th>
                   <th>Company</th>
                   <th>Created</th>
                   <th>Actions</th>
@@ -664,19 +612,6 @@ function Settings() {
                         <span className={`status-badge ${u.IsActive === false || u.IsActive === 0 ? 'status-inactive' : 'status-active'}`}>
                           {u.IsActive === false || u.IsActive === 0 ? 'Inactive' : 'Active'}
                         </span>
-                      </td>
-                      <td>
-                        {u.Role === 'Inspector' && u.InspectorProvince ? (
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                            {u.InspectorProvince.split(',').map(p => p.trim()).filter(Boolean).map(p => (
-                              <span key={p} className="settings-province-badge">{p}</span>
-                            ))}
-                          </div>
-                        ) : u.Role === 'Inspector' ? (
-                          <span className="settings-no-allocation" style={{ color: '#dc2626' }}>Not Assigned</span>
-                        ) : (
-                          <span className="settings-no-allocation">—</span>
-                        )}
                       </td>
                       <td>
                         {u.AllocatedClient ? (
