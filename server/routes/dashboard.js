@@ -142,7 +142,7 @@ router.get('/epv-overview', async (req, res) => {
         SUM(ISNULL(e.PulpSoldToTrade, 0)) AS TotalPulpDozens,
         SUM(CASE WHEN ie.Id IS NOT NULL THEN 1 ELSE 0 END) AS TotalRejections,
         SUM(CASE WHEN e.ManualInspection = 1 THEN 1 ELSE 0 END) AS ManualInspections,
-        SUM(CASE WHEN e.IsVerified = 1 THEN 1 ELSE 0 END) AS VerifiedCount
+        SUM(CASE WHEN e.IsVerified = 1 OR (ie.Id IS NOT NULL AND ie.Status = 'Completed') THEN 1 ELSE 0 END) AS VerifiedCount
       FROM EggProductionVerifications e
       JOIN ConsolidatedMasterAbattoirDatabase c ON e.ClientRecordId = c.Id
       LEFT JOIN EggProductionVerifications ie ON ie.LinkedEPVId = e.Id AND ie.EPVType = 'Inspector'

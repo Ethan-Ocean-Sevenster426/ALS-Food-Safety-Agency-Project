@@ -217,6 +217,18 @@ def epv_overview(request):
             linked_epv_id__in=base_qs.values_list('id', flat=True),
         ).count()
 
+        # Actioned = approved OR rejected with the inspector's corrected EPV completed.
+        # Add the unverified EPVs whose linked inspector EPV is Completed.
+        actioned_rejections = (
+            base_qs
+            .filter(Q(is_verified=False) | Q(is_verified__isnull=True))
+            .filter(id__in=EggProductionVerification.objects.filter(
+                epv_type='Inspector', status='Completed',
+                linked_epv_id__isnull=False,
+            ).values_list('linked_epv_id', flat=True))
+            .count()
+        )
+
         stats = {
             'TotalFacilitiesWithEPV': stats_agg['TotalFacilitiesWithEPV'],
             'TotalEPVs': stats_agg['TotalEPVs'],
@@ -231,7 +243,7 @@ def epv_overview(request):
             'TotalPulpDozens': float(stats_agg['TotalPulpDozens']),
             'TotalRejections': rejection_count,
             'ManualInspections': stats_agg['ManualInspections'],
-            'VerifiedCount': stats_agg['VerifiedCount'],
+            'VerifiedCount': stats_agg['VerifiedCount'] + actioned_rejections,
         }
 
         # 2. Monthly breakdown

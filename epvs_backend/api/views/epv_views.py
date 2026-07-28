@@ -1859,9 +1859,10 @@ def inspector_stats(request):
             total_powder_dozens += powder_dozens
             if epv.manual_inspection:
                 manual_inspections += 1
-            if epv.is_verified:
-                verified_count += 1
             ie = inspector_epv_map.get(epv.id)
+            # Actioned = approved, or rejected with the inspector's corrected EPV completed
+            if epv.is_verified or (ie is not None and ie.status == 'Completed'):
+                verified_count += 1
             if ie:
                 total_rejections += 1
                 if ie.status == 'Pending':
