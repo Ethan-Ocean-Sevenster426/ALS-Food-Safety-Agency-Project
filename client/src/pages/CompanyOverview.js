@@ -1728,7 +1728,8 @@ function CompanyOverview() {
         )}
       </div>
 
-      {/* ===== INVOICES MODULE ===== */}
+      {/* ===== INVOICES MODULE (admins only while under development) ===== */}
+      {isAdmin && (
       <div className="page-card co-section">
         <div className="co-section-header">
           <h3>Invoices ({invoices.length}) <span style={{ color: '#dc2626', fontSize: 13, fontWeight: 600 }}>— Feature Under Development</span></h3>
@@ -1857,6 +1858,7 @@ function CompanyOverview() {
           </table></div>
         )}
       </div>
+      )}
 
       {/* ===== CHANGE LOG ===== */}
       <div className="page-card co-section">
