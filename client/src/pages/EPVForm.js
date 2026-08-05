@@ -599,10 +599,11 @@ function EPVForm() {
             <div className="epv-summary-box">
               <div className="epv-summary-row"><span>Theoretical Closing Stock:</span><strong>{totals.closingStock.toLocaleString()}</strong></div>
               <div className="epv-summary-row"><span>Actual Closing Stock:</span><strong>{totals.actualClosingStock.toLocaleString()}</strong></div>
-              <div className="epv-summary-row"><span>Egg Levy Amount:</span><strong>R {totals.levyAmount.toFixed(2)}</strong></div>
-              <div className="epv-summary-row"><span>Pulp Levy Amount:</span><strong>R {totals.pulpLevyAmount.toFixed(2)}</strong></div>
-              <div className="epv-summary-row"><span>Powder Egg Levy Amount:</span><strong>R {totals.powderLevyAmount.toFixed(2)}</strong></div>
-              <div className="epv-summary-row" style={{ borderTop: '2px solid #065f46', paddingTop: 8, marginTop: 4 }}><span style={{ color: '#065f46', fontWeight: 700 }}>Total Owed:</span><strong style={{ color: '#065f46' }}>R {(totals.levyAmount + totals.pulpLevyAmount + totals.powderLevyAmount).toFixed(2)}</strong></div>
+              <div className="epv-summary-row"><span>Egg Levy Amount <span style={{ color: '#dc2626', fontSize: 10, fontWeight: 700 }}>(excl VAT)</span>:</span><strong>R {totals.levyAmount.toFixed(2)}</strong></div>
+              <div className="epv-summary-row"><span>Pulp Levy Amount <span style={{ color: '#dc2626', fontSize: 10, fontWeight: 700 }}>(excl VAT)</span>:</span><strong>R {totals.pulpLevyAmount.toFixed(2)}</strong></div>
+              <div className="epv-summary-row"><span>Powder Egg Levy Amount <span style={{ color: '#dc2626', fontSize: 10, fontWeight: 700 }}>(excl VAT)</span>:</span><strong>R {totals.powderLevyAmount.toFixed(2)}</strong></div>
+              <div className="epv-summary-row" style={{ borderTop: '2px solid #065f46', paddingTop: 8, marginTop: 4 }}><span style={{ color: '#065f46', fontWeight: 700 }}>Total Owed <span style={{ color: '#dc2626', fontSize: 10, fontWeight: 700 }}>(excl VAT)</span>:</span><strong style={{ color: '#065f46' }}>R {(totals.levyAmount + totals.pulpLevyAmount + totals.powderLevyAmount).toFixed(2)}</strong></div>
+              <div style={{ fontSize: 11, color: '#dc2626', fontWeight: 700, textAlign: 'right', marginTop: 4 }}>All amounts exclude VAT.</div>
             </div>
           </div>
           <div style={{ textAlign: 'center', marginTop: 20 }}>
@@ -1373,23 +1374,23 @@ function EPVForm() {
 
             {/* Total Owed */}
             <div className="epv-review-section epv-total-owed-section">
-              <h4>Total Owed</h4>
+              <h4>Total Owed (excl VAT) <span style={{ fontSize: 12, color: '#dc2626', fontWeight: 700 }}>All amounts exclude VAT</span></h4>
               <table className="epv-review-table">
                 <tbody>
                   <tr>
-                    <td>Egg Levy Amount</td>
+                    <td>Egg Levy Amount <span style={{ color: '#dc2626', fontSize: 11, fontWeight: 700 }}>(excl VAT)</span></td>
                     <td className="epv-num">R {totals.levyAmount.toFixed(2)}</td>
                   </tr>
                   <tr>
-                    <td>Pulp Levy Amount</td>
+                    <td>Pulp Levy Amount <span style={{ color: '#dc2626', fontSize: 11, fontWeight: 700 }}>(excl VAT)</span></td>
                     <td className="epv-num">R {totals.pulpLevyAmount.toFixed(2)}</td>
                   </tr>
                   <tr>
-                    <td>Powder Egg Levy Amount</td>
+                    <td>Powder Egg Levy Amount <span style={{ color: '#dc2626', fontSize: 11, fontWeight: 700 }}>(excl VAT)</span></td>
                     <td className="epv-num">R {totals.powderLevyAmount.toFixed(2)}</td>
                   </tr>
                   <tr className="epv-review-grand-total">
-                    <td>Total Owed</td>
+                    <td>Total Owed <span style={{ color: '#dc2626', fontSize: 11, fontWeight: 700 }}>(excl VAT)</span></td>
                     <td className="epv-num">R {(totals.levyAmount + totals.pulpLevyAmount + totals.powderLevyAmount).toFixed(2)}</td>
                   </tr>
                 </tbody>

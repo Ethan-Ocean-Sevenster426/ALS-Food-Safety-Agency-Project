@@ -1086,6 +1086,7 @@ function CompanyOverview() {
             <p className="co-subtitle">
               {company?.AccountCode && <span className="co-account-code">{company.AccountCode}</span>}
               {company?.Town && <span className="co-town">{company.Town}</span>}
+              <span style={{ marginLeft: 8, color: '#dc2626', fontWeight: 700, fontSize: 12 }}>All amounts exclude VAT</span>
             </p>
           </div>
           <div className="co-header-badges">
@@ -1717,6 +1718,41 @@ function CompanyOverview() {
                           </div>
                         ))}
                       </div>
+                      {(epv.SuperInvoiceFilePath || epv.SuperInvoiceSent) && (
+                        <div style={{
+                          margin: '10px 20px', padding: '10px 14px',
+                          background: '#f0fdf4', border: '1px solid #bbf7d0',
+                          borderRadius: 8, display: 'flex', gap: 12, alignItems: 'center',
+                          justifyContent: 'space-between', flexWrap: 'wrap',
+                        }}>
+                          <div>
+                            <strong style={{ color: '#0E7C7B' }}>Levy Invoice from ALS</strong>
+                            {epv.SuperInvoiceSentAt && (
+                              <div style={{ fontSize: 12, color: '#555' }}>
+                                Sent {new Date(epv.SuperInvoiceSentAt).toLocaleDateString()}
+                              </div>
+                            )}
+                          </div>
+                          {epv.SuperInvoiceFilePath ? (
+                            <a
+                              href={`/api/als/${epv.Id}/invoice-file`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                background: '#0E7C7B', color: '#fff',
+                                padding: '8px 14px', borderRadius: 6, textDecoration: 'none',
+                                fontWeight: 600, fontSize: 13,
+                              }}
+                            >
+                              View Invoice ({epv.SuperInvoiceOriginalName || 'download'})
+                            </a>
+                          ) : (
+                            <span style={{ color: '#666', fontStyle: 'italic', fontSize: 13 }}>
+                              Invoice will be uploaded shortly.
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 )}

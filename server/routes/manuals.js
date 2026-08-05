@@ -7,7 +7,8 @@ const router = express.Router();
 const MANUAL_BY_ROLE = {
   'Super Admin':   'EPVS Super Admin User Manual',
   'Admin':         'EPVS Admin User Manual',
-  'Super':         'EPVS Admin User Manual',
+  'ALS':           'EPVS ALS User Manual',
+  'Super':         'EPVS ALS User Manual', // legacy alias — pre-ALS-rename role name
   'Inspector':     'EPVS Inspector User Manual',
   'Company Admin': 'EPVS Company Admin User Manual',
   'User':          'EPVS User Manual',

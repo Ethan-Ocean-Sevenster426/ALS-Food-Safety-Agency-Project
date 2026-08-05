@@ -17,6 +17,7 @@ import Support from './pages/Support';
 import Inspectors from './pages/Inspectors';
 import Administrators from './pages/Administrators';
 import CompanyRegister from './pages/CompanyRegister';
+import SuperCollections from './pages/SuperCollections';
 import AppLayout from './components/AppLayout';
 
 function PrivateRoute({ children }) {
@@ -43,6 +44,13 @@ function InspectorRoute({ children }) {
   return children;
 }
 
+// Only the 3rd-party ALS collectors (role 'ALS' or legacy 'Super') and Super Admins may view.
+function ALSRoute({ children }) {
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  if (user.role === 'ALS' || user.role === 'Super' || user.role === 'Super Admin') return children;
+  return <Navigate to="/company" />;
+}
+
 function DefaultRedirect() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   if (user.role === 'Company Admin' || user.role === 'User') {
@@ -50,6 +58,9 @@ function DefaultRedirect() {
   }
   if (user.role === 'Inspector') {
     return <Navigate to="/inspectors" />;
+  }
+  if (user.role === 'ALS' || user.role === 'Super') {
+    return <Navigate to="/als" />;
   }
   return <Navigate to="/dashboard" />;
 }
@@ -80,6 +91,8 @@ function App() {
           <Route path="/inspectors" element={<InspectorRoute><Inspectors /></InspectorRoute>} />
           <Route path="/administrators" element={<AdminRoute><Administrators /></AdminRoute>} />
           <Route path="/company" element={<CompanyOverview />} />
+          <Route path="/als"   element={<ALSRoute><SuperCollections /></ALSRoute>} />
+          <Route path="/super" element={<Navigate to="/als" replace />} />
           <Route path="/support" element={<Support />} />
         </Route>
         <Route path="*" element={<PrivateRoute><DefaultRedirect /></PrivateRoute>} />

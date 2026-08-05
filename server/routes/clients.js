@@ -1,4 +1,5 @@
 const express = require('express');
+const XLSX = require('xlsx');
 const { sql, getPool } = require('../config/db');
 const { sendEmail } = require('../services/emailService');
 
@@ -81,6 +82,92 @@ router.get('/', async (req, res) => {
   } catch (err) {
     console.error('Clients fetch error:', err);
     res.status(500).json({ message: 'Server error fetching clients.' });
+  }
+});
+
+// GET /api/clients/export.xlsx - full facility export honouring the search filter
+router.get('/export.xlsx', async (req, res) => {
+  try {
+    const pool = await getPool();
+    const search = req.query.search || '';
+    const request = pool.request();
+    let whereQ = '';
+    if (search) {
+      whereQ = `WHERE c.BusinessName LIKE @search OR c.AccountCode LIKE @search OR c.Email LIKE @search OR c.Town LIKE @search OR c.FacilityProvince LIKE @search`;
+      request.input('search', sql.NVarChar, `%${search}%`);
+    }
+    const rows = (await request.query(`
+      SELECT c.Id, c.BusinessName, c.AccountCode, c.Email, c.Town, c.FacilityType, c.FacilityProvince,
+             c.CompanyRegNumber, c.PhysicalAddress, c.VATNumber,
+             c.AbattoirOwnerName, c.AbattoirOwnerCell, c.AbattoirOwnerEmail,
+             c.AccountsContactName, c.AccountsTelephone, c.AccountsEmail,
+             c.AbattoirManagerName, c.AbattoirManagerCell, c.AbattoirManagerEmail,
+             c.EPVCycleStatus,
+             onboarding.AcceptedAt AS OnboardedAt,
+             onboarding.Email      AS OnboardedBy,
+             u.FirstName AS AssignedInspectorFirstName,
+             u.LastName  AS AssignedInspectorLastName
+      FROM ConsolidatedMasterAbattoirDatabase c
+      LEFT JOIN (
+        SELECT ClientRecordId, AcceptedAt, Email,
+               ROW_NUMBER() OVER (PARTITION BY ClientRecordId ORDER BY AcceptedAt ASC) AS rn
+        FROM Invitations
+        WHERE Role = 'Company Admin' AND Status = 'Accepted'
+      ) onboarding ON onboarding.ClientRecordId = c.Id AND onboarding.rn = 1
+      LEFT JOIN Users u ON c.AssignedInspectorId = u.Id
+      ${whereQ}
+      ORDER BY c.BusinessName
+    `)).recordset;
+
+    const shaped = rows.map(r => ({
+      Facility: r.BusinessName,
+      AccountCode: r.AccountCode,
+      Email: r.Email,
+      Town: r.Town,
+      FacilityType: r.FacilityType,
+      Province: r.FacilityProvince,
+      CompanyRegNumber: r.CompanyRegNumber,
+      PhysicalAddress: r.PhysicalAddress,
+      VATNumber: r.VATNumber,
+      OwnerName: r.AbattoirOwnerName,
+      OwnerCell: r.AbattoirOwnerCell,
+      OwnerEmail: r.AbattoirOwnerEmail,
+      AccountsContact: r.AccountsContactName,
+      AccountsTelephone: r.AccountsTelephone,
+      AccountsEmail: r.AccountsEmail,
+      ManagerName: r.AbattoirManagerName,
+      ManagerCell: r.AbattoirManagerCell,
+      ManagerEmail: r.AbattoirManagerEmail,
+      Verified: r.OnboardedAt ? 'Yes' : 'No',
+      OnboardedAt: r.OnboardedAt || '',
+      OnboardedBy: r.OnboardedBy || '',
+      OnEPVCycle: r.EPVCycleStatus === 'On EPV Cycle' ? 'Yes' : 'No',
+      AssignedInspector: [r.AssignedInspectorFirstName, r.AssignedInspectorLastName].filter(Boolean).join(' ') || '',
+    }));
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(shaped.length ? shaped : [{}]);
+    if (shaped.length > 0) {
+      const cols = Object.keys(shaped[0]);
+      ws['!cols'] = cols.map(col => {
+        let maxLen = col.length;
+        for (const row of shaped.slice(0, 100)) {
+          const v = row[col];
+          if (v != null) maxLen = Math.max(maxLen, String(v).length);
+        }
+        return { wch: Math.min(maxLen + 2, 40) };
+      });
+    }
+    XLSX.utils.book_append_sheet(wb, ws, 'Master Facility Database');
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const stamp = new Date().toISOString().slice(0, 10);
+    const fileName = `Consolidated Master Facility Database - ${stamp}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.send(buf);
+  } catch (err) {
+    console.error('Clients export error:', err);
+    res.status(500).json({ message: 'Failed to export facilities.' });
   }
 });
 

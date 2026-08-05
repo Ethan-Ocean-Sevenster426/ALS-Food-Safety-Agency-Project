@@ -304,7 +304,10 @@ function Administrators() {
         <div className="admin-header">
           <div>
             <h2>Administrators Dashboard</h2>
-            <p className="admin-subtitle">Reconciliation & Financial Management — {user.firstName} {user.lastName} ({user.role})</p>
+            <p className="admin-subtitle">
+              Reconciliation &amp; Financial Management — {user.firstName} {user.lastName} ({user.role})
+              <span style={{ marginLeft: 8, color: '#dc2626', fontWeight: 700, fontSize: 12 }}>All amounts exclude VAT</span>
+            </p>
           </div>
         </div>
       </div>

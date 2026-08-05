@@ -1,0 +1,172 @@
+.super-page .page-card { max-width: none; }
+
+.super-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.super-export-btn {
+  background: linear-gradient(135deg, #0E7C7B 0%, #1d6363 100%);
+  color: #fff;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(14, 124, 123, 0.25);
+}
+.super-export-btn:hover { filter: brightness(1.05); }
+
+.super-error {
+  background: #fee2e2;
+  color: #b91c1c;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin: 8px 0;
+}
+.super-success {
+  background: #d1fae5;
+  color: #047857;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin: 8px 0;
+}
+
+.super-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin: 16px 0 20px;
+}
+.super-kpi {
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.super-kpi-label { font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.4px; }
+.super-kpi-value { font-size: 20px; font-weight: 800; color: #0E7C7B; margin-top: 4px; }
+.super-kpi-good { color: #16a34a; }
+.super-kpi-warn { color: #dc2626; }
+
+.super-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.super-input {
+  padding: 8px 12px;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s;
+  background: #fff;
+  font-family: inherit;
+}
+.super-input:focus { border-color: #0E7C7B; }
+.super-filter-row .super-input { flex: 0 1 auto; min-width: 140px; }
+.super-filter-row input.super-input { flex: 1 1 260px; }
+
+.super-textarea { width: 100%; min-height: 80px; resize: vertical; }
+
+.super-btn {
+  border: none;
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: filter 0.15s, background 0.15s;
+}
+.super-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.super-btn-primary { background: #0E7C7B; color: #fff; }
+.super-btn-primary:hover:not(:disabled) { filter: brightness(1.05); }
+.super-btn-secondary { background: #f3f4f6; color: #374151; border: 1px solid #e5e7eb; }
+.super-btn-danger { background: #fee2e2; color: #b91c1c; }
+.super-btn-ghost { background: transparent; color: #0E7C7B; }
+
+.super-table-wrap { overflow-x: auto; border: 1px solid #e5e7eb; border-radius: 10px; }
+.super-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.super-table thead th {
+  background: #f9fafb;
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+  color: #374151;
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.super-table tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f1f3f6;
+  vertical-align: middle;
+}
+.super-row { cursor: pointer; transition: background 0.1s; }
+.super-row:hover { background: #f9fafb; }
+.super-row-reconciled { background: #f0fdf4; }
+.super-row-reconciled:hover { background: #dcfce7; }
+
+.super-mono { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.super-link { color: #0E7C7B; font-weight: 600; text-decoration: none; }
+.super-link:hover { text-decoration: underline; }
+
+.super-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.super-badge-ok { background: #d1fae5; color: #047857; }
+.super-badge-warn { background: #fef3c7; color: #92400e; }
+
+.super-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  font-weight: 600;
+}
+.super-check input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #0E7C7B;
+  cursor: pointer;
+}
+
+.super-details-row td { background: #fafbfc; padding: 0; }
+.super-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  padding: 16px 20px;
+}
+.super-details-col h4 {
+  margin: 0 0 10px;
+  color: #0E7C7B;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.super-kv {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  padding: 3px 0;
+  gap: 8px;
+}
+.super-kv > span { color: #6b7280; }
+.super-kv-divider { border-top: 1px dashed #e5e7eb; margin: 6px 0; }

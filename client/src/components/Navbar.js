@@ -7,6 +7,8 @@ function Navbar() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const isCompanyUser = user.role === 'Company Admin' || user.role === 'User';
   const isInspector = user.role === 'Inspector';
+  const isALS = user.role === 'ALS' || user.role === 'Super';
+  const showALSTab = user.role === 'ALS' || user.role === 'Super' || user.role === 'Super Admin';
   const showInspectorsTab = user.role === 'Super Admin' || user.role === 'Admin' || user.role === 'Super' || user.role === 'Inspector';
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -71,12 +73,20 @@ function Navbar() {
               <NavLink to="/support" onClick={closeMenu}>Support</NavLink>
               <NavLink to="/settings" onClick={closeMenu}>User Management</NavLink>
             </>
+          ) : isALS ? (
+            <>
+              <NavLink to="/als" onClick={closeMenu}>ALS Collections</NavLink>
+              <NavLink to="/company" onClick={closeMenu}>Company Overview</NavLink>
+              <NavLink to="/support" onClick={closeMenu}>Support</NavLink>
+              <NavLink to="/settings" onClick={closeMenu}>User Management</NavLink>
+            </>
           ) : (
             <>
               <NavLink to="/dashboard" end onClick={closeMenu}>Dashboard</NavLink>
               <NavLink to="/clients" onClick={closeMenu}>Clients</NavLink>
               <NavLink to="/inspectors" onClick={closeMenu}>Inspectors</NavLink>
               <NavLink to="/administrators" onClick={closeMenu}>Administrators</NavLink>
+              {showALSTab && <NavLink to="/als" onClick={closeMenu}>ALS Collections</NavLink>}
               <NavLink to="/company" onClick={closeMenu}>Company Overview</NavLink>
               <NavLink to="/support" onClick={closeMenu}>Support</NavLink>
               <NavLink to="/settings" onClick={closeMenu}>User Management</NavLink>

@@ -12,6 +12,7 @@ const dashboardRoutes = require('./routes/dashboard');
 const invoiceRoutes = require('./routes/invoices');
 const adminRoutes = require('./routes/admin');
 const manualRoutes = require('./routes/manuals');
+const superRoutes = require('./routes/super');
 const { startEPVScheduler } = require('./jobs/epvScheduler');
 
 const app = express();
@@ -32,6 +33,8 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/manuals', manualRoutes);
+app.use('/api/als', superRoutes);
+app.use('/api/super', superRoutes); // legacy alias — remove after all clients migrate
 
 // Health check
 app.get('/api/health', (req, res) => {

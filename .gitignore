@@ -28,3 +28,12 @@ server/check-epvs.js
 server/list-fks.js
 server/reset-to-fictional.js
 server/verify-counts.js
+
+# Word / Office lock files
+~$*
+*.~lock*
+
+# ALS uploads + design scratch
+server/uploads/super-invoices/
+access-matrix.html
+access-matrix.png

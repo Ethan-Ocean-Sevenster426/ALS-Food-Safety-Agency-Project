@@ -115,6 +115,7 @@ function Dashboard() {
         'Total Paid': +(m.TotalPaid || 0).toFixed(2),
         'Egg Levy': +(m.EggLevy || 0).toFixed(2),
         'Pulp Levy': +(m.PulpLevy || 0).toFixed(2),
+        'Powder Levy': +(m.PowderLevy || 0).toFixed(2),
         'EPV Count': m.EpvCount || 0,
         'Rejections': m.Rejections || 0,
         paidPct: m.TotalBilled > 0 ? +((m.TotalPaid / m.TotalBilled) * 100).toFixed(0) : 0,
@@ -306,7 +307,10 @@ function Dashboard() {
 
           {/* Action Items + Financial Summary Module */}
           <div className="dash-module">
-            <div className="dash-module-title">Action Items & Financial Summary</div>
+            <div className="dash-module-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <span>Action Items &amp; Financial Summary</span>
+              <span style={{ fontSize: 11, color: '#dc2626', fontWeight: 700 }}>All amounts exclude VAT</span>
+            </div>
             <div className="dash-epv-top-grid">
               <div className="dash-action-summary">
                 <div className="dash-action-card dash-action-urgent" onClick={() => navigate('/inspectors')}>
@@ -341,25 +345,29 @@ function Dashboard() {
 
               <div className="dash-finance-summary">
                 <div className="dash-finance-row-item">
-                  <span className="dash-finance-label">Total Billed</span>
+                  <span className="dash-finance-label">Total Billed <span style={{ color: '#dc2626', fontSize: 10, fontWeight: 700 }}>excl VAT</span></span>
                   <span className="dash-finance-value dash-finance-billed">{formatR(s.TotalBilled)}</span>
                 </div>
                 <div className="dash-finance-row-item">
-                  <span className="dash-finance-label">Total Paid</span>
+                  <span className="dash-finance-label">Total Paid <span style={{ color: '#dc2626', fontSize: 10, fontWeight: 700 }}>excl VAT</span></span>
                   <span className="dash-finance-value dash-finance-paid">{formatR(s.TotalPaid)}</span>
                 </div>
                 <div className="dash-finance-row-item">
-                  <span className="dash-finance-label">Outstanding</span>
+                  <span className="dash-finance-label">Outstanding <span style={{ color: '#dc2626', fontSize: 10, fontWeight: 700 }}>excl VAT</span></span>
                   <span className="dash-finance-value dash-finance-outstanding">{formatR(s.TotalOutstanding)}</span>
                 </div>
                 <div className="dash-finance-divider"></div>
                 <div className="dash-finance-row-item">
-                  <span className="dash-finance-label">Egg Levy</span>
+                  <span className="dash-finance-label">Egg Levy <span style={{ color: '#dc2626', fontSize: 10, fontWeight: 700 }}>excl VAT</span></span>
                   <span className="dash-finance-value">{formatNum(s.TotalEggDozens)} doz — {formatR(s.TotalEggLevy)}</span>
                 </div>
                 <div className="dash-finance-row-item">
-                  <span className="dash-finance-label">Pulp Levy</span>
+                  <span className="dash-finance-label">Pulp Levy <span style={{ color: '#dc2626', fontSize: 10, fontWeight: 700 }}>excl VAT</span></span>
                   <span className="dash-finance-value">{formatNum(s.TotalPulpDozens)} doz — {formatR(s.TotalPulpLevy)}</span>
+                </div>
+                <div className="dash-finance-row-item">
+                  <span className="dash-finance-label">Powder Levy <span style={{ color: '#dc2626', fontSize: 10, fontWeight: 700 }}>excl VAT</span></span>
+                  <span className="dash-finance-value">{formatNum(s.TotalPowderKg)} kg — {formatR(s.TotalPowderLevy)}</span>
                 </div>
                 <div className="dash-finance-divider"></div>
                 <div className="dash-finance-row-item">
@@ -403,7 +411,10 @@ function Dashboard() {
 
           {/* Financial Charts Module */}
           <div className="dash-module">
-            <div className="dash-module-title">Financial Charts</div>
+            <div className="dash-module-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <span>Financial Charts</span>
+              <span style={{ fontSize: 11, color: '#dc2626', fontWeight: 700 }}>All amounts exclude VAT</span>
+            </div>
             <div className="dash-charts-grid">
               <div className="dash-chart-card">
                 <h3>Total Billed vs Paid — Month Over Month</h3>
@@ -420,7 +431,7 @@ function Dashboard() {
                 </ResponsiveContainer>
               </div>
               <div className="dash-chart-card">
-                <h3>Egg Levy vs Pulp Levy — Month Over Month</h3>
+                <h3>Egg vs Pulp vs Powder Levy — Month Over Month</h3>
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -431,6 +442,7 @@ function Dashboard() {
                     <Legend wrapperStyle={{ fontSize: 12 }} />
                     <Line yAxisId="left" type="monotone" dataKey="Egg Levy" stroke="#0E7C7B" strokeWidth={3} dot={{ r: 5 }} />
                     <Line yAxisId="right" type="monotone" dataKey="Pulp Levy" stroke="#d97706" strokeWidth={3} dot={{ r: 5 }} />
+                    <Line yAxisId="right" type="monotone" dataKey="Powder Levy" stroke="#7c3aed" strokeWidth={3} dot={{ r: 5 }} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>

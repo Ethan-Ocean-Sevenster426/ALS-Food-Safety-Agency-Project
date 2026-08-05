@@ -148,9 +148,13 @@ Then run the additional table scripts (run each once, they're idempotent):
 ```bash
 node scripts/createAuditLog.js
 node scripts/createEPVTables.js
-node scripts/addPulpConversionLoss.js            # April 2026: Pulp conversion loss column
+node scripts/addPulpConversionLoss.js             # April 2026: Pulp conversion loss column
 node scripts/addPurchaseCommentsAndAttachments.js # April 2026: purchase comments + attachments table
 node scripts/createLoginLog.js                    # April 2026: login attempt audit log
+node scripts/addPowderColumns.js                  # May 2026: powder-eggs columns on EPV
+node scripts/addFacilityAllocationColumns.js      # May 2026: AssignedInspectorId + ApprovalStatus on facility
+node scripts/addSuperCollectionsFields.js         # May 2026: ALS Collections state columns
+node scripts/addALSHistoryColumn.js               # May 2026: ChangedByRole for ALS transparency log
 ```
 
 ### 4. Seed demo data (optional)
@@ -262,6 +266,119 @@ New features added in this iteration that affect backend developers:
 - New table `LoginLog` (`Id`, `UserId`, `Email`, `Success`, `Reason`, `IPAddress`, `UserAgent`, `LoggedInAt`).
 - `POST /api/auth/login` writes one row per attempt (success or failure). Logging errors never break authentication.
 - `GET /api/auth/login-log?search=&success=true|false&page=&limit=` — paginated, newest first. Exposed via the "Login History" button on the User Management page.
+
+---
+
+## ALS Collections (new — May 2026)
+
+Dedicated worksurface for the 3rd-party levy collector (**ALS**; historically known as "Super" in the codebase). Available only to role `ALS` (or legacy `Super`) and Super Admins.
+
+### Route
+- Frontend: `/als` (with `/super` legacy redirect)
+- Backend: mounted at both `/api/als` and `/api/super` for compatibility
+
+### What appears in the worklist
+Only EPVs that are inspection-cleared show up:
+- **Approved** — inspector approved the facility's figures → invoice on facility totals.
+- **Rejected** — inspector rejected and captured a revised Inspector EPV → invoice on inspector totals.
+
+Everything still waiting on an inspector is hidden.
+
+### New DB columns (via [`server/scripts/addSuperCollectionsFields.js`](server/scripts/addSuperCollectionsFields.js))
+Ten columns on `EggProductionVerifications` — kept `Super*`-prefixed for backend compatibility:
+```
+SuperInvoiceSent            BIT
+SuperInvoiceSentAt          DATETIME
+SuperInvoiceSentBy          NVARCHAR(255)
+SuperInvoiceFilePath        NVARCHAR(500)
+SuperInvoiceOriginalName    NVARCHAR(500)
+SuperInvoiceUploadedAt      DATETIME
+SuperInvoiceUploadedBy      NVARCHAR(255)
+SuperComment                NVARCHAR(MAX)
+SuperReconciledBy           NVARCHAR(255)
+SuperReconciledAt           DATETIME
+```
+
+### Endpoints ([`server/routes/super.js`](server/routes/super.js))
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET  | `/api/als/invoiceable`        | Filterable worklist + resolved invoice amount, sales quantities |
+| GET  | `/api/als/kpis`               | Aggregate KPIs (billable, collected, outstanding, collection rate) |
+| PUT  | `/api/als/:id/invoice-sent`   | Mark invoice as sent / clear |
+| POST | `/api/als/:id/invoice-file`   | Upload ALS invoice PDF (15 MB cap, PDF/PNG/JPG) |
+| GET  | `/api/als/:id/invoice-file`   | Inline download of ALS invoice |
+| DELETE | `/api/als/:id/invoice-file` | Remove ALS invoice |
+| PUT  | `/api/als/:id/reconcile`      | Record payment (writes to shared `IsReconciled`/`ReconciledAmount`) |
+| PUT  | `/api/als/:id/comment`        | Save ALS comment |
+| GET  | `/api/als/pop/:id`            | Proxy the facility's uploaded POP for ALS to view |
+| GET  | `/api/als/:id/history`        | Transparency audit log (`EPVAuditLog`) for one EPV |
+| GET  | `/api/als/export.xlsx`        | Excel export honouring current filters |
+
+### Transparency history
+Every ALS mutation writes to `EPVAuditLog` via the new `auditAls(...)` helper. The `EPVAuditLog.ChangedByRole` column ([`addALSHistoryColumn.js`](server/scripts/addALSHistoryColumn.js)) distinguishes ALS from Super Admin actions. The ALS Collections page shows a per-EPV history table at the bottom of every expanded row, with a coloured role badge (green = ALS, indigo = Super Admin). Nothing is hidden between the two sides.
+
+### The Completed EPV panel
+Inside the expanded row, the first column shows the sales quantities that actually drive the levy for that invoice:
+- Eggs sold to trade (dozen)
+- Pulp sold to trade (kg)
+- Powder sold to trade (kg)
+
+Approved → figures come from the facility's EPV. Rejected → figures come from the inspector's revised EPV. A "Show both side-by-side" disclosure surfaces the alternative when a rejection exists.
+
+### Excel export
+Filename: `ALS Collections Report - {Month YYYY if filtered} - YYYY-MM-DD.xlsx`. Every column visible in the table is included plus the facility / inspector / resolved sales-quantity triples and every Rand column carries the `_excl_VAT` suffix.
+
+---
+
+## Consolidated Master Facility Database — Excel export
+
+- Endpoint: `GET /api/clients/export.xlsx` (honours the current `?search=`)
+- Filename: `Consolidated Master Facility Database - YYYY-MM-DD.xlsx`
+- Columns: all contact / regulatory fields, Verified status (with onboarded-by), On EPV Cycle status, Assigned Inspector.
+- Button lives on the Consolidated Master Facility Database page next to Add New.
+
+---
+
+## VAT convention (May 2026)
+
+**Every Rand amount anywhere in EPVS is EXCLUSIVE of VAT.** The statutory levy is calculated on pre-VAT sales-to-trade quantities. VAT is added separately by ALS on the invoice they raise to the facility.
+
+To make this unambiguous:
+- Every monetary UI surface (Dashboard, Company Overview, Administrators, ALS Collections, EPV Form Review) carries a bold red "All amounts exclude VAT" note near the top.
+- Every amount label — Total Billed, Total Paid, Outstanding, each individual levy, Total Owed on the EPV form — carries a red `(excl VAT)` suffix chip.
+- The ALS Collections Excel export names every Rand column with an `_excl_VAT` suffix (e.g. `InvoiceAmount_excl_VAT`, `AmountPaid_excl_VAT`).
+- Every user manual cover page displays a bold red "All amounts throughout EPVS are shown EXCLUSIVE of VAT" line; the Levy Formulas section carries a red `EXCL. VAT` callout box and the rates table header reads "Rate (excl VAT)".
+
+---
+
+## User manuals — one per role
+
+Seven role-specific manuals live in the repo root, generated by [`generate-manuals.py`](generate-manuals.py) (needs `python-docx`) and converted to PDF by [`convert-manuals-to-pdf.py`](convert-manuals-to-pdf.py) (needs MS Word).
+
+| Role | Docx | Delivery |
+|------|------|----------|
+| Super Admin    | `EPVS Super Admin User Manual.docx`    | Internal — full-system operations |
+| Admin          | `EPVS Admin User Manual.docx`          | Internal — reconciliation and oversight |
+| Inspector      | `EPVS Inspector User Manual.docx`      | Internal — approving / rejecting EPVs |
+| ALS            | `EPVS ALS User Manual.docx`            | Internal — collector's workflow (new) |
+| Company Admin  | `EPVS Company Admin User Manual.docx`  | **External — friendly, welcoming voice** |
+| User           | `EPVS User Manual.docx`                | **External — friendly, welcoming voice** |
+| Process Flow   | `EPVS Process Flow Documentation.docx` | Internal reference — end-to-end lifecycle |
+
+Every manual has a matching PDF. Served by [`server/routes/manuals.js`](server/routes/manuals.js):
+
+```
+GET /api/manuals?role=<role>&format=pdf|docx
+```
+
+The **User Manual** button on the top-right of every logged-in page downloads the correct role-appropriate PDF. Role → file mapping includes the `ALS` role and keeps `Super` as an alias for the same file.
+
+To regenerate after a content change:
+
+```bash
+python "Egg Production Verification System/generate-manuals.py"
+python "Egg Production Verification System/convert-manuals-to-pdf.py"
+```
 
 ---
 

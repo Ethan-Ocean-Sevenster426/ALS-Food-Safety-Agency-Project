@@ -813,7 +813,8 @@ router.get('/company/:clientRecordId', async (req, res) => {
                 IsVerified, VerifiedBy, VerifiedAt, InspectorComment, ReconciledAmount, POPComment,
                 ManualInspection, ManualInspectionBy, ManualInspectionAt,
                 EPVType, InspectorId, LinkedEPVId,
-                LevyAmount, PulpSoldToTrade, ClientPaymentStatus
+                LevyAmount, PulpSoldToTrade, ClientPaymentStatus,
+                SuperInvoiceFilePath, SuperInvoiceOriginalName, SuperInvoiceUploadedAt, SuperInvoiceSent, SuperInvoiceSentAt
          FROM EggProductionVerifications
          WHERE ClientRecordId = @clientRecordId AND (EPVType = 'Client' OR EPVType IS NULL)
          ORDER BY PeriodYear DESC, PeriodMonth DESC`

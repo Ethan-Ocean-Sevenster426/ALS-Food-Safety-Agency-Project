@@ -4,13 +4,21 @@ Uses MS Word through docx2pdf. Close Word if any file is already open.
 """
 import os
 import sys
+import time
+import subprocess
 from docx2pdf import convert
+
+def kill_word():
+    subprocess.run(['powershell', '-Command',
+                    'Get-Process WINWORD -ErrorAction SilentlyContinue | Stop-Process -Force'],
+                   capture_output=True)
 
 REPO = os.path.dirname(os.path.abspath(__file__))
 MANUALS = [
     "EPVS Super Admin User Manual.docx",
     "EPVS Admin User Manual.docx",
     "EPVS Inspector User Manual.docx",
+    "EPVS ALS User Manual.docx",
     "EPVS Company Admin User Manual.docx",
     "EPVS User Manual.docx",
     "EPVS Process Flow Documentation.docx",
@@ -24,6 +32,9 @@ for name in MANUALS:
         print("missing:", name)
         failed.append(name)
         continue
+    # Word sometimes gets wedged after a prior conversion. Reset each time.
+    kill_word()
+    time.sleep(1.5)
     try:
         convert(src, dst)
         size_kb = os.path.getsize(dst) // 1024

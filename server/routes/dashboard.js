@@ -135,11 +135,13 @@ router.get('/epv-overview', async (req, res) => {
         SUM(CASE WHEN e.IsReconciled = 1 THEN 1 ELSE 0 END) AS ReconciledCount,
         SUM(ISNULL(e.LevyAmount, 0)) AS TotalEggLevy,
         SUM(ISNULL(e.PulpSoldToTrade, 0) * 1.7 * 0.02) AS TotalPulpLevy,
-        SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.02, 0)) AS TotalBilled,
+        SUM(ISNULL(e.PowderSoldToTrade, 0) * 0.02) AS TotalPowderLevy,
+        SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.02, 0) + ISNULL(e.PowderSoldToTrade * 0.02, 0)) AS TotalBilled,
         SUM(ISNULL(e.ReconciledAmount, 0)) AS TotalPaid,
-        SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.02, 0) - ISNULL(e.ReconciledAmount, 0)) AS TotalOutstanding,
+        SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.02, 0) + ISNULL(e.PowderSoldToTrade * 0.02, 0) - ISNULL(e.ReconciledAmount, 0)) AS TotalOutstanding,
         SUM(ISNULL(e.SoldToTrade, 0)) AS TotalEggDozens,
         SUM(ISNULL(e.PulpSoldToTrade, 0)) AS TotalPulpDozens,
+        SUM(ISNULL(e.PowderSoldToTrade, 0)) AS TotalPowderKg,
         SUM(CASE WHEN ie.Id IS NOT NULL THEN 1 ELSE 0 END) AS TotalRejections,
         SUM(CASE WHEN e.ManualInspection = 1 THEN 1 ELSE 0 END) AS ManualInspections,
         SUM(CASE WHEN e.IsVerified = 1 OR (ie.Id IS NOT NULL AND ie.Status = 'Completed') THEN 1 ELSE 0 END) AS VerifiedCount
@@ -156,11 +158,13 @@ router.get('/epv-overview', async (req, res) => {
         COUNT(e.Id) AS EpvCount,
         SUM(ISNULL(e.LevyAmount, 0)) AS EggLevy,
         SUM(ISNULL(e.PulpSoldToTrade, 0) * 1.7 * 0.02) AS PulpLevy,
-        SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.02, 0)) AS TotalBilled,
+        SUM(ISNULL(e.PowderSoldToTrade, 0) * 0.02) AS PowderLevy,
+        SUM(ISNULL(e.LevyAmount, 0) + ISNULL(e.PulpSoldToTrade * 1.7 * 0.02, 0) + ISNULL(e.PowderSoldToTrade * 0.02, 0)) AS TotalBilled,
         SUM(ISNULL(e.ReconciledAmount, 0)) AS TotalPaid,
         SUM(CASE WHEN e.IsReconciled = 1 THEN 1 ELSE 0 END) AS PaidCount,
         SUM(ISNULL(e.SoldToTrade, 0)) AS EggDozens,
         SUM(ISNULL(e.PulpSoldToTrade, 0)) AS PulpDozens,
+        SUM(ISNULL(e.PowderSoldToTrade, 0)) AS PowderKg,
         SUM(CASE WHEN ie.Id IS NOT NULL THEN 1 ELSE 0 END) AS Rejections
       FROM EggProductionVerifications e
       JOIN ConsolidatedMasterAbattoirDatabase c ON e.ClientRecordId = c.Id

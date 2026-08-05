@@ -424,6 +424,36 @@ function ClientAllocation() {
                 + Add New
               </button>
             )}
+            {!showAuditLog && (
+              <button
+                className="ca-toggle-btn"
+                onClick={async () => {
+                  try {
+                    const params = new URLSearchParams();
+                    if (search) params.set('search', search);
+                    const res = await fetch(`/api/clients/export.xlsx${params.toString() ? '?' + params.toString() : ''}`);
+                    if (!res.ok) { setError('Export failed.'); return; }
+                    const disposition = res.headers.get('content-disposition') || '';
+                    const match = disposition.match(/filename\*?="?([^";]+)"?/i);
+                    const fileName = match ? decodeURIComponent(match[1].replace(/^UTF-8''/, '')) : `Consolidated Master Facility Database - ${new Date().toISOString().slice(0, 10)}.xlsx`;
+                    const blob = await res.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = fileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(url);
+                  } catch (err) {
+                    setError('Export failed. ' + (err.message || ''));
+                  }
+                }}
+                title="Download all facilities as Excel (honours current search)"
+              >
+                Export to Excel
+              </button>
+            )}
             <button
               className={`ca-toggle-btn ${showAuditLog ? 'active' : ''}`}
               onClick={() => { setShowAuditLog(!showAuditLog); setAuditRecordFilter(''); setAuditPage(1); }}

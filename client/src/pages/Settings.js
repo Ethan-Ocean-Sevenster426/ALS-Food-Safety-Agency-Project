@@ -3,7 +3,7 @@ import axios from 'axios';
 import './PageStyles.css';
 import './Settings.css';
 
-const ROLES = ['Super Admin', 'Admin', 'Super', 'Inspector', 'Company Admin', 'User'];
+const ROLES = ['Super Admin', 'Admin', 'ALS', 'Inspector', 'Company Admin', 'User'];
 
 const SA_PROVINCES = [
   'Eastern Cape', 'Free State', 'Gauteng', 'KwaZulu-Natal', 'Limpopo',
