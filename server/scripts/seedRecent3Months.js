@@ -14,14 +14,12 @@
  *
  * Idempotent — re-running gives you a fresh distribution in the same window.
  */
-const sql = require('mssql/msnodesqlv8');
+// Runs through the shared DB adapter (config/db.js) so the same script works
+// against dev MSSQL and the Postgres adapter used in production.
+const { sql, getPool } = require('../config/db');
 const crypto = require('crypto');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
-
-const connStr =
-  'Driver={ODBC Driver 18 for SQL Server};Server=' + process.env.DB_SERVER +
-  ';Database=' + process.env.DB_NAME + ';Trusted_Connection=Yes;TrustServerCertificate=Yes;';
 
 const LEVY_RATE = 0.020;
 const TARGET_FACILITIES = 15;
@@ -96,7 +94,7 @@ async function insertEpv(tx, refSeq, opts) {
   const token = crypto.randomBytes(32).toString('hex');
   const periodDate = new Date(Date.UTC(year, month - 1, 15));
 
-  const r = new sql.Request(tx);
+  const r = tx.request();
   r.input('crid', sql.Int, clientId);
   r.input('month', sql.Int, month);
   r.input('year', sql.Int, year);
@@ -199,7 +197,7 @@ async function applySuperState(tx, epvId, invoiceState, invoiceAmount, year, mon
   if (invoiceState === 'notSent') return;
   const sentAt = new Date(Date.UTC(year, month - 1, 20));
   if (invoiceState === 'sentUnpaid') {
-    await new sql.Request(tx)
+    await tx.request()
       .input('id', sql.Int, epvId)
       .input('by', sql.NVarChar, sentByLabel)
       .input('at', sql.DateTime, sentAt)
@@ -211,7 +209,7 @@ async function applySuperState(tx, epvId, invoiceState, invoiceAmount, year, mon
   const paidRatio = invoiceState === 'sentShort' ? 0.5 + Math.random() * 0.3 : 1.0;
   const paid = Math.round(invoiceAmount * paidRatio * 100) / 100;
   const recAt = new Date(Date.UTC(year, month - 1, 25));
-  await new sql.Request(tx)
+  await tx.request()
     .input('id', sql.Int, epvId)
     .input('by', sql.NVarChar, sentByLabel)
     .input('at', sql.DateTime, sentAt)
@@ -236,12 +234,14 @@ async function ensureFifteenthFacility(pool) {
   req.input('town',  sql.NVarChar, 'Pretoria');
   req.input('ft',    sql.NVarChar, 'Producer');
   req.input('prov',  sql.NVarChar, 'Gauteng');
+  req.input('ownerName',  sql.NVarChar, 'Pieter van der Merwe');
+  req.input('ownerEmail', sql.NVarChar, 'pieter@sunnyside.co.za');
   await req.query(`
     INSERT INTO ConsolidatedMasterAbattoirDatabase
       (BusinessName, AccountCode, Email, Town, FacilityType, FacilityProvince,
        AbattoirOwnerName, AbattoirOwnerEmail)
     VALUES (@name, @acc, @email, @town, @ft, @prov,
-       'Pieter van der Merwe', 'pieter@sunnyside.co.za')
+       @ownerName, @ownerEmail)
   `);
   console.log('  added Sunnyside Egg Co to reach 15 facilities');
 }
@@ -335,7 +335,7 @@ async function wipeAllEpvsOutsideWindow(pool) {
 }
 
 (async () => {
-  const pool = await sql.connect({ connectionString: connStr });
+  const pool = await getPool();
 
   await ensureFifteenthFacility(pool);
 
@@ -354,8 +354,8 @@ async function wipeAllEpvsOutsideWindow(pool) {
   await ensureAcceptedInvitations(pool, facilities);
   await wipeAllEpvsOutsideWindow(pool);
 
-  const tx = new sql.Transaction(pool);
-  await tx.begin();
+  // Postgres adapter has no mssql Transaction API - run without one
+  const tx = pool;
   try {
     const refSeq = {};
     const stats = {
@@ -436,7 +436,7 @@ async function wipeAllEpvsOutsideWindow(pool) {
       }
     }
 
-    await tx.commit();
+    // (no transaction to commit)
 
     console.log('\nSeeded distribution:');
     Object.entries(stats).forEach(([k, v]) => console.log('  ' + k + ': ' + v));
@@ -445,7 +445,7 @@ async function wipeAllEpvsOutsideWindow(pool) {
     process.exit(0);
   } catch (err) {
     console.error('ERROR — rolling back:', err.message);
-    await tx.rollback();
+    // (no transaction to roll back)
     process.exit(1);
   }
 })().catch(e => { console.error(e); process.exit(1); });

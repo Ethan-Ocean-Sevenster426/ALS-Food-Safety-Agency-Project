@@ -28,7 +28,9 @@ function Login() {
       const res = await axios.post('/api/auth/login', formData);
       localStorage.setItem('token', res.data.token);
       localStorage.setItem('user', JSON.stringify(res.data.user));
-      navigate('/dashboard');
+      const role = res.data.user?.role;
+      if (role === 'ALS' || role === 'Super') navigate('/als');
+      else navigate('/dashboard');
     } catch (err) {
       setError(err.response?.data?.message || 'Login failed. Please try again.');
     } finally {

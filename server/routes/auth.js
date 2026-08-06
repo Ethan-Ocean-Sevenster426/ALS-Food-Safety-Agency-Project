@@ -16,7 +16,8 @@ const crypto = require('crypto');
 
 const router = express.Router();
 
-const VALID_ROLES = ['Super Admin', 'Admin', 'Super', 'Inspector', 'Company Admin', 'User'];
+// 'ALS' is the 3rd-party levy collector role; 'Super' kept for legacy accounts
+const VALID_ROLES = ['Super Admin', 'Admin', 'ALS', 'Super', 'Inspector', 'Company Admin', 'User'];
 
 // In-memory OTP store: { email -> { code, expiresAt, verified } }
 const otpStore = new Map();

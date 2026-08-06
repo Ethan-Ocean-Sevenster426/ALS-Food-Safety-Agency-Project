@@ -145,9 +145,9 @@ router.get('/tickets', async (req, res) => {
       SELECT t.Id, t.Subject, t.Description, t.Priority, t.Status, t.CategoryType,
              t.CreatedAt, t.UpdatedAt, t.ClientRecordId, t.AssignedToUserId,
              c.Name AS CategoryName,
-             u.FirstName + ' ' + u.LastName AS CreatedByName,
+             CONCAT(u.FirstName, ' ', u.LastName) AS CreatedByName,
              u.Email AS CreatedByEmail,
-             a.FirstName + ' ' + a.LastName AS AssignedToName,
+             CONCAT(a.FirstName, ' ', a.LastName) AS AssignedToName,
              cl.BusinessName AS CompanyName
       FROM SupportTickets t
       JOIN SupportTicketCategories c ON t.CategoryId = c.Id
@@ -191,9 +191,9 @@ router.get('/tickets/:id', async (req, res) => {
       .input('id', sql.Int, parseInt(id))
       .query(`
         SELECT t.*, c.Name AS CategoryName,
-               u.FirstName + ' ' + u.LastName AS CreatedByName,
+               CONCAT(u.FirstName, ' ', u.LastName) AS CreatedByName,
                u.Email AS CreatedByEmail,
-               a.FirstName + ' ' + a.LastName AS AssignedToName,
+               CONCAT(a.FirstName, ' ', a.LastName) AS AssignedToName,
                cl.BusinessName AS CompanyName
         FROM SupportTickets t
         JOIN SupportTicketCategories c ON t.CategoryId = c.Id
@@ -211,7 +211,7 @@ router.get('/tickets/:id', async (req, res) => {
       .input('ticketId', sql.Int, parseInt(id))
       .query(`
         SELECT sc.Id, sc.Comment, sc.CreatedAt,
-               u.FirstName + ' ' + u.LastName AS UserName,
+               CONCAT(u.FirstName, ' ', u.LastName) AS UserName,
                u.Role AS UserRole
         FROM SupportTicketComments sc
         JOIN Users u ON sc.UserId = u.Id
@@ -362,7 +362,7 @@ router.post('/tickets/:id/comments', async (req, res) => {
 
       const commenterResult = await pool.request()
         .input('commenterId', sql.Int, userId)
-        .query("SELECT FirstName + ' ' + LastName AS CommenterName, Role AS CommenterRole FROM Users WHERE Id = @commenterId");
+        .query("SELECT CONCAT(FirstName, ' ', LastName) AS CommenterName, Role AS CommenterRole FROM Users WHERE Id = @commenterId");
 
       if (ticketInfo.recordset.length > 0 && commenterResult.recordset.length > 0) {
         const ticket = ticketInfo.recordset[0];

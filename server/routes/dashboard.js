@@ -67,7 +67,7 @@ router.get('/stats', async (req, res) => {
       const rtResult = await pool.request().query(`
         SELECT TOP 5 t.Id, t.Subject, t.Priority, t.Status, t.CreatedAt,
                c.Name AS CategoryName,
-               u.FirstName + ' ' + u.LastName AS CreatedByName
+               CONCAT(u.FirstName, ' ', u.LastName) AS CreatedByName
         FROM SupportTickets t
         JOIN SupportTicketCategories c ON t.CategoryId = c.Id
         JOIN Users u ON t.CreatedByUserId = u.Id
