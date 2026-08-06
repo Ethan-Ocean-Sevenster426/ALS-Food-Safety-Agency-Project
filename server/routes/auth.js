@@ -2,7 +2,15 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { sql, getPool } = require('../config/db');
-const { sendEmail } = require('../services/emailService');
+const { sendEmail, sendEmailToEach } = require('../services/emailService');
+
+// Admins notified when a new company self-registers (pending approval)
+const REGISTRATION_NOTIFY = [
+  'Armand.visagie@fsa-pty.co.za',
+  'cinga.ngongo@afsq.co.za',
+  'nicole.bergh@afsq.co.za',
+  'simphiwe.mathenjwa@afsq.co.za',
+];
 
 const crypto = require('crypto');
 
@@ -644,6 +652,37 @@ router.post('/register-company', async (req, res) => {
         `INSERT INTO ClientAuditLog (RecordId, FieldName, OldValue, NewValue, ChangedBy)
          VALUES (@recordId, @fieldName, '', @newValue, @changedBy)`
       );
+
+    // Notify the approvals team — best effort, never blocks the registration
+    try {
+      await sendEmailToEach({
+        recipients: REGISTRATION_NOTIFY,
+        subject: `EPVS - New company registration: ${businessName}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: linear-gradient(135deg, #0E7C7B 0%, #065f5e 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+              <h1 style="color: #fff; margin: 0; font-size: 28px;">EPVS</h1>
+              <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">Egg Production Verification System</p>
+            </div>
+            <div style="background: #ffffff; border: 1px solid #e5e7eb; border-top: none; padding: 30px; border-radius: 0 0 12px 12px;">
+              <h2 style="color: #16302e; margin: 0 0 12px;">New company registration awaiting approval</h2>
+              <p style="color: #374151; font-size: 15px;"><strong>${businessName}</strong> has registered on EPVS and is pending approval.</p>
+              <table style="border-collapse: collapse; font-size: 14px; color: #374151;">
+                <tr><td style="padding: 4px 12px 4px 0; color: #6b7280;">Registered by</td><td>${firstName} ${lastName} (${email})</td></tr>
+                <tr><td style="padding: 4px 12px 4px 0; color: #6b7280;">Province</td><td>${facilityProvince || '-'}</td></tr>
+                <tr><td style="padding: 4px 12px 4px 0; color: #6b7280;">Town</td><td>${town || '-'}</td></tr>
+                <tr><td style="padding: 4px 12px 4px 0; color: #6b7280;">Facility type</td><td>${facilityType || '-'}</td></tr>
+              </table>
+              <p style="margin: 20px 0 0;">
+                <a href="https://egg-production-verification.fsa-pty.co.za/clients" style="display: inline-block; background-color: #0E7C7B; color: #ffffff; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-size: 15px; font-weight: 600;">Review &amp; Approve</a>
+              </p>
+            </div>
+          </div>
+        `,
+      });
+    } catch (emailErr) {
+      console.error('Registration notification email failed:', emailErr.message);
+    }
 
     res.status(201).json({ message: 'Registration submitted. Your account is pending approval. You will receive an email once approved.' });
   } catch (err) {

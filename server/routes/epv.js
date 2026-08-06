@@ -1896,7 +1896,31 @@ router.get('/inspector/stats', async (req, res) => {
       `);
     })();
 
+    // 7. This week's winners — most inspections performed since Monday
+    const winners = await (() => {
+      const now2 = new Date();
+      const day = (now2.getDay() + 6) % 7; // Monday = 0
+      const weekStart = new Date(now2.getFullYear(), now2.getMonth(), now2.getDate() - day);
+      const r = pool.request();
+      r.input('weekStart', sql.DateTime, weekStart);
+      return r.query(`
+        SELECT TOP 1 e.ManualInspectionBy AS Name, COUNT(*) AS Cnt
+        FROM EggProductionVerifications e
+        WHERE e.ManualInspection = 1
+          AND e.ManualInspectionBy IS NOT NULL
+          AND e.ManualInspectionAt >= @weekStart
+        GROUP BY e.ManualInspectionBy
+        ORDER BY COUNT(*) DESC
+      `);
+    })();
+    const topInspector = winners.recordset[0];
+
     res.json({
+      weeklyWinners: {
+        mostInspections: topInspector
+          ? { name: topInspector.Name, count: topInspector.Cnt }
+          : null,
+      },
       facilitiesByProvince: facByProv.recordset,
       needVisitThisQuarter: withAssignedInspector(needVisit.recordset),
       outstandingByFacility: withAssignedInspector(outstanding.recordset),

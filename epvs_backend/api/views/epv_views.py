@@ -1957,7 +1957,30 @@ def inspector_stats(request):
             reverse=True,
         )
 
+        # 7. This week's winners — most inspections performed since Monday
+        from datetime import timedelta as _td
+        from django.db.models import Count as _Count
+        _now = timezone.localtime()
+        week_start = (_now - _td(days=_now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+        top_inspector = (
+            EggProductionVerification.objects
+            .filter(manual_inspection=True,
+                    manual_inspection_by__isnull=False,
+                    manual_inspection_at__gte=week_start)
+            .values('manual_inspection_by')
+            .annotate(cnt=_Count('id'))
+            .order_by('-cnt')
+            .first()
+        )
+        weekly_winners = {
+            'mostInspections': (
+                {'name': top_inspector['manual_inspection_by'], 'count': top_inspector['cnt']}
+                if top_inspector else None
+            ),
+        }
+
         return Response({
+            'weeklyWinners': weekly_winners,
             'facilitiesByProvince': facilities_by_province,
             'needVisitThisQuarter': need_visit,
             'outstandingByFacility': outstanding_by_facility,

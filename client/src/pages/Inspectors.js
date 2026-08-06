@@ -475,6 +475,29 @@ function Inspectors() {
         );
       })()}
 
+      {/* This Week's Winners */}
+      {stats?.weeklyWinners && (
+        <div className="insp-module">
+          <div className="insp-module-title">This Week's Winners</div>
+          <div className="insp-winners-row">
+            <div className="insp-winner-card">
+              <span className="insp-winner-trophy" aria-hidden="true">🏆</span>
+              <div>
+                <div className="insp-winner-cat">Most Inspections</div>
+                {stats.weeklyWinners.mostInspections ? (
+                  <>
+                    <div className="insp-winner-name">{stats.weeklyWinners.mostInspections.name}</div>
+                    <div className="insp-winner-count">{formatNum(stats.weeklyWinners.mostInspections.count)} inspection{stats.weeklyWinners.mostInspections.count === 1 ? '' : 's'}</div>
+                  </>
+                ) : (
+                  <div className="insp-winner-empty">No inspections logged yet this week.</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Action Items + Financial Summary */}
       <div className="insp-module">
         <div className="insp-module-title">Action Items & Statistics</div>
